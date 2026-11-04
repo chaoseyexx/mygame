@@ -1,7 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include "ServerGUI.hpp"
-#include "ServerSystemUtils.hpp"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
@@ -132,18 +131,6 @@ bool ServerGUI::init(int width, int height) {
     ImGui_ImplOpenGL3_Init("#version 330");
 
     m_server = std::make_unique<HubServer>();
-
-    // Initial check of Windows Service and Firewall Status
-    m_serviceState = ServerSystemUtils::GetServiceState();
-    if (m_serviceState == 2) m_serviceStatusMsg = "Windows Background Service: RUNNING 24/7";
-    else if (m_serviceState == 1) m_serviceStatusMsg = "Windows Background Service: INSTALLED (STOPPED)";
-    else m_serviceStatusMsg = "Windows Background Service: NOT INSTALLED";
-
-    m_firewallConfigured = ServerSystemUtils::CheckFirewallRule(static_cast<uint16_t>(m_serverPort));
-    if (m_firewallConfigured) {
-        m_firewallStatusMsg = "Windows Defender Firewall: INGRESS OPEN (PORT 7777 UDP)";
-    }
-
     return true;
 }
 
@@ -216,7 +203,7 @@ void ServerGUI::run() {
                 case 0: renderTabSessions(); break;
                 case 1: renderTabHexWarzone(); break;
                 case 2: renderTabPlayers(); break;
-                case 3: renderTabSetupService(); break;
+                case 3: renderTabSettings(); break;
                 case 4: renderTabConsole(); break;
                 default: renderTabSessions(); break;
             }
@@ -301,7 +288,7 @@ void ServerGUI::renderTabNavigation() {
         "LIVE SESSIONS & ROOMS",
         "6-HEX WARZONE THEATER",
         "OPERATIVES ROSTER",
-        "1-CLICK RDP SETUP & 24/7 SERVICE",
+        "SERVER SETTINGS",
         "TACTICAL CONSOLE & LOGS"
     };
 
@@ -586,93 +573,45 @@ void ServerGUI::renderTabPlayers() {
     }
 }
 
-void ServerGUI::renderTabSetupService() {
+void ServerGUI::renderTabSettings() {
     float availW = ImGui::GetContentRegionAvail().x;
-    ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "1-CLICK RDP SETUP & 24/7 WINDOWS SERVICE SUITE");
+    ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "SERVER CONFIGURATION & TOPOLOGY SETTINGS");
     ImGui::Separator();
     ImGui::Spacing();
 
-    // ================= SECTION 1: 1-CLICK FIREWALL CONFIGURATION =================
-    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "[1] WINDOWS DEFENDER FIREWALL CONFIGURATION");
-    ImGui::TextDisabled("Opens UDP ingress port 7777 on this RDP so global players can connect without blocking.");
-    ImGui::Spacing();
-
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.70f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.55f, 0.85f, 1.0f));
-    if (ImGui::Button("FIREWALL SETUP: OPEN UDP PORT 7777", ImVec2(320, 34))) {
-        m_firewallConfigured = ServerSystemUtils::SetupFirewallRule(static_cast<uint16_t>(m_serverPort), m_firewallStatusMsg);
+    // Operational Role Selection
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "SERVER OPERATIONAL ROLE:");
+    int r = static_cast<int>(m_role);
+    if (ImGui::RadioButton("Continental Hex Master Server (Authoritative 6-Hex Warzone)", r == 0)) {
+        m_role = ServerRole::ContinentalHexMaster;
     }
-    ImGui::PopStyleColor(2);
-
-    ImGui::SameLine();
-    if (ImGui::Button("CHECK FIREWALL STATUS", ImVec2(180, 34))) {
-        m_firewallConfigured = ServerSystemUtils::CheckFirewallRule(static_cast<uint16_t>(m_serverPort));
-        if (m_firewallConfigured) {
-            m_firewallStatusMsg = "Windows Defender Firewall: INGRESS OPEN (PORT 7777 UDP)";
-        } else {
-            m_firewallStatusMsg = "Warning: Port 7777 UDP is NOT currently open in Firewall.";
-        }
+    if (ImGui::RadioButton("Edge Ingress Relay (Lightweight Traffic Accelerator)", r == 1)) {
+        m_role = ServerRole::VercelEdgeRelay;
     }
-
-    ImVec4 fwCol = m_firewallConfigured ? ImVec4(0.35f, 0.95f, 0.45f, 1.0f) : ImVec4(1.0f, 0.80f, 0.35f, 1.0f);
-    ImGui::TextColored(fwCol, "Status: %s", m_firewallStatusMsg.c_str());
 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
 
-    // ================= SECTION 2: 24/7 WINDOWS BACKGROUND SERVICE =================
-    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "[2] WINDOWS 24/7 BACKGROUND SERVICE (AUTO-START ON REBOOT)");
-    ImGui::TextDisabled("Installs MercenaryServer as a native Windows NT Service. The server starts automatically when\n"
-                        "the RDP boots up, even before anyone logs in. Eliminates all external .bat and .vbs scripts!");
-    ImGui::Spacing();
-
-    m_serviceState = ServerSystemUtils::GetServiceState();
-    ImVec4 svcCol = (m_serviceState == 2) ? ImVec4(0.35f, 0.95f, 0.45f, 1.0f) :
-                    ((m_serviceState == 1) ? ImVec4(1.0f, 0.85f, 0.35f, 1.0f) : ImVec4(0.95f, 0.40f, 0.40f, 1.0f));
-    const char* svcStateStr = (m_serviceState == 2) ? "[SERVICE: RUNNING 24/7]" :
-                             ((m_serviceState == 1) ? "[SERVICE: STOPPED]" : "[SERVICE: NOT INSTALLED]");
-    ImGui::TextColored(svcCol, "Current State: %s", svcStateStr);
-    ImGui::Spacing();
-
-    if (ImGui::Button("INSTALL AS WINDOWS SERVICE", ImVec2(240, 32))) {
-        ServerSystemUtils::InstallService(static_cast<uint16_t>(m_serverPort), m_serviceStatusMsg);
-        m_serviceState = ServerSystemUtils::GetServiceState();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("START SERVICE", ImVec2(130, 32))) {
-        ServerSystemUtils::StartWindowsService(m_serviceStatusMsg);
-        m_serviceState = ServerSystemUtils::GetServiceState();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("STOP SERVICE", ImVec2(130, 32))) {
-        ServerSystemUtils::StopWindowsService(m_serviceStatusMsg);
-        m_serviceState = ServerSystemUtils::GetServiceState();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("UNINSTALL SERVICE", ImVec2(150, 32))) {
-        ServerSystemUtils::UninstallService(m_serviceStatusMsg);
-        m_serviceState = ServerSystemUtils::GetServiceState();
-    }
-
-    ImGui::TextDisabled("Output: %s", m_serviceStatusMsg.c_str());
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // ================= SECTION 3: IN-PROCESS WATCHDOG & TOPOLOGY =================
-    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "[3] SUPERVISOR & CRASH WATCHDOG");
-    ImGui::Checkbox("Auto-Restart Simulation Loop on Unhandled Exception", &m_autoRestartOnCrash);
-    ImGui::Spacing();
-
-    ImGui::InputInt("Shard Port (UDP)", &m_serverPort);
+    // Network & Capacity
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "NETWORK & SIMULATION CAPACITY:");
+    ImGui::InputInt("Ingress Port (UDP)", &m_serverPort);
     ImGui::InputInt("Max Player Capacity", &m_maxPlayers);
+    ImGui::Checkbox("Auto-Restart on Crash (Watchdog Supervisor)", &m_autoRestartOnCrash);
+
+    if (m_role == ServerRole::VercelEdgeRelay) {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "EDGE RELAY UPSTREAM TUNNEL CONFIG:");
+        ImGui::InputText("Upstream Host / IP", m_upstreamHost, sizeof(m_upstreamHost));
+        ImGui::InputInt("Upstream Port", &m_upstreamPort);
+        ImGui::InputText("Region Identifier", m_regionName, sizeof(m_regionName));
+    }
 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
 
+    // Database Status
     ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "DATABASE & STORAGE ENGINE STATUS:");
     ImGui::BulletText("Authoritative SQLite Database: mercenary_master.db");
     ImGui::BulletText("Storage Mode: WAL (Write-Ahead Logging)");

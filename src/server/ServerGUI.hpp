@@ -1,7 +1,6 @@
 #pragma once
 
 #include "HubServer.hpp"
-#include "ServerSystemUtils.hpp"
 #include <string>
 #include <vector>
 #include <memory>
@@ -22,7 +21,7 @@ public:
     ServerGUI();
     ~ServerGUI();
 
-    bool init(int width = 1080, int height = 720);
+    bool init(int width = 1120, int height = 750);
     void run();
     void shutdown();
 
@@ -31,8 +30,8 @@ public:
 
 private:
     GLFWwindow* m_window = nullptr;
-    int m_windowWidth = 1080;
-    int m_windowHeight = 720;
+    int m_windowWidth = 1120;
+    int m_windowHeight = 750;
 
     std::unique_ptr<HubServer> m_server;
     std::thread m_serverThread;
@@ -47,19 +46,11 @@ private:
     int m_upstreamPort = 7777;
     char m_regionName[64] = "EU_CENTRAL_01";
     char m_broadcastMsg[128] = "";
+    char m_playerSearch[64] = "";
 
     int m_activeTab = 0;
     float m_uptimeSeconds = 0.0f;
     std::string m_serverStatusText = "STANDBY / OFFLINE";
-
-    // UI State & Actions
-    bool m_firewallConfigured = false;
-    std::string m_firewallStatusMsg = "Click '1-Click Setup' to configure Windows Firewall for UDP 7777";
-    int m_serviceState = 0; // 0: Not Installed, 1: Stopped, 2: Running, 3: Pending
-    std::string m_serviceStatusMsg = "Windows Background Service: Not Installed";
-    char m_newSessionMap[64] = "killhouse";
-    int m_newSessionMode = 1; // 1: TDM, 2: Infiltration
-    char m_playerSearch[64] = "";
 
     // UI Render Passes
     void renderHeaderBar();
@@ -67,7 +58,7 @@ private:
     void renderTabSessions();       // Tab 0: Live Sessions & Micro-Instance Matrix
     void renderTabHexWarzone();     // Tab 1: 6-Hex Continental Frontline
     void renderTabPlayers();        // Tab 2: Operatives Management Roster
-    void renderTabSetupService();   // Tab 3: 1-Click RDP Setup & 24/7 Windows Service
+    void renderTabSettings();       // Tab 3: Server Configuration & Topology
     void renderTabConsole();        // Tab 4: Live Server Console & Logs
 
     void applyDarkTacticalTheme();
