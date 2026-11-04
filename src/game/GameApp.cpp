@@ -1142,8 +1142,10 @@ void GameApp::run() {
                         }
                     }
 
+                    bestSpawn.y = World::sampleTerrainHeight(bestSpawn.x, bestSpawn.z);
                     player.setPosition(bestSpawn);
                     player.setYaw((pFaction == Faction::FactionA) ? 0.0f : 3.14159265f);
+                    camera.snapToTarget(player.getPosition());
                     AudioEngine::get().playSound(SoundType::DeployHorn);
                     ui.showTargetHitBanner("OPERATIVE DEPLOYED // TACTICAL SPAWN SHIELD ACTIVE (4.0s)");
                 }
@@ -1480,6 +1482,31 @@ void GameApp::run() {
             }
             s_fKeyLast = s_fKey;
 
+            // TDM Match End Flow & Clean Return to Hideout
+            if (frontline.isTdmMode() && frontline.isTdmMatchOver()) {
+                if (ui.getTdmEndTimer() <= 0.0f) {
+                    ui.setTdmEndTimer(7.0f);
+                    Faction winner = frontline.getTdmWinner();
+                    if (winner == player.getFaction()) {
+                        AudioEngine::get().playSound(SoundType::DeployHorn, 0.90f);
+                    } else {
+                        AudioEngine::get().playSound(SoundType::Impact, 0.90f, 0.60f);
+                    }
+                }
+                float newEndTimer = ui.getTdmEndTimer() - dt;
+                ui.setTdmEndTimer(newEndTimer);
+                bool spaceOrEsc = window.isKeyPressed(GLFW_KEY_SPACE) || window.isKeyPressed(GLFW_KEY_ESCAPE);
+                if (newEndTimer <= 0.0f || (spaceOrEsc && newEndTimer < 5.5f)) {
+                    ui.setTdmEndTimer(0.0f);
+                    frontline.resetTdmMatch();
+                    ui.setGameState(GameState::MainMenu);
+                    camera.resetToOrbit();
+                    window.setCursorCaptured(false);
+                }
+            } else {
+                ui.setTdmEndTimer(0.0f);
+            }
+
             // Update Active Frontline AI Battle (Team A bots vs Team B bots)
             bool isPvPOnlyTdm = frontline.isTdmMode() && !ui.isTdmAgainstAi() && (NetworkEngine::get().isClientConnected() || ui.isOnlineMultiplayer());
             if (isPvPOnlyTdm) {
@@ -1570,6 +1597,10 @@ void GameApp::run() {
                         }
 
                         if (bot.health <= 0.0f) {
+                            if (frontline.isTdmMode()) {
+                                Faction killerFac = (exp.faction != Faction::None) ? exp.faction : (exp.isPlayer ? player.getFaction() : Faction::FactionA);
+                                frontline.recordTdmKill(killerFac);
+                            }
                             bot.state = BotState::Dead;
                             CharacterCustomization botCustom;
                             if (bot.faction == Faction::FactionB) {
@@ -2035,7 +2066,7 @@ void GameApp::run() {
                                 GoreSystem::get().spawnBloodBurst(closestPt, bullet.velocity, 50, 1.25f);
 
                                 // Drop bot's weapon ONLY in Warzone
-                                if (world.getMapType() != MapType::TrainingBase) {
+                                if (world.getMapType() == MapType::Warzone) {
                                     SupplyCrate botLoot;
                                     botLoot.position = bot.position + glm::vec3(0.0f, 0.05f, 0.0f);
                                     botLoot.name = bot.rank + " " + bot.callsign + "'s Weapon";

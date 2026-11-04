@@ -1652,19 +1652,41 @@ void UIManager::renderTdmMatchHUD(const FrontlineWarfare* frontline, float scree
     dl->AddText(ImVec2(startX + barW - 130, startY + 14), IM_COL32(255, 255, 255, 255), scoreBStr.c_str());
     dl->AddText(ImVec2(startX + barW - 85, startY + 14), IM_COL32(255, 200, 200, 255), "CRIMSON");
 
-    // Match Over Announcement Banner
+    // Match Over Announcement Banner & End-of-Match Breakdown
     if (frontline->isTdmMatchOver()) {
         Faction win = frontline->getTdmWinner();
         std::string winMsg = (win == Faction::FactionA) ? "VANGUARD VICTORY" : ((win == Faction::FactionB) ? "CRIMSON VICTORY" : "MATCH DRAW");
         ImU32 winCol = (win == Faction::FactionA) ? IM_COL32(45, 150, 255, 255) : ((win == Faction::FactionB) ? IM_COL32(255, 60, 50, 255) : IM_COL32(230, 210, 60, 255));
-        float bannerW = 460.0f;
-        float bannerH = 44.0f;
-        float bX = (screenW - bannerW) * 0.5f;
-        float bY = startY + barH + 12.0f;
-        dl->AddRectFilled(ImVec2(bX, bY), ImVec2(bX + bannerW, bY + bannerH), IM_COL32(12, 16, 22, 240), 6.0f);
-        dl->AddRect(ImVec2(bX, bY), ImVec2(bX + bannerW, bY + bannerH), winCol, 6.0f, 0, 1.8f);
+
+        // Center Full Tactical Victory/Defeat Modal
+        float modalW = 540.0f;
+        float modalH = 155.0f;
+        float mX = (screenW - modalW) * 0.5f;
+        float mY = screenH * 0.32f;
+
+        // Dark frosted backdrop with faction-themed illuminated border
+        dl->AddRectFilled(ImVec2(mX, mY), ImVec2(mX + modalW, mY + modalH), IM_COL32(8, 12, 16, 248), 8.0f);
+        dl->AddRect(ImVec2(mX, mY), ImVec2(mX + modalW, mY + modalH), winCol, 8.0f, 0, 2.2f);
+
+        // Header Subtitle
+        const char* subTitle = "OPERATION CONCLUDED // 5v5 TEAM DEATHMATCH";
+        ImVec2 subSz = ImGui::CalcTextSize(subTitle);
+        dl->AddText(ImVec2(mX + (modalW - subSz.x) * 0.5f, mY + 16.0f), IM_COL32(160, 175, 195, 230), subTitle);
+
+        // Main Outcome
         ImVec2 sz = ImGui::CalcTextSize(winMsg.c_str());
-        dl->AddText(ImVec2(bX + (bannerW - sz.x) * 0.5f, bY + (bannerH - sz.y) * 0.5f), winCol, winMsg.c_str());
+        dl->AddText(ImVec2(mX + (modalW - sz.x) * 0.5f, mY + 42.0f), winCol, winMsg.c_str());
+
+        // Final Scoreline
+        std::string scoreSummary = "FINAL SCORE: VANGUARD " + std::to_string(teamAScore) + " - " + std::to_string(teamBScore) + " CRIMSON";
+        ImVec2 scSz = ImGui::CalcTextSize(scoreSummary.c_str());
+        dl->AddText(ImVec2(mX + (modalW - scSz.x) * 0.5f, mY + 76.0f), IM_COL32(230, 235, 245, 255), scoreSummary.c_str());
+
+        // Return Countdown
+        int secRemaining = std::max(0, static_cast<int>(std::ceil(m_tdmEndTimer)));
+        std::string countStr = "RETURNING TO HIDEOUT IN " + std::to_string(secRemaining) + "s  //  [PRESS SPACE TO EXIT]";
+        ImVec2 cSz = ImGui::CalcTextSize(countStr.c_str());
+        dl->AddText(ImVec2(mX + (modalW - cSz.x) * 0.5f, mY + 112.0f), IM_COL32(140, 210, 160, 240), countStr.c_str());
     }
 }
 
