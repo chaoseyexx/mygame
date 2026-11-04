@@ -193,6 +193,7 @@ target_link_libraries(MercenaryEngine PUBLIC
     meshoptimizer
     ktx
     wininet
+    dwmapi
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/steam-audio-sdk/steamaudio/lib/windows-x64/phonon.lib
 )
 

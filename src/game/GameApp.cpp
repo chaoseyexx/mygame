@@ -1635,6 +1635,7 @@ void GameApp::run() {
 
             PlayerNetworkState localNetState;
             localNetState.position = player.getPosition();
+            localNetState.velocity = player.getVelocity();
             localNetState.yaw = player.getYaw();
             localNetState.stance = static_cast<uint8_t>(player.getStats().stance);
             localNetState.isSprinting = player.getStats().isSprinting ? 1 : 0;
@@ -2332,7 +2333,8 @@ void GameApp::run() {
                 rWeapon = "None";
             }
 
-            glm::vec3 aimTarget = rPos + glm::vec3(std::sin(rYaw), 0.0f, std::cos(rYaw)) * 10.0f;
+            float aimH = (rStance == 1 ? 0.95f : (rStance == 2 ? 0.35f : 1.40f));
+            glm::vec3 aimTarget = rPos + glm::vec3(0.0f, aimH, 0.0f) + glm::vec3(std::sin(rYaw), 0.0f, std::cos(rYaw)) * 10.0f;
 
             remote.rig->setActiveWeaponName(rWeapon);
             remote.rig->update9D(dt, rPos, rYaw, aimTarget, rVel, rMoving, rSprinting, rStance, rFiring, rAiming, (rWeapon != "None"));

@@ -864,14 +864,21 @@ void NetworkEngine::updateClient(float dt, const PlayerNetworkState& localState,
             deadRemotes.push_back(id);
             continue;
         }
-        float blendAlpha = std::clamp(dt * 18.0f, 0.0f, 1.0f);
-        remote.currentState.position += (remote.targetState.position - remote.currentState.position) * blendAlpha;
-        
-        // Shortest angular difference for seamless rotation without 360 spin artifacts
-        float dyaw = remote.targetState.yaw - remote.currentState.yaw;
-        while (dyaw < -3.14159265f) dyaw += 6.2831853f;
-        while (dyaw > 3.14159265f)  dyaw -= 6.2831853f;
-        remote.currentState.yaw += dyaw * blendAlpha;
+        float snapDist = glm::distance(remote.targetState.position, remote.currentState.position);
+        if (snapDist > 12.0f) {
+            // Immediate snap on respawn / teleport to prevent long slide across map
+            remote.currentState.position = remote.targetState.position;
+            remote.currentState.yaw = remote.targetState.yaw;
+        } else {
+            float blendAlpha = std::clamp(dt * 18.0f, 0.0f, 1.0f);
+            remote.currentState.position += (remote.targetState.position - remote.currentState.position) * blendAlpha;
+            
+            // Shortest angular difference for seamless rotation without 360 spin artifacts
+            float dyaw = remote.targetState.yaw - remote.currentState.yaw;
+            while (dyaw < -3.14159265f) dyaw += 6.2831853f;
+            while (dyaw > 3.14159265f)  dyaw -= 6.2831853f;
+            remote.currentState.yaw += dyaw * blendAlpha;
+        }
     }
     for (uint32_t id : deadRemotes) {
         m_remotePlayers.erase(id);
