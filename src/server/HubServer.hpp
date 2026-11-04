@@ -40,6 +40,36 @@ enum class SessionLifecycle : uint8_t {
     ExtractionRaid40M = 2  // On-demand raid, strict 40-minute countdown, remains alive even if empty, extracts loot & self-destructs at 40:00
 };
 
+struct SessionSummary {
+    uint32_t id = 0;
+    GameMode mode = GameMode::OpenWorld;
+    std::string name;
+    std::string mapName;
+    uint16_t currentPlayers = 0;
+    uint16_t maxPlayers = 64;
+    SessionLifecycle lifecycle = SessionLifecycle::PersistentMMO;
+    float sessionAge = 0.0f;
+    int16_t coalitionTickets = 100;
+    int16_t crimsonTickets = 100;
+    float roundTimer = 600.0f;
+    uint8_t matchStatus = 0;
+    float raidTimer = 2400.0f;
+    bool exfilActive = false;
+};
+
+struct ClientSummary {
+    uint32_t id = 0;
+    std::string ipStr;
+    uint16_t port = 0;
+    uint32_t sessionId = 1001;
+    glm::vec3 position{0.0f};
+    float yaw = 0.0f;
+    uint8_t faction = 0;
+    uint8_t stance = 0;
+    int pingMs = 30;
+    float lastHeartbeat = 0.0f;
+};
+
 struct HubSession {
     uint32_t id = 0;
     GameMode mode = GameMode::OpenWorld;
@@ -103,6 +133,10 @@ public:
     std::string getPublicIP() const { return m_publicIP; }
     void setShardName(const std::string& name) { m_shardName = name; }
     void setRegion(const std::string& region) { m_regionName = region; }
+    std::vector<SessionSummary> getSessionsSnapshot() const;
+    std::vector<ClientSummary> getClientsSnapshot() const;
+    uint32_t spawnCustomTdm(const std::string& mapName);
+    uint32_t spawnCustomInfiltration(const std::string& mapName);
     std::vector<std::string> getLogMessages() const;
     void appendLog(const std::string& msg);
 

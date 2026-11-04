@@ -1,6 +1,7 @@
 #pragma once
 
 #include "HubServer.hpp"
+#include "ServerSystemUtils.hpp"
 #include <string>
 #include <vector>
 #include <memory>
@@ -51,14 +52,23 @@ private:
     float m_uptimeSeconds = 0.0f;
     std::string m_serverStatusText = "STANDBY / OFFLINE";
 
+    // UI State & Actions
+    bool m_firewallConfigured = false;
+    std::string m_firewallStatusMsg = "Click '1-Click Setup' to configure Windows Firewall for UDP 7777";
+    int m_serviceState = 0; // 0: Not Installed, 1: Stopped, 2: Running, 3: Pending
+    std::string m_serviceStatusMsg = "Windows Background Service: Not Installed";
+    char m_newSessionMap[64] = "killhouse";
+    int m_newSessionMode = 1; // 1: TDM, 2: Infiltration
+    char m_playerSearch[64] = "";
+
     // UI Render Passes
     void renderHeaderBar();
     void renderTabNavigation();
-    void renderTabOverview();
-    void renderTabPlayers();
-    void renderTabHexWarzone();
-    void renderTabConsole();
-    void renderTabSettings();
+    void renderTabSessions();       // Tab 0: Live Sessions & Micro-Instance Matrix
+    void renderTabHexWarzone();     // Tab 1: 6-Hex Continental Frontline
+    void renderTabPlayers();        // Tab 2: Operatives Management Roster
+    void renderTabSetupService();   // Tab 3: 1-Click RDP Setup & 24/7 Windows Service
+    void renderTabConsole();        // Tab 4: Live Server Console & Logs
 
     void applyDarkTacticalTheme();
 };

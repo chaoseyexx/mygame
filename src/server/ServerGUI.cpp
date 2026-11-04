@@ -1,25 +1,23 @@
+#define WIN32_LEAN_AND_MEAN
+#define GLFW_EXPOSE_NATIVE_WIN32
 #include "ServerGUI.hpp"
+#include "ServerSystemUtils.hpp"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <iostream>
+#include <chrono>
 #include <algorithm>
-#include <iomanip>
-#include <sstream>
-
-#ifdef _WIN32
-#define GLFW_EXPOSE_NATIVE_WIN32
-#include <GLFW/glfw3native.h>
-#include <windows.h>
 #include <dwmapi.h>
-#endif
+
+#pragma comment(lib, "dwmapi.lib")
 
 namespace Mercenary {
 
-ServerGUI::ServerGUI() {
-}
+ServerGUI::ServerGUI() {}
 
 ServerGUI::~ServerGUI() {
     shutdown();
@@ -28,39 +26,62 @@ ServerGUI::~ServerGUI() {
 void ServerGUI::applyDarkTacticalTheme() {
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowRounding = 6.0f;
+    style.ChildRounding = 4.0f;
     style.FrameRounding = 4.0f;
-    style.GrabRounding = 4.0f;
-    style.PopupRounding = 6.0f;
+    style.PopupRounding = 4.0f;
     style.ScrollbarRounding = 4.0f;
+    style.GrabRounding = 3.0f;
     style.TabRounding = 4.0f;
-    style.WindowBorderSize = 1.0f;
-    style.FrameBorderSize = 1.0f;
-    style.WindowPadding = ImVec2(16, 16);
-    style.ItemSpacing = ImVec2(10, 8);
+
+    style.WindowPadding = ImVec2(12, 12);
+    style.FramePadding = ImVec2(8, 5);
+    style.ItemSpacing = ImVec2(8, 8);
+    style.ItemInnerSpacing = ImVec2(6, 6);
 
     ImVec4* colors = style.Colors;
-    colors[ImGuiCol_WindowBg]             = ImVec4(0.07f, 0.08f, 0.10f, 1.00f);
-    colors[ImGuiCol_Border]               = ImVec4(0.20f, 0.24f, 0.30f, 0.60f);
-    colors[ImGuiCol_Text]                 = ImVec4(0.92f, 0.94f, 0.96f, 1.00f);
-    colors[ImGuiCol_TextDisabled]         = ImVec4(0.45f, 0.50f, 0.58f, 1.00f);
-    colors[ImGuiCol_Header]               = ImVec4(0.14f, 0.18f, 0.24f, 1.00f);
-    colors[ImGuiCol_HeaderHovered]        = ImVec4(0.20f, 0.28f, 0.38f, 1.00f);
-    colors[ImGuiCol_HeaderActive]         = ImVec4(0.18f, 0.38f, 0.58f, 1.00f);
-    colors[ImGuiCol_Button]               = ImVec4(0.13f, 0.17f, 0.23f, 1.00f);
-    colors[ImGuiCol_ButtonHovered]        = ImVec4(0.22f, 0.32f, 0.45f, 1.00f);
-    colors[ImGuiCol_ButtonActive]         = ImVec4(0.18f, 0.45f, 0.70f, 1.00f);
-    colors[ImGuiCol_FrameBg]              = ImVec4(0.10f, 0.12f, 0.16f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered]       = ImVec4(0.16f, 0.20f, 0.26f, 1.00f);
-    colors[ImGuiCol_FrameBgActive]        = ImVec4(0.20f, 0.26f, 0.34f, 1.00f);
-    colors[ImGuiCol_Tab]                  = ImVec4(0.10f, 0.13f, 0.18f, 1.00f);
-    colors[ImGuiCol_TabHovered]           = ImVec4(0.22f, 0.35f, 0.50f, 1.00f);
-    colors[ImGuiCol_TabSelected]          = ImVec4(0.16f, 0.38f, 0.62f, 1.00f);
-    colors[ImGuiCol_TabDimmed]            = ImVec4(0.08f, 0.10f, 0.14f, 1.00f);
-    colors[ImGuiCol_TabDimmedSelected]    = ImVec4(0.12f, 0.20f, 0.30f, 1.00f);
-    colors[ImGuiCol_ScrollbarBg]          = ImVec4(0.06f, 0.07f, 0.09f, 0.60f);
-    colors[ImGuiCol_ScrollbarGrab]        = ImVec4(0.20f, 0.24f, 0.30f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.30f, 0.36f, 0.45f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabActive]  = ImVec4(0.35f, 0.48f, 0.65f, 1.00f);
+    colors[ImGuiCol_Text]                  = ImVec4(0.92f, 0.94f, 0.96f, 1.00f);
+    colors[ImGuiCol_TextDisabled]          = ImVec4(0.50f, 0.55f, 0.60f, 1.00f);
+    colors[ImGuiCol_WindowBg]              = ImVec4(0.08f, 0.09f, 0.11f, 1.00f);
+    colors[ImGuiCol_ChildBg]               = ImVec4(0.11f, 0.13f, 0.16f, 1.00f);
+    colors[ImGuiCol_PopupBg]               = ImVec4(0.10f, 0.12f, 0.15f, 0.98f);
+    colors[ImGuiCol_Border]                = ImVec4(0.20f, 0.24f, 0.30f, 0.80f);
+    colors[ImGuiCol_BorderShadow]          = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_FrameBg]               = ImVec4(0.14f, 0.17f, 0.22f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered]        = ImVec4(0.18f, 0.22f, 0.28f, 1.00f);
+    colors[ImGuiCol_FrameBgActive]         = ImVec4(0.22f, 0.28f, 0.35f, 1.00f);
+    colors[ImGuiCol_TitleBg]               = ImVec4(0.06f, 0.07f, 0.09f, 1.00f);
+    colors[ImGuiCol_TitleBgActive]         = ImVec4(0.12f, 0.18f, 0.25f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed]      = ImVec4(0.06f, 0.07f, 0.09f, 0.60f);
+    colors[ImGuiCol_MenuBarBg]             = ImVec4(0.10f, 0.12f, 0.15f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg]           = ImVec4(0.08f, 0.09f, 0.11f, 0.60f);
+    colors[ImGuiCol_ScrollbarGrab]         = ImVec4(0.22f, 0.26f, 0.32f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered]  = ImVec4(0.28f, 0.34f, 0.42f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive]   = ImVec4(0.35f, 0.42f, 0.52f, 1.00f);
+    colors[ImGuiCol_CheckMark]             = ImVec4(0.35f, 0.85f, 0.55f, 1.00f);
+    colors[ImGuiCol_SliderGrab]            = ImVec4(0.25f, 0.55f, 0.85f, 1.00f);
+    colors[ImGuiCol_SliderGrabActive]      = ImVec4(0.35f, 0.68f, 0.98f, 1.00f);
+    colors[ImGuiCol_Button]                = ImVec4(0.16f, 0.22f, 0.29f, 1.00f);
+    colors[ImGuiCol_ButtonHovered]         = ImVec4(0.22f, 0.32f, 0.42f, 1.00f);
+    colors[ImGuiCol_ButtonActive]          = ImVec4(0.28f, 0.40f, 0.54f, 1.00f);
+    colors[ImGuiCol_Header]                = ImVec4(0.16f, 0.22f, 0.29f, 1.00f);
+    colors[ImGuiCol_HeaderHovered]         = ImVec4(0.22f, 0.30f, 0.40f, 1.00f);
+    colors[ImGuiCol_HeaderActive]          = ImVec4(0.26f, 0.36f, 0.48f, 1.00f);
+    colors[ImGuiCol_Separator]             = ImVec4(0.20f, 0.24f, 0.30f, 0.80f);
+    colors[ImGuiCol_SeparatorHovered]      = ImVec4(0.28f, 0.36f, 0.46f, 1.00f);
+    colors[ImGuiCol_SeparatorActive]       = ImVec4(0.35f, 0.45f, 0.58f, 1.00f);
+    colors[ImGuiCol_ResizeGrip]            = ImVec4(0.20f, 0.25f, 0.32f, 0.50f);
+    colors[ImGuiCol_ResizeGripHovered]     = ImVec4(0.30f, 0.40f, 0.52f, 0.80f);
+    colors[ImGuiCol_ResizeGripActive]      = ImVec4(0.40f, 0.55f, 0.70f, 1.00f);
+    colors[ImGuiCol_Tab]                   = ImVec4(0.12f, 0.15f, 0.19f, 1.00f);
+    colors[ImGuiCol_TabHovered]            = ImVec4(0.22f, 0.32f, 0.44f, 1.00f);
+    colors[ImGuiCol_TabSelected]           = ImVec4(0.18f, 0.28f, 0.38f, 1.00f);
+    colors[ImGuiCol_TabDimmed]             = ImVec4(0.09f, 0.11f, 0.14f, 1.00f);
+    colors[ImGuiCol_TabDimmedSelected]     = ImVec4(0.14f, 0.19f, 0.25f, 1.00f);
+    colors[ImGuiCol_TableHeaderBg]         = ImVec4(0.12f, 0.16f, 0.21f, 1.00f);
+    colors[ImGuiCol_TableBorderStrong]     = ImVec4(0.22f, 0.28f, 0.36f, 1.00f);
+    colors[ImGuiCol_TableBorderLight]      = ImVec4(0.16f, 0.20f, 0.26f, 1.00f);
+    colors[ImGuiCol_TableRowBg]            = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_TableRowBgAlt]         = ImVec4(1.00f, 1.00f, 1.00f, 0.03f);
 }
 
 bool ServerGUI::init(int width, int height) {
@@ -68,7 +89,7 @@ bool ServerGUI::init(int width, int height) {
     m_windowHeight = height;
 
     if (!glfwInit()) {
-        std::cerr << "[ServerGUI] Failed to initialize GLFW.\n";
+        std::cerr << "[ServerGUI Error] Failed to initialize GLFW.\n";
         return false;
     }
 
@@ -77,33 +98,29 @@ bool ServerGUI::init(int width, int height) {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-    m_window = glfwCreateWindow(m_windowWidth, m_windowHeight, 
-                                "MERCENARY: WARZONE // DEDICATED SERVER CONTROL CENTER", 
-                                nullptr, nullptr);
+    m_window = glfwCreateWindow(m_windowWidth, m_windowHeight, "MERCENARY: WARZONE // CONTINENTAL SERVER COMMAND CENTER", nullptr, nullptr);
     if (!m_window) {
-        std::cerr << "[ServerGUI] Failed to create GLFW window.\n";
+        std::cerr << "[ServerGUI Error] Failed to create GLFW window.\n";
         glfwTerminate();
         return false;
     }
 
     glfwMakeContextCurrent(m_window);
-    glfwSwapInterval(1); // 60 FPS V-Sync for GUI
+    glfwSwapInterval(1); // Enable VSync
 
     if (!gladLoadGL(glfwGetProcAddress)) {
-        std::cerr << "[ServerGUI] Failed to initialize GLAD OpenGL loader.\n";
-        glfwDestroyWindow(m_window);
-        glfwTerminate();
+        std::cerr << "[ServerGUI Error] Failed to initialize GLAD.\n";
         return false;
     }
 
-#ifdef _WIN32
+    // Windows 11 Dark Mica / Acrylic Border Window Attribute
     HWND hwnd = glfwGetWin32Window(m_window);
     if (hwnd) {
-        BOOL dark = TRUE;
-        DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof(dark));
+        BOOL useDarkMode = TRUE;
+        DwmSetWindowAttribute(hwnd, 20, &useDarkMode, sizeof(useDarkMode));
     }
-#endif
 
+    // ImGui Initialization
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -115,6 +132,18 @@ bool ServerGUI::init(int width, int height) {
     ImGui_ImplOpenGL3_Init("#version 330");
 
     m_server = std::make_unique<HubServer>();
+
+    // Initial check of Windows Service and Firewall Status
+    m_serviceState = ServerSystemUtils::GetServiceState();
+    if (m_serviceState == 2) m_serviceStatusMsg = "Windows Background Service: RUNNING 24/7";
+    else if (m_serviceState == 1) m_serviceStatusMsg = "Windows Background Service: INSTALLED (STOPPED)";
+    else m_serviceStatusMsg = "Windows Background Service: NOT INSTALLED";
+
+    m_firewallConfigured = ServerSystemUtils::CheckFirewallRule(static_cast<uint16_t>(m_serverPort));
+    if (m_firewallConfigured) {
+        m_firewallStatusMsg = "Windows Defender Firewall: INGRESS OPEN (PORT 7777 UDP)";
+    }
+
     return true;
 }
 
@@ -122,7 +151,7 @@ void ServerGUI::startServerThread() {
     if (m_isServerRunning.load()) return;
 
     if (!m_server->init(static_cast<uint16_t>(m_serverPort))) {
-        m_serverStatusText = "ERROR: FAILED TO BIND PORT";
+        m_serverStatusText = "ERROR: FAILED TO BIND UDP PORT";
         return;
     }
 
@@ -161,8 +190,6 @@ void ServerGUI::run() {
 
         if (m_isServerRunning.load()) {
             m_uptimeSeconds += dt;
-        } else {
-            m_uptimeSeconds = 0.0f;
         }
 
         ImGui_ImplOpenGL3_NewFrame();
@@ -174,9 +201,11 @@ void ServerGUI::run() {
 
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImVec2(static_cast<float>(displayW), static_cast<float>(displayH)));
-        ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+        ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                       ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+                                       ImGuiWindowFlags_NoBringToFrontOnFocus;
 
-        if (ImGui::Begin("##ServerControlCenter", nullptr, flags)) {
+        if (ImGui::Begin("MasterServerControl", nullptr, windowFlags)) {
             renderHeaderBar();
             renderTabNavigation();
 
@@ -184,12 +213,12 @@ void ServerGUI::run() {
             ImGui::Spacing();
 
             switch (m_activeTab) {
-                case 0: renderTabOverview(); break;
-                case 1: renderTabPlayers(); break;
-                case 2: renderTabHexWarzone(); break;
-                case 3: renderTabConsole(); break;
-                case 4: renderTabSettings(); break;
-                default: renderTabOverview(); break;
+                case 0: renderTabSessions(); break;
+                case 1: renderTabHexWarzone(); break;
+                case 2: renderTabPlayers(); break;
+                case 3: renderTabSetupService(); break;
+                case 4: renderTabConsole(); break;
+                default: renderTabSessions(); break;
             }
         }
         ImGui::End();
@@ -221,14 +250,12 @@ void ServerGUI::shutdown() {
 }
 
 void ServerGUI::renderHeaderBar() {
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    ImVec2 pos = ImGui::GetCursorScreenPos();
     float width = ImGui::GetContentRegionAvail().x;
 
     // Tactical Banner
     ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "MERCENARY: WARZONE");
     ImGui::SameLine();
-    ImGui::TextDisabled("// DEDICATED CONTINENTAL SERVER CONTROL CENTER v1.2");
+    ImGui::TextDisabled("// CONTINENTAL COMMAND & OPERATIONS SUITE v2.0");
 
     ImGui::SameLine(width - 340.0f);
 
@@ -271,11 +298,11 @@ void ServerGUI::renderHeaderBar() {
 
 void ServerGUI::renderTabNavigation() {
     const char* tabs[] = {
-        "MONITORING DASHBOARD",
+        "LIVE SESSIONS & ROOMS",
+        "6-HEX WARZONE THEATER",
         "OPERATIVES ROSTER",
-        "6-HEX WARZONE SECTORS",
-        "LIVE SERVER CONSOLE",
-        "CONFIG & WATCHDOG"
+        "1-CLICK RDP SETUP & 24/7 SERVICE",
+        "TACTICAL CONSOLE & LOGS"
     };
 
     for (int i = 0; i < 5; ++i) {
@@ -288,32 +315,43 @@ void ServerGUI::renderTabNavigation() {
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.10f, 0.13f, 0.17f, 0.9f));
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.65f, 0.70f, 0.78f, 1.0f));
         }
-        if (ImGui::Button(tabs[i], ImVec2(185, 32))) {
+        if (ImGui::Button(tabs[i], ImVec2(200, 32))) {
             m_activeTab = i;
         }
         ImGui::PopStyleColor(2);
     }
 }
 
-void ServerGUI::renderTabOverview() {
+void ServerGUI::renderTabSessions() {
     float availW = ImGui::GetContentRegionAvail().x;
     float cardW = (availW - 30.0f) / 4.0f;
-    float cardH = 85.0f;
+    float cardH = 80.0f;
 
-    // Card 1: Connected Operatives
+    auto sessions = m_server ? m_server->getSessionsSnapshot() : std::vector<SessionSummary>{};
+    size_t totalPlayers = m_server ? m_server->getConnectedClientCount() : 0;
+
+    // Card 1: Active Micro-Instances
     ImGui::BeginChild("Card1", ImVec2(cardW, cardH), true);
-    ImGui::TextDisabled("ACTIVE OPERATIVES");
-    size_t clientCount = m_server ? m_server->getConnectedClientCount() : 0;
-    ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "%zu / %d", clientCount, m_maxPlayers);
-    ImGui::TextDisabled("Peak: %zu | Cap: %d", clientCount, m_maxPlayers);
+    ImGui::TextDisabled("ACTIVE ROOMS & SESSIONS");
+    ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "%zu Rooms Active", sessions.size());
+    ImGui::TextDisabled("1 Persistent | %zu On-Demand", sessions.size() > 1 ? sessions.size() - 1 : 0);
     ImGui::EndChild();
 
     ImGui::SameLine(0, 10);
 
-    // Card 2: Tickrate & Uptime
+    // Card 2: Total Connected Operatives
     ImGui::BeginChild("Card2", ImVec2(cardW, cardH), true);
+    ImGui::TextDisabled("GLOBAL OPERATIVES");
+    ImGui::TextColored(ImVec4(0.40f, 0.95f, 0.45f, 1.0f), "%zu / %d", totalPlayers, m_maxPlayers);
+    ImGui::TextDisabled("Fleet Cap: %d Operatives", m_maxPlayers);
+    ImGui::EndChild();
+
+    ImGui::SameLine(0, 10);
+
+    // Card 3: Simulation Tickrate & Uptime
+    ImGui::BeginChild("Card3", ImVec2(cardW, cardH), true);
     ImGui::TextDisabled("SIMULATION TICKRATE");
-    ImGui::TextColored(ImVec4(0.40f, 0.95f, 0.45f, 1.0f), "64.0 Hz [STABLE]");
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "64.0 Hz [STABLE]");
     int hrs = static_cast<int>(m_uptimeSeconds) / 3600;
     int mins = (static_cast<int>(m_uptimeSeconds) % 3600) / 60;
     int secs = static_cast<int>(m_uptimeSeconds) % 60;
@@ -324,21 +362,12 @@ void ServerGUI::renderTabOverview() {
 
     ImGui::SameLine(0, 10);
 
-    // Card 3: Ingress & Fleet Public IP
-    ImGui::BeginChild("Card3", ImVec2(cardW, cardH), true);
+    // Card 4: Fleet Ingress & Discovery
+    ImGui::BeginChild("Card4", ImVec2(cardW, cardH), true);
     ImGui::TextDisabled("FLEET INGRESS / PUBLIC IP");
     std::string pubIp = m_server ? m_server->getPublicIP() : "127.0.0.1";
-    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "%s:%d", pubIp.c_str(), m_serverPort);
-    ImGui::TextDisabled("Discovery: Cloud Reg Active");
-    ImGui::EndChild();
-
-    ImGui::SameLine(0, 10);
-
-    // Card 4: Continental Master State
-    ImGui::BeginChild("Card4", ImVec2(cardW, cardH), true);
-    ImGui::TextDisabled("CONTINENTAL THEATER");
-    ImGui::TextColored(ImVec4(0.80f, 0.50f, 1.0f, 1.0f), "6 HEXES (96 km²)");
-    ImGui::TextDisabled("Frontline: Contested");
+    ImGui::TextColored(ImVec4(0.80f, 0.50f, 1.0f, 1.0f), "%s:%d", pubIp.c_str(), m_serverPort);
+    ImGui::TextDisabled("Cloud Discovery: Active");
     ImGui::EndChild();
 
     ImGui::Spacing();
@@ -362,63 +391,84 @@ void ServerGUI::renderTabOverview() {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Quick Live Status Log Preview
-    ImGui::TextColored(ImVec4(0.75f, 0.80f, 0.88f, 1.0f), "RECENT CONTINENTAL EVENTS & TELEMETRY:");
-    ImGui::BeginChild("OverviewLogPreview", ImVec2(availW, 280), true);
-    if (m_server) {
-        auto logs = m_server->getLogMessages();
-        for (const auto& l : logs) {
-            ImGui::TextUnformatted(l.c_str());
-        }
+    // Session Management Controls
+    ImGui::TextColored(ImVec4(0.85f, 0.90f, 0.95f, 1.0f), "LIVE GAME SESSIONS MATRIX (ON-DEMAND MICRO-SERVERS)");
+    ImGui::SameLine(availW - 460.0f);
+    if (ImGui::Button("+ SPAWN TDM (KILLHOUSE)", ImVec2(170, 24))) {
+        if (m_server) m_server->spawnCustomTdm("killhouse");
     }
-    ImGui::EndChild();
-}
+    ImGui::SameLine();
+    if (ImGui::Button("+ SPAWN TDM (INDUSTRIAL)", ImVec2(170, 24))) {
+        if (m_server) m_server->spawnCustomTdm("industrial");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("+ SPAWN RAID (40M)", ImVec2(110, 24))) {
+        if (m_server) m_server->spawnCustomInfiltration("fob_vanguard");
+    }
 
-void ServerGUI::renderTabPlayers() {
-    float availW = ImGui::GetContentRegionAvail().x;
-    ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "ACTIVE OPERATIVES DIRECTORY");
-    ImGui::Separator();
     ImGui::Spacing();
 
-    if (!m_server || m_server->getClients().empty()) {
-        ImGui::TextDisabled("No active operatives currently connected to this shard.");
-        return;
-    }
-
-    if (ImGui::BeginTable("PlayersTable", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
+    // Sessions Table
+    if (ImGui::BeginTable("SessionsTable", 7, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
         ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 60.0f);
-        ImGui::TableSetupColumn("Callsign", ImGuiTableColumnFlags_WidthFixed, 180.0f);
-        ImGui::TableSetupColumn("Faction", ImGuiTableColumnFlags_WidthFixed, 120.0f);
-        ImGui::TableSetupColumn("Current Session", ImGuiTableColumnFlags_WidthFixed, 140.0f);
-        ImGui::TableSetupColumn("Position (X, Z)", ImGuiTableColumnFlags_WidthFixed, 160.0f);
+        ImGui::TableSetupColumn("Game Mode", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+        ImGui::TableSetupColumn("Map / Theater", ImGuiTableColumnFlags_WidthFixed, 160.0f);
+        ImGui::TableSetupColumn("Operatives", ImGuiTableColumnFlags_WidthFixed, 90.0f);
+        ImGui::TableSetupColumn("Match Status & Timers", ImGuiTableColumnFlags_WidthFixed, 220.0f);
+        ImGui::TableSetupColumn("Lifecycle", ImGuiTableColumnFlags_WidthFixed, 150.0f);
         ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableHeadersRow();
 
-        for (const auto& [pId, client] : m_server->getClients()) {
+        for (const auto& sess : sessions) {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
-            ImGui::Text("#%u", pId);
+            ImGui::Text("#%u", sess.id);
 
             ImGui::TableSetColumnIndex(1);
-            ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "%s", client.state.callsign[0] ? client.state.callsign : "Operative");
-
-            ImGui::TableSetColumnIndex(2);
-            if (client.state.faction == 0) {
-                ImGui::TextColored(ImVec4(0.35f, 0.75f, 1.0f, 1.0f), "COALITION");
+            if (sess.mode == GameMode::OpenWorld) {
+                ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "OPEN WORLD MMO");
+            } else if (sess.mode == GameMode::TeamDeathmatch) {
+                ImGui::TextColored(ImVec4(1.0f, 0.65f, 0.25f, 1.0f), "TEAM DEATHMATCH");
             } else {
-                ImGui::TextColored(ImVec4(1.0f, 0.40f, 0.35f, 1.0f), "CRIMSON");
+                ImGui::TextColored(ImVec4(0.85f, 0.45f, 1.0f, 1.0f), "EXTRACTION RAID");
             }
 
+            ImGui::TableSetColumnIndex(2);
+            ImGui::Text("%s", sess.mapName.c_str());
+
             ImGui::TableSetColumnIndex(3);
-            ImGui::Text("Session #%u", client.sessionId);
+            ImGui::Text("%u / %u", sess.currentPlayers, sess.maxPlayers);
 
             ImGui::TableSetColumnIndex(4);
-            ImGui::Text("%.0f, %.0f", client.state.position.x, client.state.position.z);
+            if (sess.mode == GameMode::OpenWorld) {
+                int sHrs = static_cast<int>(sess.sessionAge) / 3600;
+                int sMins = (static_cast<int>(sess.sessionAge) % 3600) / 60;
+                ImGui::TextColored(ImVec4(0.40f, 0.95f, 0.45f, 1.0f), "6 Hexes Active (%02dh %02dm)", sHrs, sMins);
+            } else if (sess.mode == GameMode::TeamDeathmatch) {
+                int rMins = static_cast<int>(sess.roundTimer) / 60;
+                int rSecs = static_cast<int>(sess.roundTimer) % 60;
+                ImGui::Text("Tickets: %d-%d | %02d:%02d", sess.coalitionTickets, sess.crimsonTickets, rMins, rSecs);
+            } else {
+                int rMins = static_cast<int>(sess.raidTimer) / 60;
+                int rSecs = static_cast<int>(sess.raidTimer) % 60;
+                ImGui::Text("Raid Time: %02d:%02d | Exfil: %s", rMins, rSecs, sess.exfilActive ? "OPEN" : "WAIT");
+            }
 
             ImGui::TableSetColumnIndex(5);
-            std::string kickBtn = "KICK##" + std::to_string(pId);
-            if (ImGui::Button(kickBtn.c_str(), ImVec2(60, 20))) {
-                m_server->kickPlayer(pId);
+            if (sess.lifecycle == SessionLifecycle::PersistentMMO) {
+                ImGui::TextColored(ImVec4(0.35f, 0.85f, 0.55f, 1.0f), "24/7 Persistent");
+            } else {
+                ImGui::TextColored(ImVec4(0.70f, 0.75f, 0.85f, 1.0f), "On-Demand (Auto-Destruct)");
+            }
+
+            ImGui::TableSetColumnIndex(6);
+            if (sess.lifecycle != SessionLifecycle::PersistentMMO) {
+                std::string btnLabel = "END MATCH##" + std::to_string(sess.id);
+                if (ImGui::Button(btnLabel.c_str(), ImVec2(90, 20))) {
+                    if (m_server) m_server->removeSession(sess.id);
+                }
+            } else {
+                ImGui::TextDisabled("Main Shard Active");
             }
         }
         ImGui::EndTable();
@@ -427,7 +477,7 @@ void ServerGUI::renderTabPlayers() {
 
 void ServerGUI::renderTabHexWarzone() {
     float availW = ImGui::GetContentRegionAvail().x;
-    ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "THE 6 CONTINENTAL HEX SECTORS (UKRAINIAN / RUSSIAN THEATER)");
+    ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "CONTINENTAL WARZONE: THE 6 FRONTLINE HEX SECTORS (96 km²)");
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -437,29 +487,197 @@ void ServerGUI::renderTabHexWarzone() {
         const char* faction;
         ImVec4 facCol;
         int activeOperatives;
+        int fobsBuilt;
         const char* tacticalRole;
     };
 
     HexStatus hexes[] = {
-        { "1. KHARKIV REGION",      "Villages, Highways, Agricultural Fields",  "COALITION (65%)", ImVec4(0.35f, 0.75f, 1.0f, 1.0f), 8,  "Mechanized Staging & Convoy Artery" },
-        { "2. LUHANSK REGION",      "Chalk Ridges, River Crossings, Forests",   "CONTESTED (50%)", ImVec4(1.0f, 0.85f, 0.35f, 1.0f), 12, "Long-Range Artillery & Ridge Observation" },
-        { "3. DONETSK REGION",      "Dense Urban Ruins, Coking Metallurgy",     "HEAVY COMBAT",    ImVec4(1.0f, 0.35f, 0.35f, 1.0f), 24, "Urban Fortress Meat-Grinder" },
-        { "4. ZAPORIZHZHIA REGION", "Flat Open Steppe, Dragon's Teeth Ditches", "CONTESTED (50%)", ImVec4(1.0f, 0.85f, 0.35f, 1.0f), 10, "Armored Tank Maneuvers & Minefields" },
-        { "5. KHERSON REGION",      "Wide Dnipro River Delta, Pontoon Crossings","CRIMSON (80%)",   ImVec4(1.0f, 0.40f, 0.35f, 1.0f), 6,  "Crimson Primary Airbase & Delta Port" },
-        { "6. SUMY REGION",         "Dense Pine Forests, Borderland Tracks",    "COALITION (90%)", ImVec4(0.35f, 0.75f, 1.0f, 1.0f), 4,  "Coalition Primary Airbase & Woodland Recon" }
+        { "1. SUMY REGION",         "Dense Pine Forests, Borderland Tracks",    "COALITION (90%)", ImVec4(0.35f, 0.75f, 1.0f, 1.0f), 4,  2, "Coalition Airbase & Woodland Recon" },
+        { "2. KHARKIV REGION",      "Villages, Highways, Agricultural Fields",  "COALITION (65%)", ImVec4(0.35f, 0.75f, 1.0f, 1.0f), 8,  4, "Mechanized Staging & Convoy Artery" },
+        { "3. DONETSK REGION",      "Dense Urban Ruins, Coking Metallurgy",     "HEAVY COMBAT",    ImVec4(1.0f, 0.35f, 0.35f, 1.0f), 24, 7, "Urban Fortress Meat-Grinder" },
+        { "4. LUHANSK REGION",      "Chalk Ridges, River Crossings, Forests",   "CONTESTED (50%)", ImVec4(1.0f, 0.85f, 0.35f, 1.0f), 12, 3, "Long-Range Artillery & Ridge Observation" },
+        { "5. ZAPORIZHZHIA REGION", "Flat Open Steppe, Dragon's Teeth Ditches", "CONTESTED (50%)", ImVec4(1.0f, 0.85f, 0.35f, 1.0f), 10, 5, "Armored Tank Maneuvers & Minefields" },
+        { "6. KHERSON REGION",      "Wide Dnipro River Delta, Pontoon Crossings","CRIMSON (80%)",   ImVec4(1.0f, 0.40f, 0.35f, 1.0f), 6,  2, "Crimson Airbase & Delta Naval Port" }
     };
 
     float cardW = (availW - 15.0f) / 2.0f;
     for (int i = 0; i < 6; ++i) {
         if (i % 2 == 1) ImGui::SameLine(0, 15);
-        ImGui::BeginChild((std::string("HexCard_") + std::to_string(i)).c_str(), ImVec2(cardW, 115), true);
+        ImGui::BeginChild((std::string("HexCard_") + std::to_string(i)).c_str(), ImVec2(cardW, 125), true);
         ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "%s", hexes[i].name);
         ImGui::TextDisabled("Biome: %s", hexes[i].biome);
-        ImGui::TextDisabled("Tactical: %s", hexes[i].tacticalRole);
+        ImGui::TextDisabled("Role:  %s", hexes[i].tacticalRole);
         ImGui::TextColored(hexes[i].facCol, "Dominance: %s", hexes[i].faction);
+        ImGui::TextColored(ImVec4(0.7f, 0.8f, 0.9f, 1.0f), "Active Operatives: %d | Persistent FOBs: %d", hexes[i].activeOperatives, hexes[i].fobsBuilt);
         ImGui::EndChild();
         if (i % 2 == 1) ImGui::Spacing();
     }
+}
+
+void ServerGUI::renderTabPlayers() {
+    float availW = ImGui::GetContentRegionAvail().x;
+    ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "OPERATIVES DIRECTORY & PLAYER MANAGEMENT");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    auto clients = m_server ? m_server->getClientsSnapshot() : std::vector<ClientSummary>{};
+
+    if (clients.empty()) {
+        ImGui::TextDisabled("No active operatives currently connected to this shard.");
+        return;
+    }
+
+    // Filter bar
+    ImGui::Text("Filter Callsign / ID:");
+    ImGui::SameLine();
+    ImGui::PushItemWidth(250.0f);
+    ImGui::InputText("##PlayerFilter", m_playerSearch, sizeof(m_playerSearch));
+    ImGui::PopItemWidth();
+    ImGui::Spacing();
+
+    if (ImGui::BeginTable("PlayersTable", 7, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
+        ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 50.0f);
+        ImGui::TableSetupColumn("IP & Port", ImGuiTableColumnFlags_WidthFixed, 160.0f);
+        ImGui::TableSetupColumn("Current Session", ImGuiTableColumnFlags_WidthFixed, 140.0f);
+        ImGui::TableSetupColumn("Faction", ImGuiTableColumnFlags_WidthFixed, 110.0f);
+        ImGui::TableSetupColumn("Position (X, Z)", ImGuiTableColumnFlags_WidthFixed, 140.0f);
+        ImGui::TableSetupColumn("Ping", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+        ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableHeadersRow();
+
+        for (const auto& c : clients) {
+            std::string idStr = std::to_string(c.id);
+            if (m_playerSearch[0] != '\0' && idStr.find(m_playerSearch) == std::string::npos) {
+                continue;
+            }
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("#%u", c.id);
+
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%s:%u", c.ipStr.c_str(), c.port);
+
+            ImGui::TableSetColumnIndex(2);
+            ImGui::Text("Session #%u", c.sessionId);
+
+            ImGui::TableSetColumnIndex(3);
+            if (c.faction == 0) {
+                ImGui::TextColored(ImVec4(0.35f, 0.75f, 1.0f, 1.0f), "COALITION");
+            } else {
+                ImGui::TextColored(ImVec4(1.0f, 0.40f, 0.35f, 1.0f), "CRIMSON");
+            }
+
+            ImGui::TableSetColumnIndex(4);
+            ImGui::Text("%.0f, %.0f", c.position.x, c.position.z);
+
+            ImGui::TableSetColumnIndex(5);
+            ImVec4 pingCol = c.pingMs < 60 ? ImVec4(0.35f, 0.95f, 0.45f, 1.0f) :
+                            (c.pingMs < 120 ? ImVec4(1.0f, 0.85f, 0.35f, 1.0f) : ImVec4(1.0f, 0.35f, 0.35f, 1.0f));
+            ImGui::TextColored(pingCol, "%d ms", c.pingMs);
+
+            ImGui::TableSetColumnIndex(6);
+            std::string kickBtn = "KICK OPERATIVE##" + std::to_string(c.id);
+            if (ImGui::Button(kickBtn.c_str(), ImVec2(120, 20))) {
+                if (m_server) m_server->kickPlayer(c.id);
+            }
+        }
+        ImGui::EndTable();
+    }
+}
+
+void ServerGUI::renderTabSetupService() {
+    float availW = ImGui::GetContentRegionAvail().x;
+    ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "1-CLICK RDP SETUP & 24/7 WINDOWS SERVICE SUITE");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // ================= SECTION 1: 1-CLICK FIREWALL CONFIGURATION =================
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "[1] WINDOWS DEFENDER FIREWALL CONFIGURATION");
+    ImGui::TextDisabled("Opens UDP ingress port 7777 on this RDP so global players can connect without blocking.");
+    ImGui::Spacing();
+
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.70f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.55f, 0.85f, 1.0f));
+    if (ImGui::Button("FIREWALL SETUP: OPEN UDP PORT 7777", ImVec2(320, 34))) {
+        m_firewallConfigured = ServerSystemUtils::SetupFirewallRule(static_cast<uint16_t>(m_serverPort), m_firewallStatusMsg);
+    }
+    ImGui::PopStyleColor(2);
+
+    ImGui::SameLine();
+    if (ImGui::Button("CHECK FIREWALL STATUS", ImVec2(180, 34))) {
+        m_firewallConfigured = ServerSystemUtils::CheckFirewallRule(static_cast<uint16_t>(m_serverPort));
+        if (m_firewallConfigured) {
+            m_firewallStatusMsg = "Windows Defender Firewall: INGRESS OPEN (PORT 7777 UDP)";
+        } else {
+            m_firewallStatusMsg = "Warning: Port 7777 UDP is NOT currently open in Firewall.";
+        }
+    }
+
+    ImVec4 fwCol = m_firewallConfigured ? ImVec4(0.35f, 0.95f, 0.45f, 1.0f) : ImVec4(1.0f, 0.80f, 0.35f, 1.0f);
+    ImGui::TextColored(fwCol, "Status: %s", m_firewallStatusMsg.c_str());
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // ================= SECTION 2: 24/7 WINDOWS BACKGROUND SERVICE =================
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "[2] WINDOWS 24/7 BACKGROUND SERVICE (AUTO-START ON REBOOT)");
+    ImGui::TextDisabled("Installs MercenaryServer as a native Windows NT Service. The server starts automatically when\n"
+                        "the RDP boots up, even before anyone logs in. Eliminates all external .bat and .vbs scripts!");
+    ImGui::Spacing();
+
+    m_serviceState = ServerSystemUtils::GetServiceState();
+    ImVec4 svcCol = (m_serviceState == 2) ? ImVec4(0.35f, 0.95f, 0.45f, 1.0f) :
+                    ((m_serviceState == 1) ? ImVec4(1.0f, 0.85f, 0.35f, 1.0f) : ImVec4(0.95f, 0.40f, 0.40f, 1.0f));
+    const char* svcStateStr = (m_serviceState == 2) ? "[SERVICE: RUNNING 24/7]" :
+                             ((m_serviceState == 1) ? "[SERVICE: STOPPED]" : "[SERVICE: NOT INSTALLED]");
+    ImGui::TextColored(svcCol, "Current State: %s", svcStateStr);
+    ImGui::Spacing();
+
+    if (ImGui::Button("INSTALL AS WINDOWS SERVICE", ImVec2(240, 32))) {
+        ServerSystemUtils::InstallService(static_cast<uint16_t>(m_serverPort), m_serviceStatusMsg);
+        m_serviceState = ServerSystemUtils::GetServiceState();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("START SERVICE", ImVec2(130, 32))) {
+        ServerSystemUtils::StartWindowsService(m_serviceStatusMsg);
+        m_serviceState = ServerSystemUtils::GetServiceState();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("STOP SERVICE", ImVec2(130, 32))) {
+        ServerSystemUtils::StopWindowsService(m_serviceStatusMsg);
+        m_serviceState = ServerSystemUtils::GetServiceState();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("UNINSTALL SERVICE", ImVec2(150, 32))) {
+        ServerSystemUtils::UninstallService(m_serviceStatusMsg);
+        m_serviceState = ServerSystemUtils::GetServiceState();
+    }
+
+    ImGui::TextDisabled("Output: %s", m_serviceStatusMsg.c_str());
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // ================= SECTION 3: IN-PROCESS WATCHDOG & TOPOLOGY =================
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "[3] SUPERVISOR & CRASH WATCHDOG");
+    ImGui::Checkbox("Auto-Restart Simulation Loop on Unhandled Exception", &m_autoRestartOnCrash);
+    ImGui::Spacing();
+
+    ImGui::InputInt("Shard Port (UDP)", &m_serverPort);
+    ImGui::InputInt("Max Player Capacity", &m_maxPlayers);
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "DATABASE & STORAGE ENGINE STATUS:");
+    ImGui::BulletText("Authoritative SQLite Database: mercenary_master.db");
+    ImGui::BulletText("Storage Mode: WAL (Write-Ahead Logging)");
+    ImGui::BulletText("Persistent Construction FOBs Table: world_structures (Active)");
+    ImGui::BulletText("Player Accounts Table: profiles (Active)");
 }
 
 void ServerGUI::renderTabConsole() {
@@ -500,49 +718,6 @@ void ServerGUI::renderTabConsole() {
             cmdBuf[0] = '\0';
         }
     }
-}
-
-void ServerGUI::renderTabSettings() {
-    float availW = ImGui::GetContentRegionAvail().x;
-    ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "SERVER NODE CONFIGURATION & TOPOLOGY");
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // Role Selection Radio Buttons
-    ImGui::TextColored(ImVec4(0.95f, 0.95f, 0.95f, 1.0f), "SERVER OPERATIONAL ROLE:");
-    int r = static_cast<int>(m_role);
-    if (ImGui::RadioButton("Continental Hex Master Server (Authoritative 6-Hex Warzone)", r == 0)) {
-        m_role = ServerRole::ContinentalHexMaster;
-    }
-    if (ImGui::RadioButton("Vercel-Style Edge Ingress Relay (Tokyo / Virginia / Frankfurt)", r == 1)) {
-        m_role = ServerRole::VercelEdgeRelay;
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    ImGui::InputInt("Shard Port (UDP)", &m_serverPort);
-    ImGui::InputInt("Max Player Capacity", &m_maxPlayers);
-    ImGui::Checkbox("Auto-Restart on Crash (Watchdog Supervisor)", &m_autoRestartOnCrash);
-
-    if (m_role == ServerRole::VercelEdgeRelay) {
-        ImGui::Spacing();
-        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.35f, 1.0f), "EDGE RELAY UPSTREAM TUNNEL CONFIG:");
-        ImGui::InputText("Upstream Host / IP", m_upstreamHost, sizeof(m_upstreamHost));
-        ImGui::InputInt("Upstream Port", &m_upstreamPort);
-        ImGui::InputText("Region Identifier", m_regionName, sizeof(m_regionName));
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "DATABASE ENGINE STATUS:");
-    ImGui::BulletText("SQLite Master Database: mercenary_master.db");
-    ImGui::BulletText("Journal Mode: WAL (Write-Ahead Logging)");
-    ImGui::BulletText("Persistent Structures Table: world_structures (Active)");
-    ImGui::BulletText("Account Profiles Table: profiles (Active)");
 }
 
 } // namespace Mercenary

@@ -1480,6 +1480,62 @@ void HubServer::handleStructureDamage(const sockaddr_in& from, const char* buffe
 }
 
 
+std::vector<SessionSummary> HubServer::getSessionsSnapshot() const {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    std::vector<SessionSummary> res;
+    res.reserve(m_sessions.size());
+    for (const auto& [sId, s] : m_sessions) {
+        SessionSummary sum;
+        sum.id = s.id;
+        sum.mode = s.mode;
+        sum.name = s.name;
+        sum.mapName = s.mapName;
+        sum.currentPlayers = static_cast<uint16_t>(s.playerIds.size());
+        sum.maxPlayers = s.maxPlayers;
+        sum.lifecycle = s.lifecycle;
+        sum.sessionAge = s.sessionAge;
+        sum.coalitionTickets = s.coalitionTickets;
+        sum.crimsonTickets = s.crimsonTickets;
+        sum.roundTimer = s.roundTimer;
+        sum.matchStatus = s.matchStatus;
+        sum.raidTimer = s.raidTimer;
+        sum.exfilActive = s.exfilActive;
+        res.push_back(sum);
+    }
+    return res;
+}
+
+std::vector<ClientSummary> HubServer::getClientsSnapshot() const {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    std::vector<ClientSummary> res;
+    res.reserve(m_clients.size());
+    for (const auto& [pId, c] : m_clients) {
+        ClientSummary sum;
+        sum.id = c.id;
+        char ipBuf[INET_ADDRSTRLEN] = {0};
+        inet_ntop(AF_INET, &c.address.sin_addr, ipBuf, sizeof(ipBuf));
+        sum.ipStr = ipBuf;
+        sum.port = ntohs(c.address.sin_port);
+        sum.sessionId = c.sessionId;
+        sum.position = c.state.position;
+        sum.yaw = c.state.yaw;
+        sum.faction = c.state.faction;
+        sum.stance = c.state.stance;
+        sum.pingMs = static_cast<int>(c.estimatedRtt * 1000.0f);
+        sum.lastHeartbeat = c.lastHeartbeat;
+        res.push_back(sum);
+    }
+    return res;
+}
+
+uint32_t HubServer::spawnCustomTdm(const std::string& mapName) {
+    return spawnEphemeralTdmSession(mapName.empty() ? "killhouse" : mapName);
+}
+
+uint32_t HubServer::spawnCustomInfiltration(const std::string& mapName) {
+    return spawnExtractionRaidSession(mapName.empty() ? "fob_vanguard" : mapName);
+}
+
 void HubServer::appendLog(const std::string& msg) {
     std::lock_guard<std::mutex> lock(m_logMutex);
     m_guiLogs.push_back(msg);
