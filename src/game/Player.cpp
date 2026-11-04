@@ -732,6 +732,9 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
 
         SupplyCrate* crate = world.getNearbyCrate(m_position, 2.8f);
         if (crate && !crate->looted) {
+            if (crate->lootId > 0 && NetworkEngine::get().isClientConnected()) {
+                NetworkEngine::get().broadcastLootPickup(crate->lootId);
+            }
             auto it = crate->contents.begin();
             int lootedCount = 0;
             while (it != crate->contents.end()) {

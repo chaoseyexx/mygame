@@ -122,6 +122,14 @@ public:
     void broadcastChatMessage(const ChatMessagePacket& pkt);
     void broadcastVoiceData(const VoiceDataPacket& pkt);
 
+    // Networked Ground Loot Events
+    std::vector<LootDropEventPacket>& getPendingLootDrops() { return m_pendingLootDrops; }
+    void clearPendingLootDrops() { m_pendingLootDrops.clear(); }
+    std::vector<LootPickupEventPacket>& getPendingLootPickups() { return m_pendingLootPickups; }
+    void clearPendingLootPickups() { m_pendingLootPickups.clear(); }
+    void broadcastLootDrop(const std::string& itemName, uint8_t category, int quantity, int ammoCount, const glm::vec3& pos, float yaw);
+    void broadcastLootPickup(uint32_t lootId);
+
     // Continental Sector Handoff & Persistent Construction
     void requestSectorHandoff(const std::string& targetRegion, const glm::vec3& globalPos);
     void buildStructure(uint8_t structureType, uint8_t faction, const std::string& regionId, const glm::vec3& pos, float yaw);
@@ -169,6 +177,8 @@ private:
     std::atomic<bool> m_isFetchingShards{false};
     std::vector<BulletFireEvent> m_pendingBullets;
     std::vector<HitConfirmEvent> m_pendingHits;
+    std::vector<LootDropEventPacket> m_pendingLootDrops;
+    std::vector<LootPickupEventPacket> m_pendingLootPickups;
     glm::vec3 m_localPlayerPos{0.0f};
     float m_cameraYaw = 0.0f;
 

@@ -101,6 +101,10 @@ struct HubSession {
 
     float syncTimer = 0.0f;
     float territorySaveTimer = 0.0f; // For Persistent MMO periodic saves
+
+    // Authoritative Ground Loot in Session
+    std::vector<LootDropEventPacket> groundLoot;
+    uint32_t nextLootId = 1000;
 };
 
 class HubServer {
@@ -162,6 +166,8 @@ private:
     void handleSectorHandoff(const sockaddr_in& from, const char* buffer, int len);
     void handleStructureBuild(const sockaddr_in& from, const char* buffer, int len);
     void handleStructureDamage(const sockaddr_in& from, const char* buffer, int len);
+    void handleLootDrop(const sockaddr_in& from, const char* buffer, int len);
+    void handleLootPickup(const sockaddr_in& from, const char* buffer, int len);
 
     // Sub-Tick Authoritative Rewind Lag Compensation
     glm::vec3 getRewoundPosition(const HubClient& victim, float shotTimestamp) const;

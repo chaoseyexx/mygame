@@ -180,6 +180,28 @@ void FrontlineWarfare::update(float dt, const glm::vec3& playerPos, float player
             else if (m_teamBKills > m_teamAKills) m_tdmWinner = Faction::FactionB;
             else m_tdmWinner = Faction::None;
         }
+
+        // Dynamic Base Flip Detection: prevent spawn camping
+        m_spawnFlipCheckTimer += dt;
+        if (m_spawnFlipCheckTimer >= 2.0f) {
+            m_spawnFlipCheckTimer = 0.0f;
+            float sumZA = 0.0f, sumZB = 0.0f;
+            int countA = 0, countB = 0;
+            for (const auto& b : m_bots) {
+                if (b.state != BotState::Dead) {
+                    if (b.faction == Faction::FactionA) { sumZA += b.position.z; countA++; }
+                    else if (b.faction == Faction::FactionB) { sumZB += b.position.z; countB++; }
+                }
+            }
+            if (countA > 0) m_teamAAverageZ = sumZA / countA;
+            if (countB > 0) m_teamBAverageZ = sumZB / countB;
+
+            if (!m_spawnFlipped && m_teamAAverageZ > 14.0f) {
+                m_spawnFlipped = true;
+            } else if (m_spawnFlipped && m_teamBAverageZ < -14.0f) {
+                m_spawnFlipped = false;
+            }
+        }
     }
 
     glm::vec3 playerEye = playerPos + glm::vec3(0, 1.4f, 0);
@@ -683,7 +705,17 @@ void FrontlineWarfare::update(float dt, const glm::vec3& playerPos, float player
             }
         }
 
-        // Squad Tactical Grenade Deployment
+        // Tactical Smoke Screen Deployment when Pinned or Critical
+        if (m_isTdmMode && (bot.suppression > 42.0f || bot.health < 32.0f) && bot.smokeGrenadeCount > 0 && hasTarget) {
+            bot.smokeGrenadeCount--;
+            glm::vec3 throwOrigin = bot.position + glm::vec3(0.0f, 1.4f, 0.0f);
+            glm::vec3 throwAim = glm::normalize(targetPos - bot.position);
+            glm::vec3 throwVel = throwAim * 13.5f + glm::vec3(0.0f, 4.0f, 0.0f);
+            ballistics.throwGrenade(throwOrigin, throwVel, true /* isSmoke */, false, bot.faction, bot.id);
+            AudioEngine::get().playSound3D(SoundType::GrenadePin, bot.position, playerPos, cameraYawRad, 0.60f, 22.0f);
+        }
+
+        // Squad Tactical Grenade Deployment & Camper Flushing
         float distToTarget = hasTarget ? glm::distance(bot.position, targetPos) : 999.0f;
         if (hasTarget && bot.grenadeCount > 0 && bot.grenadeCooldown <= 0.0f && distToTarget >= 12.0f && distToTarget <= 28.0f) {
             CoverType targetCover = world.evaluateCoverAt(targetPos, bot.position);
@@ -718,11 +750,16 @@ void FrontlineWarfare::update(float dt, const glm::vec3& playerPos, float player
             glm::vec3 diff = targetPos - bot.position;
             bot.yaw = std::atan2(diff.x, diff.z);
 
-            // Cover Peeking Cycle (Duck down behind cover, peek up to shoot)
+            // Cover Peeking & Jiggle Leaning Cycle
             bot.peekTimer -= botDt;
             if (bot.peekTimer <= 0.0f) {
                 bot.isPeeking = !bot.isPeeking;
-                bot.peekTimer = bot.isPeeking ? (1.3f + (rnd() % 12) * 0.05f) : (0.8f + (rnd() % 10) * 0.04f);
+                bot.peekTimer = bot.isPeeking ? (0.65f + (rnd() % 10) * 0.04f) : (0.80f + (rnd() % 10) * 0.04f);
+                if (bot.isPeeking) {
+                    bot.lean = (bot.id % 2 == 0) ? 0.32f : -0.32f;
+                } else {
+                    bot.lean = 0.0f;
+                }
             }
 
             // Crouch if in low cover or ducking or suppressed
@@ -735,11 +772,28 @@ void FrontlineWarfare::update(float dt, const glm::vec3& playerPos, float player
                 if (distToCover > 0.85f) {
                     glm::vec3 toCover = glm::normalize(bot.coverPosition - bot.position);
                     toCover.y = 0.0f;
-                    float sprintSpeed = (bot.suppression > 20.0f || bot.recentDamageTakenTimer > 0.0f) ? 3.8f : 2.8f;
-                    bot.position += toCover * sprintSpeed * botDt;
+
+                    // Combat Slide Trigger when exposed under fire
+                    if (m_isTdmMode && (bot.suppression > 16.0f || bot.recentDamageTakenTimer > 0.0f) && distToCover <= 4.5f && !bot.isSliding) {
+                        bot.isSliding = true;
+                        bot.slideTimer = 0.50f;
+                        bot.slideDirection = toCover;
+                        bot.isCrouched = true;
+                        AudioEngine::get().playSound3D(SoundType::SprintSlide, bot.position, playerPos, cameraYawRad, 0.70f, 28.0f);
+                    }
+
+                    if (bot.isSliding && bot.slideTimer > 0.0f) {
+                        bot.slideTimer -= botDt;
+                        bot.position += bot.slideDirection * (5.2f * botDt);
+                        bot.isCrouched = true;
+                        if (bot.slideTimer <= 0.0f) bot.isSliding = false;
+                    } else {
+                        float sprintSpeed = (bot.suppression > 20.0f || bot.recentDamageTakenTimer > 0.0f) ? 4.2f : 3.0f;
+                        bot.position += toCover * sprintSpeed * botDt;
+                        bot.isCrouched = false;
+                    }
                     bot.yaw = std::atan2(toCover.x, toCover.z);
                     world.checkCollision(bot.position, 0.24f);
-                    bot.isCrouched = false;
                 }
             }
 
@@ -779,17 +833,28 @@ void FrontlineWarfare::update(float dt, const glm::vec3& playerPos, float player
             }
 
             if (m_isTdmMode) {
-                // Team Deathmatch Tactical Lane Navigation:
-                // Lanes: 0 = West Freight Yard (-18m), 1 = Center Courtyard (0m), 2 = East Depot Ruins (+18m)
-                float laneX = (bot.tdmLaneIndex == 0) ? -18.0f : ((bot.tdmLaneIndex == 2) ? 18.0f : 0.0f);
-                float enemyZ = (bot.faction == Faction::FactionA) ? 20.0f : -20.0f;
+                // Bounding Overwatch & Tactical 3-Lane CQB Navigation:
+                // Lanes: 0 = West Freight Rail (-20m), 1 = Center Warehouse Killhouse (0m), 2 = East Courtyard Ruins (+21m)
+                float laneX = (bot.tdmLaneIndex == 0) ? -20.0f : ((bot.tdmLaneIndex == 2) ? 21.0f : 0.0f);
+                float enemyZ = (bot.faction == Faction::FactionA) ? 22.0f : -22.0f;
+                if (m_spawnFlipped) enemyZ = -enemyZ;
+
+                // Dynamic Tactical Flanking Check:
+                if (std::abs(bot.position.z) < 8.0f && (rnd() % 1000) < 6) {
+                    if (bot.tdmLaneIndex == 1) {
+                        bot.tdmLaneIndex = (rnd() % 2 == 0) ? 0 : 2;
+                    } else {
+                        bot.tdmLaneIndex = 1; // Flank into center killhouse!
+                    }
+                    laneX = (bot.tdmLaneIndex == 0) ? -20.0f : ((bot.tdmLaneIndex == 2) ? 21.0f : 0.0f);
+                }
 
                 glm::vec3 tdmNavGoal(laneX, 0.0f, 0.0f);
                 float distToEnemyBase = std::abs(enemyZ - bot.position.z);
                 float zToMid = (bot.faction == Faction::FactionA) ? (0.0f - bot.position.z) : (bot.position.z - 0.0f);
+                if (m_spawnFlipped) zToMid = -zToMid;
 
                 if (distToEnemyBase < 4.5f) {
-                    // Reached enemy perimeter: seek nearest alive hostile or patrol back toward courtyard
                     const FrontlineBot* nearestHostile = nullptr;
                     float nearestHostileDist = 999.0f;
                     for (const auto& other : m_bots) {
@@ -816,25 +881,34 @@ void FrontlineWarfare::update(float dt, const glm::vec3& playerPos, float player
                 toGoal.y = 0.0f;
                 float goalDist = glm::length(toGoal);
                 glm::vec3 steerDir(0.0f, 0.0f, (bot.faction == Faction::FactionA ? 1.0f : -1.0f));
+                if (m_spawnFlipped) steerDir = -steerDir;
                 if (goalDist > 1.0f) {
                     steerDir = toGoal / goalDist;
                 }
 
-                // Whisker Obstacle Avoidance for barriers and freight cars
+                // Autonomous Whisker Obstacle Avoidance for barriers and freight cars
                 glm::vec3 probeStart = bot.position + glm::vec3(0.0f, 0.6f, 0.0f);
-                glm::vec3 probeForward = probeStart + steerDir * 2.0f;
+                glm::vec3 probeForward = probeStart + steerDir * 2.2f;
                 glm::vec3 hitP, hitN;
                 WorldObstacle* hitObs = nullptr;
                 if (world.raycast(probeStart, probeForward, hitP, hitN, hitObs)) {
-                    glm::vec3 leftProbe = probeStart + glm::vec3(steerDir.z, 0.0f, -steerDir.x) * 1.8f;
-                    glm::vec3 rightProbe = probeStart + glm::vec3(-steerDir.z, 0.0f, steerDir.x) * 1.8f;
+                    glm::vec3 leftProbe = probeStart + glm::vec3(steerDir.z, 0.0f, -steerDir.x) * 2.0f;
+                    glm::vec3 rightProbe = probeStart + glm::vec3(-steerDir.z, 0.0f, steerDir.x) * 2.0f;
                     bool leftBlocked = world.raycast(probeStart, leftProbe, hitP, hitN, hitObs);
                     bool rightBlocked = world.raycast(probeStart, rightProbe, hitP, hitN, hitObs);
-                    if (!leftBlocked) steerDir = glm::normalize(steerDir + glm::vec3(steerDir.z, 0.0f, -steerDir.x) * 1.2f);
-                    else if (!rightBlocked) steerDir = glm::normalize(steerDir + glm::vec3(-steerDir.z, 0.0f, steerDir.x) * 1.2f);
+                    if (!leftBlocked) steerDir = glm::normalize(steerDir + glm::vec3(steerDir.z, 0.0f, -steerDir.x) * 1.3f);
+                    else if (!rightBlocked) steerDir = glm::normalize(steerDir + glm::vec3(-steerDir.z, 0.0f, steerDir.x) * 1.3f);
                 }
 
-                float speed = (bot.role == CombatRole::AutomaticRifleman) ? 2.4f : 2.8f;
+                // Bounding Overwatch Pace: Sprint if covering partner or advancing
+                bool isAdvancingSquad = false;
+                for (const auto& ally : m_bots) {
+                    if (ally.id != bot.id && ally.faction == bot.faction && ally.tdmLaneIndex == bot.tdmLaneIndex) {
+                        if (ally.state == BotState::InCoverFiring) isAdvancingSquad = true;
+                    }
+                }
+
+                float speed = isAdvancingSquad ? 3.8f : ((bot.role == CombatRole::AutomaticRifleman) ? 2.6f : 3.0f);
                 bot.position += steerDir * speed * botDt;
                 bot.yaw = std::atan2(steerDir.x, steerDir.z);
                 world.checkCollision(bot.position, 0.24f);
@@ -1376,6 +1450,19 @@ void FrontlineWarfare::spawnTdmBot(FrontlineBot& bot, Faction faction, CombatRol
     bot.recentDamageTakenTimer = 0.0f;
     bot.peekTimer = (gen() % 40) * 0.05f;
     bot.isPeeking = true;
+    bot.isSliding = false;
+    bot.slideTimer = 0.0f;
+    bot.slideDirection = glm::vec3(0.0f);
+    bot.isTacticalSprinting = false;
+    bot.tacticalSprintTimer = 0.0f;
+    bot.lean = 0.0f;
+    bot.partnerBotId = 0;
+    bot.isOverwatchSuppressor = false;
+    bot.overwatchCycleTimer = (gen() % 30) * 0.1f;
+    bot.smokeGrenadeCount = 1;
+    bot.targetStationaryTimer = 0.0f;
+    bot.lastTargetCoverPos = glm::vec3(0.0f);
+    bot.tacticalRetreatTimer = 0.0f;
 
     bot.body.init();
     bot.body.applyArmor(BodyRegion::UpperChest, 4, 65.0f);
@@ -1385,12 +1472,17 @@ void FrontlineWarfare::spawnTdmBot(FrontlineBot& bot, Faction faction, CombatRol
     float offsetX = -10.0f + static_cast<float>((bot.id * 7) % 21);
     float offsetZ = static_cast<float>((bot.id * 3) % 5) - 2.0f;
 
-    if (faction == Faction::FactionA) {
-        bot.position = glm::vec3(offsetX, 0.0f, -26.0f + offsetZ);
-        bot.yaw = 0.0f; // Facing South toward middle
+    bool flipA = (faction == Faction::FactionA && m_spawnFlipped);
+    bool flipB = (faction == Faction::FactionB && m_spawnFlipped);
+
+    if ((faction == Faction::FactionA && !flipA) || flipB) {
+        // Northern Substation compound
+        bot.position = glm::vec3(offsetX, 0.0f, -26.5f + offsetZ);
+        bot.yaw = 0.0f; // Facing South toward killhouse
     } else {
-        bot.position = glm::vec3(offsetX, 0.0f, 26.0f - offsetZ);
-        bot.yaw = 3.14159265f; // Facing North toward middle
+        // Southern Motor Pool compound
+        bot.position = glm::vec3(offsetX, 0.0f, 26.5f - offsetZ);
+        bot.yaw = 3.14159265f; // Facing North toward killhouse
     }
 
     if (!bot.rig) {

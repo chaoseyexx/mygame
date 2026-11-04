@@ -811,6 +811,16 @@ void NetworkEngine::processClientPackets() {
                 const auto* sPkt = reinterpret_cast<const StructureBuildPacket*>(buffer + sizeof(PacketHeader));
                 m_pendingStructures.push_back(*sPkt);
             }
+        } else if (hdr->type == PacketType::LootDropEvent) {
+            if (bytesReceived >= (int)(sizeof(PacketHeader) + sizeof(LootDropEventPacket))) {
+                const auto* drop = reinterpret_cast<const LootDropEventPacket*>(buffer + sizeof(PacketHeader));
+                m_pendingLootDrops.push_back(*drop);
+            }
+        } else if (hdr->type == PacketType::LootPickupEvent) {
+            if (bytesReceived >= (int)(sizeof(PacketHeader) + sizeof(LootPickupEventPacket))) {
+                const auto* pickup = reinterpret_cast<const LootPickupEventPacket*>(buffer + sizeof(PacketHeader));
+                m_pendingLootPickups.push_back(*pickup);
+            }
         }
     }
 }
@@ -1152,5 +1162,46 @@ void NetworkEngine::buildStructure(uint8_t structureType, uint8_t faction, const
               << ") at (" << pos.x << ", " << pos.z << ")\n" << std::flush;
 }
 
-} // namespace Mercenary
 
+
+void NetworkEngine::broadcastLootDrop(const std::string& itemName, uint8_t category, int quantity, int ammoCount, const glm::vec3& pos, float yaw) {
+    if (!m_isConnected || m_localPlayerId == 0 || m_isServer) return;
+
+    char packet[sizeof(PacketHeader) + sizeof(LootDropEventPacket)];
+    PacketHeader* hdr = reinterpret_cast<PacketHeader*>(packet);
+    hdr->magic = 0x5647;
+    hdr->type = PacketType::LootDropEvent;
+    hdr->sequenceNumber = 0;
+    hdr->timestamp = 0.0f;
+
+    LootDropEventPacket* evt = reinterpret_cast<LootDropEventPacket*>(packet + sizeof(PacketHeader));
+    evt->lootId = 0;
+    strncpy_s(evt->itemName, itemName.c_str(), sizeof(evt->itemName) - 1);
+    evt->category = category;
+    evt->quantity = quantity;
+    evt->ammoCount = ammoCount;
+    evt->position = pos;
+    evt->yaw = yaw;
+    evt->droppedByPlayerId = m_localPlayerId;
+
+    sendRaw(packet, sizeof(packet), m_serverAddr);
+}
+
+void NetworkEngine::broadcastLootPickup(uint32_t lootId) {
+    if (!m_isConnected || m_localPlayerId == 0 || m_isServer) return;
+
+    char packet[sizeof(PacketHeader) + sizeof(LootPickupEventPacket)];
+    PacketHeader* hdr = reinterpret_cast<PacketHeader*>(packet);
+    hdr->magic = 0x5647;
+    hdr->type = PacketType::LootPickupEvent;
+    hdr->sequenceNumber = lootId;
+    hdr->timestamp = 0.0f;
+
+    LootPickupEventPacket* evt = reinterpret_cast<LootPickupEventPacket*>(packet + sizeof(PacketHeader));
+    evt->lootId = lootId;
+    evt->pickerPlayerId = m_localPlayerId;
+
+    sendRaw(packet, sizeof(packet), m_serverAddr);
+}
+
+} // namespace Mercenary

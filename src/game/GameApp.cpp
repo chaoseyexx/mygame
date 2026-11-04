@@ -1810,6 +1810,55 @@ void GameApp::run() {
             }
             net.clearPendingHits();
 
+            // Synchronize Networked Ground Loot Drops across clients
+            for (const auto& drop : net.getPendingLootDrops()) {
+                bool matchedLocal = false;
+                for (auto& c : world.getCrates()) {
+                    if (c.isGroundItem && glm::distance(c.position, drop.position) < 0.45f) {
+                        c.lootId = drop.lootId;
+                        matchedLocal = true;
+                        break;
+                    }
+                }
+                if (!matchedLocal) {
+                    SupplyCrate groundLoot;
+                    groundLoot.lootId = drop.lootId;
+                    groundLoot.position = drop.position;
+                    groundLoot.yaw = drop.yaw;
+                    groundLoot.name = drop.itemName;
+                    groundLoot.isGroundItem = true;
+                    groundLoot.looted = false;
+
+                    Item item;
+                    item.name = drop.itemName;
+                    item.category = static_cast<ItemCategory>(drop.category);
+                    item.quantity = drop.quantity;
+                    item.currentMag = drop.ammoCount;
+                    if (item.name.find("M4A1") != std::string::npos) item = Inventory::createM4A1();
+                    else if (item.name.find("AK") != std::string::npos) item = Inventory::createAK74();
+                    else if (item.name.find("Mosin") != std::string::npos) item = Inventory::createMosin();
+                    else if (item.name.find("M9") != std::string::npos) item = Inventory::createM9Pistol();
+                    item.quantity = drop.quantity;
+                    item.currentMag = drop.ammoCount;
+
+                    groundLoot.contents.push_back(item);
+                    world.getCrates().push_back(groundLoot);
+                }
+            }
+            net.clearPendingLootDrops();
+
+            // Synchronize Networked Ground Loot Pickups
+            for (const auto& pickup : net.getPendingLootPickups()) {
+                for (auto& c : world.getCrates()) {
+                    if (c.lootId == pickup.lootId && pickup.lootId > 0) {
+                        c.looted = true;
+                        c.contents.clear();
+                        break;
+                    }
+                }
+            }
+            net.clearPendingLootPickups();
+
 
             // Test Bullet Collisions against World, Targets, Bots, and Player (Continuous Swept-Segment Hitreg)
             for (auto& bullet : ballistics.getBullets()) {

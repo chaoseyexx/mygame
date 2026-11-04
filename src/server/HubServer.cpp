@@ -450,6 +450,12 @@ void HubServer::processPackets() {
             case PacketType::StructureDamageEvent:
                 handleStructureDamage(clientAddr, buffer, bytesReceived);
                 break;
+            case PacketType::LootDropEvent:
+                handleLootDrop(clientAddr, buffer, bytesReceived);
+                break;
+            case PacketType::LootPickupEvent:
+                handleLootPickup(clientAddr, buffer, bytesReceived);
+                break;
             default:
                 break;
         }
@@ -642,6 +648,20 @@ void HubServer::handleJoinSessionRequest(const sockaddr_in& from, const char* bu
             std::memcpy(sBuf + sizeof(PacketHeader), &sPkt, sizeof(StructureBuildPacket));
             sendRaw(sBuf, sizeof(sBuf), from);
         }
+    }
+
+    // Sync active session ground loot to joining operative
+    for (const auto& loot : sIt->second.groundLoot) {
+        PacketHeader lHdr;
+        lHdr.magic = 0x5647;
+        lHdr.type = PacketType::LootDropEvent;
+        lHdr.sequenceNumber = loot.lootId;
+        lHdr.timestamp = 0.0f;
+
+        char lBuf[sizeof(PacketHeader) + sizeof(LootDropEventPacket)];
+        std::memcpy(lBuf, &lHdr, sizeof(PacketHeader));
+        std::memcpy(lBuf + sizeof(PacketHeader), &loot, sizeof(LootDropEventPacket));
+        sendRaw(lBuf, sizeof(lBuf), from);
     }
 
     std::cout << "[Hub] Operative #" << req->playerId << " entered Session #" << req->sessionId 
@@ -1657,6 +1677,77 @@ void HubServer::appendLog(const std::string& msg) {
 std::vector<std::string> HubServer::getLogMessages() const {
     std::lock_guard<std::mutex> lock(m_logMutex);
     return std::vector<std::string>(m_guiLogs.begin(), m_guiLogs.end());
+}
+
+
+
+void HubServer::handleLootDrop(const sockaddr_in& from, const char* buffer, int len) {
+    if (len < (int)(sizeof(PacketHeader) + sizeof(LootDropEventPacket))) return;
+    const LootDropEventPacket* inPkt = reinterpret_cast<const LootDropEventPacket*>(buffer + sizeof(PacketHeader));
+
+    auto it = m_clients.find(inPkt->droppedByPlayerId);
+    if (it == m_clients.end()) return;
+    uint32_t sId = it->second.sessionId;
+    auto sIt = m_sessions.find(sId);
+    if (sIt == m_sessions.end()) return;
+
+    LootDropEventPacket dropPkt = *inPkt;
+    if (dropPkt.lootId == 0) {
+        dropPkt.lootId = sIt->second.nextLootId++;
+    }
+
+    sIt->second.groundLoot.push_back(dropPkt);
+
+    // Broadcast authoritative drop event to ALL session participants
+    char outBuffer[sizeof(PacketHeader) + sizeof(LootDropEventPacket)];
+    PacketHeader* outHdr = reinterpret_cast<PacketHeader*>(outBuffer);
+    outHdr->magic = 0x5647;
+    outHdr->type = PacketType::LootDropEvent;
+    outHdr->sequenceNumber = dropPkt.lootId;
+    outHdr->timestamp = 0.0f;
+    std::memcpy(outBuffer + sizeof(PacketHeader), &dropPkt, sizeof(LootDropEventPacket));
+
+    for (uint32_t rId : sIt->second.playerIds) {
+        auto rIt = m_clients.find(rId);
+        if (rIt != m_clients.end()) {
+            sendRaw(outBuffer, sizeof(outBuffer), rIt->second.address);
+        }
+    }
+}
+
+void HubServer::handleLootPickup(const sockaddr_in& from, const char* buffer, int len) {
+    if (len < (int)(sizeof(PacketHeader) + sizeof(LootPickupEventPacket))) return;
+    const LootPickupEventPacket* inPkt = reinterpret_cast<const LootPickupEventPacket*>(buffer + sizeof(PacketHeader));
+
+    auto it = m_clients.find(inPkt->pickerPlayerId);
+    if (it == m_clients.end()) return;
+    uint32_t sId = it->second.sessionId;
+    auto sIt = m_sessions.find(sId);
+    if (sIt == m_sessions.end()) return;
+
+    auto lootIt = std::find_if(sIt->second.groundLoot.begin(), sIt->second.groundLoot.end(),
+        [inPkt](const LootDropEventPacket& item) { return item.lootId == inPkt->lootId; });
+    if (lootIt == sIt->second.groundLoot.end()) return;
+
+    float dist = glm::distance(it->second.state.position, lootIt->position);
+    if (dist > 7.0f) return;
+
+    sIt->second.groundLoot.erase(lootIt);
+
+    char outBuffer[sizeof(PacketHeader) + sizeof(LootPickupEventPacket)];
+    PacketHeader* outHdr = reinterpret_cast<PacketHeader*>(outBuffer);
+    outHdr->magic = 0x5647;
+    outHdr->type = PacketType::LootPickupEvent;
+    outHdr->sequenceNumber = inPkt->lootId;
+    outHdr->timestamp = 0.0f;
+    std::memcpy(outBuffer + sizeof(PacketHeader), inPkt, sizeof(LootPickupEventPacket));
+
+    for (uint32_t rId : sIt->second.playerIds) {
+        auto rIt = m_clients.find(rId);
+        if (rIt != m_clients.end()) {
+            sendRaw(outBuffer, sizeof(outBuffer), rIt->second.address);
+        }
+    }
 }
 
 } // namespace Mercenary
