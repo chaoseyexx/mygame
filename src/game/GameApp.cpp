@@ -1637,6 +1637,59 @@ void GameApp::run() {
 
             net.updateClient(dt, localNetState, glm::radians(camera.getYaw()));
 
+            // Seamless sector handoff dynamic map streaming
+            if (net.hasPendingHandoffSwitch()) {
+                std::string targetHex = net.getCurrentMapName();
+                if (!targetHex.empty()) {
+                    std::string mPath = "assets/maps/" + targetHex + ".vmap";
+                    if (world.loadMap(mPath) || world.loadMap("ASSETS/maps/" + targetHex + ".vmap")) {
+                        renderer.rebuildTerrainMesh(false);
+                        std::cout << "[Client Handoff] Loaded new sector map: " << mPath << "\n" << std::flush;
+                    }
+                }
+            }
+
+            // Sync incoming persistent structures from server
+            if (!net.getPendingStructures().empty()) {
+                for (const auto& sp : net.getPendingStructures()) {
+                    WorldObstacle obs;
+                    obs.position = sp.position;
+                    obs.yaw = sp.rotYaw;
+                    obs.health = sp.health;
+                    obs.destructible = true;
+                    obs.blocksLineOfSight = true;
+                    obs.size = (sp.structureType == 2) ? glm::vec3(4.0f, 1.1f, 0.9f) :
+                               ((sp.structureType == 1) ? glm::vec3(6.0f, 3.5f, 5.0f) :
+                                glm::vec3(2.5f, 2.5f, 2.5f));
+                    obs.type = (sp.structureType == 2) ? ObstacleType::Sandbag :
+                               ((sp.structureType == 1) ? ObstacleType::ConcreteBunker : ObstacleType::ConcreteBarrier);
+                    obs.color = (sp.faction == 0) ? glm::vec4(0.4f, 0.6f, 0.9f, 1.0f) : glm::vec4(0.9f, 0.4f, 0.4f, 1.0f);
+                    world.getObstacles().push_back(obs);
+                }
+                net.clearPendingStructures();
+            }
+
+            // Continental coordinate border monitor (every 1.0s)
+            static float s_borderCheckTimer = 0.0f;
+            s_borderCheckTimer += dt;
+            if (s_borderCheckTimer >= 1.0f && net.isClientConnected() && net.getCurrentSessionId() >= 101 && net.getCurrentSessionId() <= 106) {
+                s_borderCheckTimer = 0.0f;
+                glm::vec3 pPos = player.getPosition();
+                std::string targetRegion;
+                if (pPos.z > 60.0f) {
+                    targetRegion = (pPos.x < 0.0f) ? "sumy" : "kharkiv";
+                } else if (pPos.z >= -60.0f) {
+                    targetRegion = (pPos.x < 0.0f) ? "donetsk" : "luhansk";
+                } else {
+                    targetRegion = (pPos.x < 0.0f) ? "zaporizhzhia" : "kherson";
+                }
+
+                if (!targetRegion.empty() && targetRegion != net.getCurrentMapName()) {
+                    std::cout << "[Continental Handoff] Border crossing detected: " << net.getCurrentMapName() << " -> " << targetRegion << " at (" << pPos.x << ", " << pPos.z << ")\n" << std::flush;
+                    net.requestSectorHandoff(targetRegion, pPos);
+                }
+            }
+
             // Replicate incoming gunfire from remote players in Area of Interest
             for (const auto& rBullet : net.getPendingBullets()) {
                 SoundType snd = (rBullet.weaponType == 3) ? SoundType::HeavyMGShot :

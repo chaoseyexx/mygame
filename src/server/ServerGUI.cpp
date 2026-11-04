@@ -464,27 +464,35 @@ void ServerGUI::renderTabSessions() {
 
 void ServerGUI::renderTabHexWarzone() {
     float availW = ImGui::GetContentRegionAvail().x;
-    ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "CONTINENTAL WARZONE: THE 6 FRONTLINE HEX SECTORS (96 km²)");
+    ImGui::TextColored(ImVec4(0.35f, 0.80f, 1.0f, 1.0f), "CONTINENTAL WARZONE: THE 6 FRONTLINE CHILD HEX MICROSERVERS (96 km²)");
     ImGui::Separator();
     ImGui::Spacing();
 
+    auto sessions = m_server ? m_server->getSessionsSnapshot() : std::vector<SessionSummary>{};
+    auto getHexPlayers = [&](uint32_t hexId) -> int {
+        for (const auto& s : sessions) {
+            if (s.id == hexId) return static_cast<int>(s.currentPlayers);
+        }
+        return 0;
+    };
+
     struct HexStatus {
+        uint32_t id;
         const char* name;
         const char* biome;
         const char* faction;
         ImVec4 facCol;
-        int activeOperatives;
         int fobsBuilt;
         const char* tacticalRole;
     };
 
     HexStatus hexes[] = {
-        { "1. SUMY REGION",         "Dense Pine Forests, Borderland Tracks",    "COALITION (90%)", ImVec4(0.35f, 0.75f, 1.0f, 1.0f), 4,  2, "Coalition Airbase & Woodland Recon" },
-        { "2. KHARKIV REGION",      "Villages, Highways, Agricultural Fields",  "COALITION (65%)", ImVec4(0.35f, 0.75f, 1.0f, 1.0f), 8,  4, "Mechanized Staging & Convoy Artery" },
-        { "3. DONETSK REGION",      "Dense Urban Ruins, Coking Metallurgy",     "HEAVY COMBAT",    ImVec4(1.0f, 0.35f, 0.35f, 1.0f), 24, 7, "Urban Fortress Meat-Grinder" },
-        { "4. LUHANSK REGION",      "Chalk Ridges, River Crossings, Forests",   "CONTESTED (50%)", ImVec4(1.0f, 0.85f, 0.35f, 1.0f), 12, 3, "Long-Range Artillery & Ridge Observation" },
-        { "5. ZAPORIZHZHIA REGION", "Flat Open Steppe, Dragon's Teeth Ditches", "CONTESTED (50%)", ImVec4(1.0f, 0.85f, 0.35f, 1.0f), 10, 5, "Armored Tank Maneuvers & Minefields" },
-        { "6. KHERSON REGION",      "Wide Dnipro River Delta, Pontoon Crossings","CRIMSON (80%)",   ImVec4(1.0f, 0.40f, 0.35f, 1.0f), 6,  2, "Crimson Airbase & Delta Naval Port" }
+        { 101, "CHILD #101: SUMY REGION",         "Dense Pine Forests, Borderland Tracks",    "COALITION (90%)", ImVec4(0.35f, 0.75f, 1.0f, 1.0f), 2, "Coalition Airbase & Woodland Recon" },
+        { 102, "CHILD #102: KHARKIV REGION",      "Villages, Highways, Agricultural Fields",  "COALITION (65%)", ImVec4(0.35f, 0.75f, 1.0f, 1.0f), 4, "Mechanized Staging & Convoy Artery" },
+        { 103, "CHILD #103: DONETSK REGION",      "Dense Urban Ruins, Coking Metallurgy",     "HEAVY COMBAT",    ImVec4(1.0f, 0.35f, 0.35f, 1.0f), 7, "Urban Fortress Meat-Grinder" },
+        { 104, "CHILD #104: LUHANSK REGION",      "Chalk Ridges, River Crossings, Forests",   "CONTESTED (50%)", ImVec4(1.0f, 0.85f, 0.35f, 1.0f), 3, "Long-Range Artillery & Ridge Observation" },
+        { 105, "CHILD #105: ZAPORIZHZHIA REGION", "Flat Open Steppe, Dragon's Teeth Ditches", "CONTESTED (50%)", ImVec4(1.0f, 0.85f, 0.35f, 1.0f), 5, "Armored Tank Maneuvers & Minefields" },
+        { 106, "CHILD #106: KHERSON REGION",      "Wide Dnipro River Delta, Pontoon Crossings","CRIMSON (80%)",   ImVec4(1.0f, 0.40f, 0.35f, 1.0f), 2, "Crimson Airbase & Delta Naval Port" }
     };
 
     float cardW = (availW - 15.0f) / 2.0f;
@@ -495,7 +503,8 @@ void ServerGUI::renderTabHexWarzone() {
         ImGui::TextDisabled("Biome: %s", hexes[i].biome);
         ImGui::TextDisabled("Role:  %s", hexes[i].tacticalRole);
         ImGui::TextColored(hexes[i].facCol, "Dominance: %s", hexes[i].faction);
-        ImGui::TextColored(ImVec4(0.7f, 0.8f, 0.9f, 1.0f), "Active Operatives: %d | Persistent FOBs: %d", hexes[i].activeOperatives, hexes[i].fobsBuilt);
+        int liveCount = getHexPlayers(hexes[i].id);
+        ImGui::TextColored(ImVec4(0.4f, 0.95f, 0.5f, 1.0f), "Live Operatives: %d | Persistent FOBs: %d", liveCount, hexes[i].fobsBuilt);
         ImGui::EndChild();
         if (i % 2 == 1) ImGui::Spacing();
     }

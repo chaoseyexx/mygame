@@ -684,7 +684,9 @@ void NetworkEngine::processClientPackets() {
                 const auto* resp = reinterpret_cast<const JoinSessionResponsePacket*>(buffer + sizeof(PacketHeader));
                 if (resp->success) {
                     m_currentSessionId = resp->sessionId;
-                    std::cout << "[Mercenary MMO Client] Successfully joined Session #" << m_currentSessionId << " (" << resp->sessionName << ")\n" << std::flush;
+                    m_currentMapName = resp->mapName;
+                    m_spawnPosition = resp->spawnPosition;
+                    std::cout << "[Mercenary MMO Client] Successfully joined Session #" << m_currentSessionId << " (" << resp->sessionName << ") on Map: " << resp->mapName << "\n" << std::flush;
                 }
             }
         } else if (hdr->type == PacketType::AuthResponse) {
@@ -781,9 +783,16 @@ void NetworkEngine::processClientPackets() {
             if (bytesReceived >= (int)(sizeof(PacketHeader) + sizeof(SectorHandoffPacket))) {
                 const auto* handoff = reinterpret_cast<const SectorHandoffPacket*>(buffer + sizeof(PacketHeader));
                 std::cout << "[Client Handoff] Confirmed transition into sector: " << handoff->targetRegionId << "\n" << std::flush;
+                m_currentMapName = handoff->targetRegionId;
+                m_handoffPendingMapSwitch = true;
                 if (handoff->targetHost[0] != '\0' && handoff->targetPort > 0) {
                     resolveHostToSockaddr(handoff->targetHost, handoff->targetPort, m_serverAddr);
                 }
+            }
+        } else if (hdr->type == PacketType::StructureBuildConfirm) {
+            if (bytesReceived >= (int)(sizeof(PacketHeader) + sizeof(StructureBuildPacket))) {
+                const auto* sPkt = reinterpret_cast<const StructureBuildPacket*>(buffer + sizeof(PacketHeader));
+                m_pendingStructures.push_back(*sPkt);
             }
         }
     }

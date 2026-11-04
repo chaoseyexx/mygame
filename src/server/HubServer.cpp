@@ -59,19 +59,46 @@ bool HubServer::init(uint16_t port) {
     // 0. Initialize Master Authoritative Database Engine (Embedded SQLite WAL)
     DatabaseEngine::get().init("mercenary_master.db");
 
-    // Default Pre-Configured Hub Game Modes & Sessions
-    // 1. Open World Persistent MMO Shard (Always-On 24/7 Frontline)
-    HubSession sOpenWorld;
-    sOpenWorld.id = 1001;
-    sOpenWorld.mode = GameMode::OpenWorld;
-    sOpenWorld.lifecycle = SessionLifecycle::PersistentMMO;
-    sOpenWorld.name = "SIVERSKY WARZONE // PERSISTENT FRONT";
-    sOpenWorld.mapName = "siversky";
-    sOpenWorld.maxPlayers = 3000;
-    m_sessions[1001] = sOpenWorld;
+    // Continental Open World Architecture: 6 Dedicated Child Hex Microservers
+    struct HexConfig {
+        uint32_t id;
+        const char* name;
+        const char* mapName;
+    };
 
-    std::cout << "[Hub Boot] Persistent OpenWorld MMO Shard #1001 Initialized (Always-On 24/7)\n"
-              << "[Hub Boot] Micro-Server Pool Active: TDM & Infiltration instances spawn on-demand.\n" << std::flush;
+    HexConfig hexConfigs[] = {
+        { 101, "CONTINENTAL HEX #1 // SUMY REGION (NORTH AIRBASE)", "sumy" },
+        { 102, "CONTINENTAL HEX #2 // KHARKIV REGION (HIGHWAYS)", "kharkiv" },
+        { 103, "CONTINENTAL HEX #3 // DONETSK REGION (URBAN RUINS)", "donetsk" },
+        { 104, "CONTINENTAL HEX #4 // LUHANSK REGION (ARTILLERY RIDGES)", "luhansk" },
+        { 105, "CONTINENTAL HEX #5 // ZAPORIZHZHIA REGION (STEPPE ARMOR)", "zaporizhzhia" },
+        { 106, "CONTINENTAL HEX #6 // KHERSON REGION (DELTA AIRBASE)", "kherson" }
+    };
+
+    for (const auto& h : hexConfigs) {
+        HubSession sHex;
+        sHex.id = h.id;
+        sHex.mode = GameMode::OpenWorld;
+        sHex.lifecycle = SessionLifecycle::PersistentMMO;
+        sHex.name = h.name;
+        sHex.mapName = h.mapName;
+        sHex.maxPlayers = 500;
+        m_sessions[h.id] = sHex;
+    }
+
+    // Master Continental Routing Shard
+    HubSession sMaster;
+    sMaster.id = 1001;
+    sMaster.mode = GameMode::OpenWorld;
+    sMaster.lifecycle = SessionLifecycle::PersistentMMO;
+    sMaster.name = "CONTINENTAL WARZONE // MASTER OVERWORLD ROUTER";
+    sMaster.mapName = "continental_master";
+    sMaster.maxPlayers = 3000;
+    m_sessions[1001] = sMaster;
+
+    std::cout << "[Hub Boot] 6 Continental Hex Child Microservers (#101-#106) Initialized Successfully.\n"
+              << "[Hub Boot] Master Continental Router #1001 Online (Total Capacity: 3,000 Operatives).\n"
+              << "[Hub Boot] On-Demand Micro-Server Pool Ready: TDM & Infiltration instances spawn on-demand.\n" << std::flush;
 
     m_startTime = std::chrono::steady_clock::now();
     m_running = true;
@@ -519,9 +546,18 @@ void HubServer::handleJoinSessionRequest(const sockaddr_in& from, const char* bu
         return; // Spoof attempt rejected
     }
 
-    auto sIt = m_sessions.find(req->sessionId);
+    uint32_t targetSessionId = req->sessionId;
+    // If player requested general Open World (#1001), route to appropriate starting hex by faction
+    if (targetSessionId == 1001) {
+        targetSessionId = (req->faction == 0) ? 101 : 106;
+    }
+
+    auto sIt = m_sessions.find(targetSessionId);
+    if (sIt == m_sessions.end()) {
+        sIt = m_sessions.find(101);
+    }
     JoinSessionResponsePacket resp{};
-    resp.sessionId = req->sessionId;
+    resp.sessionId = sIt != m_sessions.end() ? sIt->first : req->sessionId;
 
     if (sIt == m_sessions.end() || sIt->second.playerIds.size() >= sIt->second.maxPlayers) {
         resp.success = 0; // Failed / Full
@@ -547,7 +583,7 @@ void HubServer::handleJoinSessionRequest(const sockaddr_in& from, const char* bu
     }
 
     // Join target session
-    cIt->second.sessionId = req->sessionId;
+    cIt->second.sessionId = sIt->first;
     cIt->second.state.faction = req->faction;
     sIt->second.playerIds.push_back(req->playerId);
 
@@ -561,7 +597,14 @@ void HubServer::handleJoinSessionRequest(const sockaddr_in& from, const char* bu
     } else if (sIt->second.mode == GameMode::Infiltration) {
         resp.spawnPosition = glm::vec3(-120.0f, 0.0f, -120.0f);
     } else {
-        resp.spawnPosition = glm::vec3(0.0f, 0.0f, -220.0f);
+        // Continental Hex microserver starting positions
+        if (sIt->first == 101) resp.spawnPosition = glm::vec3(-25.0f, 0.0f, 85.0f);      // Sumy
+        else if (sIt->first == 102) resp.spawnPosition = glm::vec3(0.0f, 0.0f, 75.0f);    // Kharkiv
+        else if (sIt->first == 103) resp.spawnPosition = glm::vec3(-35.0f, 0.0f, 0.0f);   // Donetsk
+        else if (sIt->first == 104) resp.spawnPosition = glm::vec3(35.0f, 0.0f, 0.0f);    // Luhansk
+        else if (sIt->first == 105) resp.spawnPosition = glm::vec3(-25.0f, 0.0f, -85.0f); // Zaporizhzhia
+        else if (sIt->first == 106) resp.spawnPosition = glm::vec3(25.0f, 0.0f, -85.0f);  // Kherson
+        else resp.spawnPosition = (req->faction == 1) ? glm::vec3(0.0f, 0.0f, -75.0f) : glm::vec3(0.0f, 0.0f, 75.0f);
     }
     sIt->second.spatialGrid.updateEntityPosition(req->playerId, resp.spawnPosition);
 
@@ -574,6 +617,32 @@ void HubServer::handleJoinSessionRequest(const sockaddr_in& from, const char* bu
     std::memcpy(sendBuf, &hdr, sizeof(PacketHeader));
     std::memcpy(sendBuf + sizeof(PacketHeader), &resp, sizeof(JoinSessionResponsePacket));
     sendRaw(sendBuf, sizeof(sendBuf), from);
+
+    // Sync persistent world structures for this region to the joining client
+    if (!sIt->second.mapName.empty()) {
+        std::vector<WorldStructure> structs = DatabaseEngine::get().getRegionStructures(sIt->second.mapName);
+        for (const auto& ws : structs) {
+            StructureBuildPacket sPkt{};
+            sPkt.builderId = (uint32_t)ws.builtByAccountId;
+            sPkt.structureType = ws.structureType;
+            sPkt.faction = ws.faction;
+            strncpy_s(sPkt.regionId, ws.regionId.c_str(), sizeof(sPkt.regionId) - 1);
+            sPkt.position = ws.position;
+            sPkt.rotYaw = ws.rotYaw;
+            sPkt.health = ws.health;
+
+            PacketHeader sHdr;
+            sHdr.magic = 0x5647;
+            sHdr.type = PacketType::StructureBuildConfirm;
+            sHdr.sequenceNumber = (uint32_t)ws.id;
+            sHdr.timestamp = 0.0f;
+
+            char sBuf[sizeof(PacketHeader) + sizeof(StructureBuildPacket)];
+            std::memcpy(sBuf, &sHdr, sizeof(PacketHeader));
+            std::memcpy(sBuf + sizeof(PacketHeader), &sPkt, sizeof(StructureBuildPacket));
+            sendRaw(sBuf, sizeof(sBuf), from);
+        }
+    }
 
     std::cout << "[Hub] Operative #" << req->playerId << " entered Session #" << req->sessionId 
               << " (" << sIt->second.name << ") [Total: " << sIt->second.playerIds.size() << "]\n" << std::flush;
@@ -679,6 +748,20 @@ void HubServer::handleHitConfirm(const sockaddr_in& from, const char* buffer, in
     // Validate victim belongs to SAME session
     auto victimIt = m_clients.find(evt->victimId);
     if (victimIt != m_clients.end() && victimIt->second.sessionId == sId) {
+        // Authoritative Sub-Tick Rewind Validation
+        const PacketHeader* hdr = reinterpret_cast<const PacketHeader*>(buffer);
+        float shotTimestamp = hdr->timestamp;
+        if (!victimIt->second.history.empty() && shotTimestamp > 0.0f) {
+            glm::vec3 rewoundPos = getRewoundPosition(victimIt->second, shotTimestamp);
+            float distToRewound = glm::distance(evt->hitPoint, rewoundPos);
+            // Allow 4.2m tolerance (cylinder radius 0.6m + 150ms network jitter compensation)
+            if (distToRewound > 4.2f) {
+                std::cout << "[Hub Sub-Tick Rewind] Rejected ghost bullet: victim #" << evt->victimId
+                          << " was " << distToRewound << "m away from hitPoint at T=" << shotTimestamp << "\n" << std::flush;
+                return;
+            }
+        }
+
         victimIt->second.state.health = std::max(0.0f, victimIt->second.state.health - evt->damage);
 
         // If TDM, deduct ticket from victim's faction on fatal hit
@@ -1402,8 +1485,36 @@ void HubServer::handleSectorHandoff(const sockaddr_in& from, const char* buffer,
     auto it = m_clients.find(pkt->playerId);
     if (it == m_clients.end()) return;
 
-    std::cout << "[Continental Handoff] Operative #" << pkt->playerId << " crossing seamlessly into sector " 
-              << pkt->targetRegionId << " at (" << pkt->globalPos.x << ", " << pkt->globalPos.z << ")\n" << std::flush;
+    // Map target region string to child hex session id
+    uint32_t targetChildSessionId = 101;
+    std::string regStr = pkt->targetRegionId;
+    if (regStr == "sumy") targetChildSessionId = 101;
+    else if (regStr == "kharkiv") targetChildSessionId = 102;
+    else if (regStr == "donetsk") targetChildSessionId = 103;
+    else if (regStr == "luhansk") targetChildSessionId = 104;
+    else if (regStr == "zaporizhzhia") targetChildSessionId = 105;
+    else if (regStr == "kherson") targetChildSessionId = 106;
+
+    uint32_t oldSessionId = it->second.sessionId;
+    if (oldSessionId != targetChildSessionId) {
+        // Remove from old hex child session
+        auto oldSessIt = m_sessions.find(oldSessionId);
+        if (oldSessIt != m_sessions.end()) {
+            auto& pList = oldSessIt->second.playerIds;
+            pList.erase(std::remove(pList.begin(), pList.end(), pkt->playerId), pList.end());
+            oldSessIt->second.spatialGrid.removeEntity(pkt->playerId);
+        }
+
+        // Add to new hex child session
+        auto newSessIt = m_sessions.find(targetChildSessionId);
+        if (newSessIt != m_sessions.end()) {
+            newSessIt->second.playerIds.push_back(pkt->playerId);
+            newSessIt->second.spatialGrid.updateEntityPosition(pkt->playerId, pkt->globalPos);
+        }
+        it->second.sessionId = targetChildSessionId;
+        std::cout << "[Child Microserver Handoff] Operative #" << pkt->playerId << " handed off from Child Hex #" 
+                  << oldSessionId << " to Child Hex #" << targetChildSessionId << " (" << regStr << ") seamlessly!\n" << std::flush;
+    }
 
     PacketHeader respHdr;
     respHdr.magic = 0x5647;

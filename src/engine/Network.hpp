@@ -72,6 +72,12 @@ public:
     uint32_t getDesiredSessionId() const { return m_desiredSessionId; }
     void setDesiredSessionId(uint32_t sId) { m_desiredSessionId = sId; }
     uint32_t getCurrentSessionId() const { return m_currentSessionId; }
+    const std::string& getCurrentMapName() const { return m_currentMapName; }
+    void setCurrentMapName(const std::string& mapName) { m_currentMapName = mapName; }
+    const glm::vec3& getSpawnPosition() const { return m_spawnPosition; }
+    bool hasPendingHandoffSwitch() { bool b = m_handoffPendingMapSwitch; m_handoffPendingMapSwitch = false; return b; }
+    std::vector<StructureBuildPacket>& getPendingStructures() { return m_pendingStructures; }
+    void clearPendingStructures() { m_pendingStructures.clear(); }
     void joinSession(uint32_t sessionId, uint8_t faction = 0);
     bool requestMatchmaking(uint8_t desiredMode, const std::string& mapName, uint8_t faction = 0);
     bool isMatchmaking() const { return m_isMatchmaking; }
@@ -176,6 +182,10 @@ private:
     uint8_t m_pendingMode = 1;
     std::string m_pendingMap = "tdm_yard";
     uint8_t m_pendingFaction = 0;
+    std::string m_currentMapName;
+    glm::vec3 m_spawnPosition{0.0f};
+    bool m_handoffPendingMapSwitch = false;
+    std::vector<StructureBuildPacket> m_pendingStructures;
 
     void processServerPackets();
     void processClientPackets();
