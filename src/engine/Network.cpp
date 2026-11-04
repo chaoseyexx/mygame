@@ -737,7 +737,13 @@ void NetworkEngine::processClientPackets() {
                     m_isMatchmaking = false;
                     std::cout << "[Mercenary MMO Client] Matchmaker confirmed! Auto-routing to Session #"
                               << resp->sessionId << " (" << resp->sessionName << ") on " << resp->mapName << "\n" << std::flush;
-                    joinSession(resp->sessionId);
+                    joinSession(resp->sessionId, m_pendingFaction);
+                }
+            } else if (hdr->type == PacketType::MatchStateSync) {
+                if (bytesReceived >= (int)(sizeof(PacketHeader) + sizeof(MatchStateSyncPacket))) {
+                    const auto* sync = reinterpret_cast<const MatchStateSyncPacket*>(buffer + sizeof(PacketHeader));
+                    m_latestMatchState = *sync;
+                    m_hasMatchState = true;
                 }
             }
         } else if (hdr->type == PacketType::EntityState) {
@@ -875,12 +881,12 @@ void NetworkEngine::updateClient(float dt, const PlayerNetworkState& localState,
 
 bool NetworkEngine::requestMatchmaking(uint8_t desiredMode, const std::string& mapName, uint8_t faction) {
     m_isMatchmaking = true;
+    m_pendingFaction = faction;
+    m_pendingMode = desiredMode;
+    m_pendingMap = mapName;
     if (!m_isConnected || m_localPlayerId == 0) {
         // Queue matchmaking to dispatch as soon as handshake completes
         m_pendingMatchmake = true;
-        m_pendingMode = desiredMode;
-        m_pendingMap = mapName;
-        m_pendingFaction = faction;
         std::cout << "[Matchmaker Client] Queued MatchmakeRequest for mode " << (int)desiredMode << " (awaiting handshake)...\n" << std::flush;
         return true;
     }
@@ -1017,11 +1023,11 @@ void NetworkEngine::sendAuthStandalone(const std::string& username, const std::s
     memcpy(outBuf + sizeof(PacketHeader), &req, sizeof(AuthRequestPacket));
 
     sockaddr_in dest{};
-    resolveHostToSockaddr(m_shards[m_selectedShardIndex].host, m_shards[m_selectedShardIndex].port, dest);
+    resolveHostToSockaddr(getActiveShard().host, getActiveShard().port, dest);
 
     sendRaw(outBuf, sizeof(outBuf), dest);
     std::cout << "[Network Client] Transmitting Standalone AuthRequest for '" << username << "' to " 
-              << m_shards[m_selectedShardIndex].host << ":" << m_shards[m_selectedShardIndex].port << "...\n" << std::flush;
+              << getActiveShard().host << ":" << getActiveShard().port << "...\n" << std::flush;
 }
 
 void NetworkEngine::sendAuthSteam(const std::string& steamId, const std::string& personaName) {
@@ -1046,11 +1052,11 @@ void NetworkEngine::sendAuthSteam(const std::string& steamId, const std::string&
     memcpy(outBuf + sizeof(PacketHeader), &req, sizeof(AuthRequestPacket));
 
     sockaddr_in dest{};
-    resolveHostToSockaddr(m_shards[m_selectedShardIndex].host, m_shards[m_selectedShardIndex].port, dest);
+    resolveHostToSockaddr(getActiveShard().host, getActiveShard().port, dest);
 
     sendRaw(outBuf, sizeof(outBuf), dest);
     std::cout << "[Network Client] Transmitting Steam 1-Click AuthRequest (" << personaName << " / " << steamId << ") to "
-              << m_shards[m_selectedShardIndex].host << ":" << m_shards[m_selectedShardIndex].port << "...\n" << std::flush;
+              << getActiveShard().host << ":" << getActiveShard().port << "...\n" << std::flush;
 }
 
 void NetworkEngine::sendRegister(const std::string& username, const std::string& password, const std::string& callsign, uint8_t faction, uint8_t skinToneId, uint8_t faceId, uint8_t hairId, uint8_t beardId) {
@@ -1082,11 +1088,11 @@ void NetworkEngine::sendRegister(const std::string& username, const std::string&
     memcpy(outBuf + sizeof(PacketHeader), &req, sizeof(RegisterRequestPacket));
 
     sockaddr_in dest{};
-    resolveHostToSockaddr(m_shards[m_selectedShardIndex].host, m_shards[m_selectedShardIndex].port, dest);
+    resolveHostToSockaddr(getActiveShard().host, getActiveShard().port, dest);
 
     sendRaw(outBuf, sizeof(outBuf), dest);
     std::cout << "[Network Client] Transmitting RegisterRequest for '" << username << "' (" << callsign << ") to "
-              << m_shards[m_selectedShardIndex].host << ":" << m_shards[m_selectedShardIndex].port << "...\n" << std::flush;
+              << getActiveShard().host << ":" << getActiveShard().port << "...\n" << std::flush;
 }
 
 

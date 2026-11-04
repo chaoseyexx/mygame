@@ -81,6 +81,8 @@ public:
     void joinSession(uint32_t sessionId, uint8_t faction = 0);
     bool requestMatchmaking(uint8_t desiredMode, const std::string& mapName, uint8_t faction = 0);
     bool isMatchmaking() const { return m_isMatchmaking; }
+    bool hasMatchState() const { return m_hasMatchState; }
+    const MatchStateSyncPacket& getMatchState() const { return m_latestMatchState; }
 
     const std::unordered_map<uint32_t, RemotePlayer>& getRemotePlayers() const { return m_remotePlayers; }
     std::unordered_map<uint32_t, RemotePlayer>& getRemotePlayers() { return m_remotePlayers; }
@@ -100,7 +102,7 @@ public:
         return m_shards[m_selectedShardIndex];
     }
     std::string getServerHost() const {
-        return m_shards.empty() ? "127.0.0.1" : m_shards[m_selectedShardIndex].host;
+        return getActiveShard().host;
     }
     void setServerHost(const std::string& host);
     void loadShardsConfig();
@@ -188,6 +190,8 @@ private:
     uint8_t m_pendingMode = 1;
     std::string m_pendingMap = "tdm_yard";
     uint8_t m_pendingFaction = 0;
+    bool m_hasMatchState = false;
+    MatchStateSyncPacket m_latestMatchState{};
     std::string m_currentMapName;
     glm::vec3 m_spawnPosition{0.0f};
     bool m_handoffPendingMapSwitch = false;

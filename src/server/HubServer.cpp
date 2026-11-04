@@ -749,13 +749,12 @@ void HubServer::handleHitConfirm(const sockaddr_in& from, const char* buffer, in
     auto victimIt = m_clients.find(evt->victimId);
     if (victimIt != m_clients.end() && victimIt->second.sessionId == sId) {
         // Authoritative Sub-Tick Rewind Validation
-        const PacketHeader* hdr = reinterpret_cast<const PacketHeader*>(buffer);
-        float shotTimestamp = hdr->timestamp;
-        if (!victimIt->second.history.empty() && shotTimestamp > 0.0f) {
+        float shotTimestamp = m_serverTime - std::clamp(shooterIt->second.estimatedRtt * 0.5f, 0.015f, 0.40f);
+        if (!victimIt->second.history.empty()) {
             glm::vec3 rewoundPos = getRewoundPosition(victimIt->second, shotTimestamp);
             float distToRewound = glm::distance(evt->hitPoint, rewoundPos);
-            // Allow 4.2m tolerance (cylinder radius 0.6m + 150ms network jitter compensation)
-            if (distToRewound > 4.2f) {
+            // Allow 4.8m tolerance (cylinder radius 0.6m + height 1.8m + max sprint speed 7.5m/s * 150ms network jitter)
+            if (distToRewound > 4.8f) {
                 std::cout << "[Hub Sub-Tick Rewind] Rejected ghost bullet: victim #" << evt->victimId
                           << " was " << distToRewound << "m away from hitPoint at T=" << shotTimestamp << "\n" << std::flush;
                 return;

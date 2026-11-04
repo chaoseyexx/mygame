@@ -1675,6 +1675,14 @@ void GameApp::run() {
 
             net.updateClient(dt, localNetState, glm::radians(camera.getYaw()));
 
+            // Synchronize authoritative match state (scores, round timer, victory/defeat)
+            if (net.isClientConnected() && net.hasMatchState()) {
+                const auto& ms = net.getMatchState();
+                if (ms.sessionId == net.getCurrentSessionId() || net.getCurrentSessionId() == 0) {
+                    frontline.syncServerState(ms.coalitionScore, ms.crimsonScore, ms.roundTimer, ms.matchStatus);
+                }
+            }
+
             // Seamless sector handoff dynamic map streaming
             if (net.hasPendingHandoffSwitch()) {
                 std::string targetHex = net.getCurrentMapName();
@@ -1751,7 +1759,7 @@ void GameApp::run() {
                 glm::vec3 casingOrigin = rBullet.origin - rFwd * 0.22f + rRight * 0.10f + rUp * 0.04f;
                 ballistics.spawnShellCasing(casingOrigin, rRight, rUp, rFwd, rBullet.weaponType);
 
-                float netRange = (rBullet.weaponType == 3) ? 58.0f : ((rBullet.weaponType == 1) ? 68.0f : ((rBullet.weaponType == 2) ? 24.0f : 44.0f));
+                float netRange = (rBullet.weaponType == 3) ? 140.0f : ((rBullet.weaponType == 1) ? 240.0f : ((rBullet.weaponType == 2) ? 55.0f : 150.0f));
 
                 ballistics.fireBullet(
                     rBullet.origin,
@@ -2130,9 +2138,13 @@ void GameApp::run() {
                         float hitAngle = std::atan2(bullet.velocity.x, bullet.velocity.z) - player.getYaw();
                         WoundEffect wound = player.getBody().traceHit(localHitY, hitAngle, effectiveDamage, effectivePen);
 
-                        player.getStats().takeDamage(wound.damageDealt, wound.bleedAdded > 0.0f);
-                        if (wound.instantKill) {
-                            player.getStats().health = 0.0f;
+                        // Prevent PvP double-damage: remote human player bullets deal authoritative damage upon verified server HitConfirm
+                        bool isFromRemotePlayer = (bullet.shooterId > 0 && net.getRemotePlayers().count(bullet.shooterId) > 0);
+                        if (!isFromRemotePlayer) {
+                            player.getStats().takeDamage(wound.damageDealt, wound.bleedAdded > 0.0f);
+                            if (wound.instantKill) {
+                                player.getStats().health = 0.0f;
+                            }
                         }
 
                         camera.addTrauma(0.40f);

@@ -1636,10 +1636,12 @@ void UIManager::renderTacticalDeploymentScreen(Player& player, CharacterProfile*
                     frontline->initTeamDeathmatch(*world, active->faction, spawnBots);
                 }
                 if (active->faction == Faction::FactionA) {
-                    player.setPosition(glm::vec3(0.0f, 0.0f, -26.0f));
+                    float sY = World::sampleTerrainHeight(0.0f, -26.0f);
+                    player.setPosition(glm::vec3(0.0f, sY, -26.0f));
                     player.setYaw(0.0f);
                 } else {
-                    player.setPosition(glm::vec3(0.0f, 0.0f, 26.0f));
+                    float sY = World::sampleTerrainHeight(0.0f, 26.0f);
+                    player.setPosition(glm::vec3(0.0f, sY, 26.0f));
                     player.setYaw(3.14159f);
                 }
                 SteamIntegration::get().setRichPresence("status", "MERCENARY: 5v5 Team Deathmatch");
