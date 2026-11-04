@@ -1,0 +1,51 @@
+# MERCENARY TACTICAL MAP FILE v1.0
+# MAP: 2. LUHANSK REGION - CHALK RIDGES & ARTILLERY BATTERIES
+TIME_OF_DAY 15.00
+WEATHER 0
+CANVAS_MODE flat
+
+[SECTORS]
+COUNT 4
+SECTOR Chalk Ridge Battery Alpha | SEC-LUH-RIDGE | -30.00 20.00 30.00 70.00 | 0
+SECTOR River Valley Crossing | SEC-LUH-RIVER | -70.00 -30.00 -10.00 20.00 | 0
+SECTOR Southern Rail Staging Depot | SEC-LUH-STAGING | 10.00 -70.00 70.00 -20.00 | 2
+SECTOR Forward Observation Bunkers | SEC-LUH-OBS | -20.00 -20.00 20.00 10.00 | 0
+
+[OBSTACLES]
+COUNT 24
+# Artillery Emplacements & Berms
+OBSTACLE HescoBastion | -20.00 0.00 40.00 | 4.00 3.00 4.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4000.00
+OBSTACLE HescoBastion | 0.00 0.00 40.00 | 4.00 3.00 4.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4000.00
+OBSTACLE HescoBastion | 20.00 0.00 40.00 | 4.00 3.00 4.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4000.00
+OBSTACLE Sandbag | -10.00 0.00 35.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 10.00 0.00 35.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+# Observation Bunkers
+OBSTACLE RuinedWall | 0.00 0.00 -5.00 | 14.00 4.00 1.40 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 5000.00
+OBSTACLE ConcreteBarrier | -8.00 0.00 -12.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | 8.00 0.00 -12.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+# River Pontoon Redoubt
+OBSTACLE ConcreteBarrier | -50.00 0.00 -10.00 | 8.00 1.20 0.80 | 1.57 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1800.00
+OBSTACLE Sandbag | -45.00 0.00 0.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | -45.00 0.00 -20.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+# Staging Yard Freight Containers
+OBSTACLE ConcreteBarrier | 30.00 0.00 -45.00 | 8.00 2.50 2.40 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4000.00
+OBSTACLE ConcreteBarrier | 45.00 0.00 -45.00 | 8.00 2.50 2.40 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4000.00
+OBSTACLE WoodenCrate | 25.00 0.00 -40.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+OBSTACLE WoodenCrate | 27.00 0.00 -40.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+OBSTACLE StreetLamp | 35.00 0.00 -35.00 | 0.80 8.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE HescoBastion | -40.00 0.00 30.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+OBSTACLE HescoBastion | 40.00 0.00 30.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+OBSTACLE Sandbag | -30.00 0.00 25.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 30.00 0.00 25.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE ConcreteBarrier | 0.00 0.00 -30.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE Sandbag | 0.00 0.00 -25.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE WoodenCrate | 0.00 0.00 45.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE WoodenCrate | 4.00 0.00 45.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+
+[CRATES]
+COUNT 5
+CRATE 0.00 0.00 38.00 | ammo | 500
+CRATE 0.00 0.00 -8.00 | ammo | 350
+CRATE 2.00 0.00 -8.00 | med | 8
+CRATE -46.00 0.00 -8.00 | ammo | 200
+CRATE 32.00 0.00 -42.00 | med | 10

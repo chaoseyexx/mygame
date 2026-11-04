@@ -1,0 +1,61 @@
+# MERCENARY TACTICAL MAP FILE v1.0
+# MAP: 3. DONETSK REGION - URBAN FORTRESS & COKING FACTORY RUINS
+TIME_OF_DAY 17.50
+WEATHER 1
+CANVAS_MODE flat
+
+[SECTORS]
+COUNT 5
+SECTOR Azov-Style Coking Plant | SEC-DNK-STEEL | -40.00 -40.00 40.00 40.00 | 0
+SECTOR Slag Heap Slopes (Terrikon) | SEC-DNK-HEAP | -80.00 -80.00 -40.00 -40.00 | 0
+SECTOR High-Rise Ruined Boulevard | SEC-DNK-URBAN | -20.00 40.00 50.00 80.00 | 0
+SECTOR Coal Mine Railway Depot | SEC-DNK-RAIL | 40.00 -70.00 80.00 -20.00 | 0
+SECTOR Central Trench Meat-Grinder | SEC-DNK-FRONT | -30.00 -10.00 30.00 10.00 | 0
+
+[OBSTACLES]
+COUNT 30
+# Industrial Metallurgy Ruins
+OBSTACLE RuinedWall | -20.00 0.00 -20.00 | 18.00 7.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 8000.00
+OBSTACLE RuinedWall | 20.00 0.00 -20.00 | 18.00 7.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 8000.00
+OBSTACLE RuinedWall | -20.00 0.00 20.00 | 18.00 7.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 8000.00
+OBSTACLE RuinedWall | 20.00 0.00 20.00 | 18.00 7.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 8000.00
+# Zig-Zag Frontline Trenches
+OBSTACLE Sandbag | -25.00 0.00 -5.00 | 6.00 1.10 0.90 | 0.40 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 900.00
+OBSTACLE Sandbag | -15.00 0.00 0.00 | 6.00 1.10 0.90 | -0.40 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 900.00
+OBSTACLE Sandbag | -5.00 0.00 -5.00 | 6.00 1.10 0.90 | 0.40 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 900.00
+OBSTACLE Sandbag | 5.00 0.00 0.00 | 6.00 1.10 0.90 | -0.40 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 900.00
+OBSTACLE Sandbag | 15.00 0.00 -5.00 | 6.00 1.10 0.90 | 0.40 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 900.00
+OBSTACLE Sandbag | 25.00 0.00 0.00 | 6.00 1.10 0.90 | -0.40 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 900.00
+# Reinforced Pillboxes & Bunkers
+OBSTACLE HescoBastion | -10.00 0.00 -2.50 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3000.00
+OBSTACLE HescoBastion | 10.00 0.00 -2.50 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3000.00
+OBSTACLE HescoBastion | 0.00 0.00 5.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3000.00
+# Urban Apartment Rubble
+OBSTACLE RuinedWall | 0.00 0.00 60.00 | 24.00 8.00 2.20 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 9500.00
+OBSTACLE RuinedWall | 30.00 0.00 60.00 | 16.00 8.00 2.20 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 9500.00
+OBSTACLE ConcreteBarrier | 15.00 0.00 45.00 | 8.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2000.00
+OBSTACLE ConcreteBarrier | -15.00 0.00 45.00 | 8.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2000.00
+# Terrikon Anti-Tank Roadblocks
+OBSTACLE ConcreteBarrier | -60.00 0.00 -60.00 | 6.00 1.20 0.80 | 0.70 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2000.00
+OBSTACLE ConcreteBarrier | -55.00 0.00 -55.00 | 6.00 1.20 0.80 | -0.70 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2000.00
+OBSTACLE WoodenCrate | -60.00 0.00 -50.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE WoodenCrate | -57.00 0.00 -50.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+# Rail Depot Freight Containers
+OBSTACLE ConcreteBarrier | 60.00 0.00 -45.00 | 8.00 2.50 2.40 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4500.00
+OBSTACLE ConcreteBarrier | 60.00 0.00 -35.00 | 8.00 2.50 2.40 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4500.00
+OBSTACLE WoodenCrate | 50.00 0.00 -40.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 250.00
+OBSTACLE WoodenCrate | 52.00 0.00 -40.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 250.00
+OBSTACLE StreetLamp | 0.00 0.00 30.00 | 0.80 8.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE StreetLamp | 0.00 0.00 -30.00 | 0.80 8.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE Sandbag | 0.00 0.00 15.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 0.00 0.00 -15.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+
+[CRATES]
+COUNT 7
+CRATE 0.00 0.00 0.00 | ammo | 600
+CRATE 2.00 0.00 0.00 | med | 15
+CRATE -12.00 0.00 -2.00 | ammo | 300
+CRATE 12.00 0.00 -2.00 | ammo | 300
+CRATE 0.00 0.00 55.00 | ammo | 400
+CRATE 55.00 0.00 -38.00 | ammo | 350
+CRATE -58.00 0.00 -48.00 | med | 8

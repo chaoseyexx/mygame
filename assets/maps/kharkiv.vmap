@@ -1,0 +1,53 @@
+# MERCENARY TACTICAL MAP FILE v1.0
+# MAP: 1. KHARKIV REGION - HIGHWAY ARTERY & MECHANIZED STAGING
+TIME_OF_DAY 13.00
+WEATHER 0
+CANVAS_MODE flat
+
+[SECTORS]
+COUNT 4
+SECTOR M-03 Highway Checkpoint | SEC-KHK-HWY | -30.00 -20.00 30.00 20.00 | 1
+SECTOR Tractor Village & Farmsteads | SEC-KHK-FARM | -70.00 30.00 -20.00 80.00 | 0
+SECTOR Industrial Logistics Yard | SEC-KHK-DEPOT | 20.00 30.00 70.00 80.00 | 1
+SECTOR Sunflower Windbreak Trenches | SEC-KHK-TRENCH | -60.00 -70.00 60.00 -30.00 | 0
+
+[OBSTACLES]
+COUNT 26
+# Highway Roadblocks & Dragon's Teeth
+OBSTACLE ConcreteBarrier | -15.00 0.00 0.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | 15.00 0.00 0.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE Sandbag | -5.00 0.00 5.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 5.00 0.00 5.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+# Industrial Warehouse Structures
+OBSTACLE RuinedWall | 35.00 0.00 50.00 | 16.00 5.00 1.40 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 6000.00
+OBSTACLE RuinedWall | 55.00 0.00 50.00 | 16.00 5.00 1.40 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 6000.00
+OBSTACLE RuinedWall | 45.00 0.00 60.00 | 16.00 5.00 1.40 | 1.57 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 6000.00
+OBSTACLE HescoBastion | 40.00 0.00 40.00 | 3.00 3.00 3.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3500.00
+OBSTACLE HescoBastion | 50.00 0.00 40.00 | 3.00 3.00 3.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3500.00
+# Village Redoubt
+OBSTACLE RuinedWall | -45.00 0.00 55.00 | 10.00 3.50 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3500.00
+OBSTACLE Sandbag | -45.00 0.00 45.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE WoodenCrate | -40.00 0.00 50.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+OBSTACLE WoodenCrate | -42.00 0.00 50.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+# Windbreak Defensive Line
+OBSTACLE Sandbag | -30.00 0.00 -50.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | -20.00 0.00 -50.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | -10.00 0.00 -50.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 0.00 0.00 -50.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 10.00 0.00 -50.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 20.00 0.00 -50.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 30.00 0.00 -50.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE ConcreteBarrier | -25.00 0.00 -55.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | 25.00 0.00 -55.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE StreetLamp | -15.00 0.00 -10.00 | 0.80 8.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE StreetLamp | 15.00 0.00 -10.00 | 0.80 8.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE WoodenCrate | 0.00 0.00 10.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE WoodenCrate | 5.00 0.00 10.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+
+[CRATES]
+COUNT 5
+CRATE 0.00 0.00 2.00 | ammo | 360
+CRATE 45.00 0.00 48.00 | ammo | 450
+CRATE 47.00 0.00 48.00 | med | 10
+CRATE -42.00 0.00 48.00 | med | 6
+CRATE 0.00 0.00 -45.00 | ammo | 240

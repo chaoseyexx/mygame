@@ -1,0 +1,54 @@
+# MERCENARY TACTICAL MAP FILE v1.0
+# MAP: 5. KHERSON REGION - DNIPRO DELTA & CRIMSON MAIN AIRBASE
+TIME_OF_DAY 16.30
+WEATHER 0
+CANVAS_MODE flat
+
+[SECTORS]
+COUNT 4
+SECTOR Crimson Primary Airbase | SEC-KHS-AIRBASE | -50.00 -70.00 50.00 -30.00 | 2
+SECTOR Antonivsky Bridge Ruins | SEC-KHS-BRIDGE | -70.00 20.00 -10.00 60.00 | 0
+SECTOR Dnipro Delta Islands | SEC-KHS-DELTA | 10.00 20.00 70.00 70.00 | 0
+SECTOR Barge & Naval Supply Port | SEC-KHS-PORT | -40.00 -20.00 40.00 10.00 | 2
+
+[OBSTACLES]
+COUNT 26
+# Crimson Airbase Perimeter & Hangars
+OBSTACLE ConcreteBarrier | -40.00 0.00 -50.00 | 8.00 1.40 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2000.00
+OBSTACLE ConcreteBarrier | -20.00 0.00 -50.00 | 8.00 1.40 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2000.00
+OBSTACLE ConcreteBarrier | 0.00 0.00 -50.00 | 8.00 1.40 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2000.00
+OBSTACLE ConcreteBarrier | 20.00 0.00 -50.00 | 8.00 1.40 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2000.00
+OBSTACLE ConcreteBarrier | 40.00 0.00 -50.00 | 8.00 1.40 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2000.00
+OBSTACLE RuinedWall | 0.00 0.00 -60.00 | 20.00 5.00 1.60 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 7000.00
+OBSTACLE HescoBastion | -25.00 0.00 -55.00 | 3.00 3.00 3.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3000.00
+OBSTACLE HescoBastion | 25.00 0.00 -55.00 | 3.00 3.00 3.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3000.00
+# Antonivsky Bridge Pontoon Obstacles
+OBSTACLE ConcreteBarrier | -40.00 0.00 35.00 | 10.00 1.50 1.20 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3000.00
+OBSTACLE ConcreteBarrier | -40.00 0.00 45.00 | 10.00 1.50 1.20 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3000.00
+OBSTACLE Sandbag | -30.00 0.00 40.00 | 5.00 1.10 0.90 | 1.57 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | -50.00 0.00 40.00 | 5.00 1.10 0.90 | 1.57 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+# Delta Island Redoubts
+OBSTACLE Sandbag | 30.00 0.00 40.00 | 6.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 50.00 0.00 40.00 | 6.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE HescoBastion | 40.00 0.00 45.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+OBSTACLE WoodenCrate | 35.00 0.00 42.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+# Naval Port Docks & Fuel Stores
+OBSTACLE ConcreteBarrier | -15.00 0.00 -5.00 | 8.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | 15.00 0.00 -5.00 | 8.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE WoodenCrate | 0.00 0.00 -8.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE WoodenCrate | 5.00 0.00 -8.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE StreetLamp | 0.00 0.00 -15.00 | 0.80 8.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE StreetLamp | 0.00 0.00 -40.00 | 0.80 12.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 500.00
+OBSTACLE Sandbag | 0.00 0.00 10.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | -10.00 0.00 10.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 10.00 0.00 10.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE ConcreteBarrier | 0.00 0.00 20.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+
+[CRATES]
+COUNT 6
+CRATE 0.00 0.00 -55.00 | ammo | 500
+CRATE 3.00 0.00 -55.00 | med | 12
+CRATE -40.00 0.00 40.00 | ammo | 300
+CRATE 42.00 0.00 42.00 | ammo | 300
+CRATE 0.00 0.00 -5.00 | ammo | 250
+CRATE 2.00 0.00 -5.00 | med | 6

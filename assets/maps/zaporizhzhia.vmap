@@ -1,0 +1,53 @@
+# MERCENARY TACTICAL MAP FILE v1.0
+# MAP: 4. ZAPORIZHZHIA REGION - OPEN STEPPE & ARMORED BATTLEGROUND
+TIME_OF_DAY 11.00
+WEATHER 0
+CANVAS_MODE flat
+
+[SECTORS]
+COUNT 4
+SECTOR Central Steppe Killzone | SEC-ZAP-STEPPE | -50.00 -30.00 50.00 30.00 | 0
+SECTOR Anti-Tank Ditch Line Bravo | SEC-ZAP-DITCH | -80.00 30.00 80.00 60.00 | 0
+SECTOR Fortified Farmstead Hamlet | SEC-ZAP-FARM | -60.00 -70.00 -10.00 -30.00 | 0
+SECTOR Southern Windbreak Redoubt | SEC-ZAP-WINDBREAK | 10.00 -70.00 70.00 -30.00 | 0
+
+[OBSTACLES]
+COUNT 26
+# Dragon's Teeth Concrete Lines
+OBSTACLE ConcreteBarrier | -40.00 0.00 45.00 | 8.00 1.40 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+OBSTACLE ConcreteBarrier | -20.00 0.00 45.00 | 8.00 1.40 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+OBSTACLE ConcreteBarrier | 0.00 0.00 45.00 | 8.00 1.40 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+OBSTACLE ConcreteBarrier | 20.00 0.00 45.00 | 8.00 1.40 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+OBSTACLE ConcreteBarrier | 40.00 0.00 45.00 | 8.00 1.40 1.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+# Steppe Trenches
+OBSTACLE Sandbag | -30.00 0.00 0.00 | 6.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | -15.00 0.00 0.00 | 6.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 0.00 0.00 0.00 | 6.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 15.00 0.00 0.00 | 6.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 30.00 0.00 0.00 | 6.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+# Farmstead Structures
+OBSTACLE RuinedWall | -40.00 0.00 -50.00 | 14.00 4.00 1.40 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4500.00
+OBSTACLE RuinedWall | -25.00 0.00 -50.00 | 14.00 4.00 1.40 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4500.00
+OBSTACLE HescoBastion | -32.00 0.00 -40.00 | 3.00 3.00 3.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 3000.00
+OBSTACLE WoodenCrate | -35.00 0.00 -45.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+OBSTACLE WoodenCrate | -33.00 0.00 -45.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+# Windbreak Defensive Emplacements
+OBSTACLE Sandbag | 30.00 0.00 -50.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 40.00 0.00 -50.00 | 5.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE ConcreteBarrier | 35.00 0.00 -45.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE HescoBastion | 45.00 0.00 -45.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+OBSTACLE StreetLamp | 0.00 0.00 20.00 | 0.80 8.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE StreetLamp | 0.00 0.00 -20.00 | 0.80 8.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE ConcreteBarrier | -15.00 0.00 -20.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | 15.00 0.00 -20.00 | 6.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE Sandbag | -15.00 0.00 -15.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 15.00 0.00 -15.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE WoodenCrate | 0.00 0.00 5.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+
+[CRATES]
+COUNT 5
+CRATE 0.00 0.00 2.00 | ammo | 400
+CRATE 0.00 0.00 50.00 | ammo | 350
+CRATE -32.00 0.00 -48.00 | med | 8
+CRATE 38.00 0.00 -48.00 | ammo | 300
+CRATE 0.00 0.00 -18.00 | med | 6

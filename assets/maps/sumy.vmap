@@ -1,0 +1,57 @@
+# MERCENARY TACTICAL MAP FILE v1.0
+# MAP: 6. SUMY REGION - COALITION AIRBASE & BORDER WOODLANDS
+TIME_OF_DAY 09.30
+WEATHER 0
+CANVAS_MODE flat
+
+[SECTORS]
+COUNT 4
+SECTOR Coalition Primary Airfield | SEC-SUMY-AIRBASE | -60.00 40.00 60.00 80.00 | 1
+SECTOR Northern Border Forests | SEC-SUMY-WOODS | -80.00 -80.00 80.00 -20.00 | 0
+SECTOR Logistics Hangar & Stash | SEC-SUMY-DEPOT | -40.00 10.00 -10.00 35.00 | 1
+SECTOR Recon Outpost Echo | SEC-SUMY-OUTPOST | 20.00 -10.00 50.00 20.00 | 0
+
+[OBSTACLES]
+COUNT 28
+# Airbase Runway & Perimeter Security
+OBSTACLE ConcreteBarrier | -50.00 0.00 40.00 | 8.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | -30.00 0.00 40.00 | 8.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | -10.00 0.00 40.00 | 8.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | 10.00 0.00 40.00 | 8.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | 30.00 0.00 40.00 | 8.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | 50.00 0.00 40.00 | 8.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+# Main Command Bunker
+OBSTACLE RuinedWall | -25.00 0.00 25.00 | 12.00 4.00 1.20 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4500.00
+OBSTACLE RuinedWall | -25.00 0.00 15.00 | 12.00 4.00 1.20 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 4500.00
+OBSTACLE HescoBastion | -15.00 0.00 20.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+OBSTACLE HescoBastion | -35.00 0.00 20.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+# Woodland FOB & Sandbags
+OBSTACLE Sandbag | 25.00 0.00 5.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 35.00 0.00 5.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 30.00 0.00 0.00 | 4.00 1.10 0.90 | 1.57 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+# Radar & Communications Mast
+OBSTACLE StreetLamp | -20.00 0.00 30.00 | 0.80 12.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 500.00
+# Supply Crates & Fuel Pallets
+OBSTACLE WoodenCrate | -28.00 0.00 22.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+OBSTACLE WoodenCrate | -26.00 0.00 22.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+OBSTACLE WoodenCrate | -24.00 0.00 22.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+OBSTACLE WoodenCrate | 22.00 0.00 8.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+OBSTACLE WoodenCrate | 24.00 0.00 8.00 | 2.00 2.00 2.00 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 200.00
+OBSTACLE ConcreteBarrier | 0.00 0.00 -40.00 | 10.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | -15.00 0.00 -40.00 | 10.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE ConcreteBarrier | 15.00 0.00 -40.00 | 10.00 1.20 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 1500.00
+OBSTACLE Sandbag | 0.00 0.00 -50.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | -6.00 0.00 -50.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE Sandbag | 6.00 0.00 -50.00 | 4.00 1.10 0.90 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 800.00
+OBSTACLE StreetLamp | 0.00 0.00 -35.00 | 0.80 8.00 0.80 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 1 300.00
+OBSTACLE HescoBastion | -8.00 0.00 -35.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+OBSTACLE HescoBastion | 8.00 0.00 -35.00 | 2.50 2.50 2.50 | 0.0 0.0 0.0 | 1.0 1.0 1.0 1.0 | 1 0 2500.00
+
+[CRATES]
+COUNT 6
+CRATE -25.00 0.00 18.00 | ammo | 450
+CRATE -22.00 0.00 18.00 | med | 12
+CRATE 26.00 0.00 6.00 | ammo | 240
+CRATE 28.00 0.00 6.00 | med | 6
+CRATE 0.00 0.00 -45.00 | ammo | 300
+CRATE 2.00 0.00 -45.00 | med | 8
