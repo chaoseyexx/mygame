@@ -662,7 +662,8 @@ void UIManager::drawVisualItemSlot(Item& item, size_t index, bool isEquipped, Eq
         }
     }
 
-    if (rightClicked) {
+    bool gKeyPressed = ImGui::IsItemHovered() && ImGui::IsKeyPressed(ImGuiKey_G);
+    if (rightClicked || gKeyPressed) {
         if (m_gameState == GameState::InGame && m_currentWorld) {
             if (isEquipped && player) {
                 player->dropEquippedItem(*m_currentWorld, slot);
