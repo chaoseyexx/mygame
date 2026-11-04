@@ -957,8 +957,15 @@ void GameApp::run() {
             }
 
             glm::vec2 effMouse(window.getWidth() * 0.5f, window.getHeight() * 0.5f);
+            float strafeSpeed = 0.0f;
+            if (window.isCursorCaptured()) {
+                float rad = glm::radians(camera.getYaw());
+                glm::vec3 rightDir(std::cos(rad), 0.0f, -std::sin(rad));
+                strafeSpeed = glm::dot(player.getVelocity(), rightDir);
+            }
             camera.update(dt, player.getPosition(), effMouse, window.getWidth(), window.getHeight(), 
-                          player.isAiming(), player.getAdsZoomLevel(), player.isSprinting(), glm::length(player.getVelocity()), &world);
+                          player.isAiming(), player.getAdsZoomLevel(), player.isSprinting(), glm::length(player.getVelocity()), &world,
+                          player.getEyeHeight(), strafeSpeed);
         }
 
         // Apply Real-time Graphics & Atmosphere Toggles

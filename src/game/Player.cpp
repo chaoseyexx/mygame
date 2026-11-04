@@ -468,6 +468,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 if (!m_isJumping && m_stats.stamina > 4.0f) {
                     m_isJumping = true;
                     m_jumpTimer = 0.0f;
+                    m_jumpBaseY = m_position.y;
                     m_stats.stamina = std::max(0.0f, m_stats.stamina - 2.5f);
                     GroundSurface surf = world.getGroundSurface(m_position);
                     AudioEngine::get().playSound(getSurfaceFootstepSound(surf), 0.35f, 1.2f);
@@ -507,6 +508,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 // Athletic Tactical Vertical Jump on Space
                 m_isJumping = true;
                 m_jumpTimer = 0.0f;
+                m_jumpBaseY = m_position.y;
                 m_stats.stamina = std::max(0.0f, m_stats.stamina - 2.5f);
                 GroundSurface surf = world.getGroundSurface(m_position);
                 AudioEngine::get().playSound(getSurfaceFootstepSound(surf), 0.40f, 1.25f);
@@ -865,7 +867,21 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         currentSpeed *= 0.45f; // Deep river water & mud wading slowdown
     }
     glm::vec3 targetVelocity = moveDir * currentSpeed;
-    m_velocity = glm::mix(m_velocity, targetVelocity, std::clamp(dt * 14.0f, 0.0f, 1.0f));
+
+    // AAA Athletic Acceleration, Directional Cutting & Ground Friction
+    float targetSpeed = glm::length(targetVelocity);
+    float currentVelSpeed = glm::length(m_velocity);
+    float accelRate;
+    if (targetSpeed < 0.01f) {
+        accelRate = 18.0f; // Responsive deceleration friction to a grounded stop
+    } else if (currentVelSpeed > 0.1f && glm::dot(m_velocity, targetVelocity) < 0.0f) {
+        accelRate = 22.0f; // Foot plant directional cut
+    } else if (wantsSprint) {
+        accelRate = 12.0f; // Athletic sprint acceleration curve
+    } else {
+        accelRate = 16.0f; // Snappy tactical walk/strafe start
+    }
+    m_velocity = glm::mix(m_velocity, targetVelocity, std::clamp(dt * accelRate, 0.0f, 1.0f));
 
     glm::vec3 actualMove = m_velocity * dt;
     m_position += actualMove;
@@ -874,17 +890,29 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     float colRadius = m_inCover ? 0.12f : 0.24f;
     world.checkCollision(m_position, colRadius);
 
-    // Apply jumping vertical kinematics
+    // Apply jumping vertical kinematics & seamless terrain adherence
     if (m_isJumping) {
         m_jumpTimer += dt;
         float jt = std::clamp(m_jumpTimer / m_jumpDuration, 0.0f, 1.0f);
+        float currentGroundY = World::sampleTerrainHeight(m_position.x, m_position.z);
+        float baseY = glm::mix(m_jumpBaseY, currentGroundY, jt);
         float jumpArc = std::sin(3.14159265f * jt) * m_jumpHeight;
-        m_position.y += jumpArc;
+        m_position.y = baseY + jumpArc;
         if (jt >= 1.0f) {
             m_isJumping = false;
+            m_position.y = currentGroundY;
             GroundSurface surf = world.getGroundSurface(m_position);
             AudioEngine::get().playSound(getSurfaceFootstepSound(surf), 0.50f, 0.95f);
             AudioEngine::get().playSound(SoundType::GearRustle, 0.35f, 1.0f);
+        }
+    } else if (!m_isClimbing && !m_isVaulting) {
+        // High-fidelity terrain adherence across hills, trenches, craters, and slopes
+        float groundY = World::sampleTerrainHeight(m_position.x, m_position.z);
+        float vertDiff = std::abs(groundY - m_position.y);
+        if (vertDiff > 3.0f) {
+            m_position.y = groundY;
+        } else {
+            m_position.y = glm::mix(m_position.y, groundY, std::clamp(dt * 28.0f, 0.0f, 1.0f));
         }
     }
 
