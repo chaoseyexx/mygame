@@ -1,0 +1,122 @@
+[
+  {
+    "id": "patch-v1.0.1",
+    "tag": "GAMEPLAY & BALANCE UPDATE",
+    "version": "v1.0.1",
+    "date": "November 4, 2026",
+    "headline": "Tactical Realism: Frontline TDM Balance, Dynamic Deployments & Combat Logistics",
+    "summary": "Operatives, today's tactical deployment introduces critical quality-of-life, combat fairness, and logistics enhancements across our 5v5 Team Deathmatch theater. This update resolves sudden deployment pressure by introducing dynamic covered spawn positions, combat invulnerability telemetry, normalized AI threat evaluation, and guaranteed munitions replenishment.",
+    "sections": [
+      {
+        "title": "Combat & Opposing Force AI Balancing",
+        "icon": "[COMBAT]",
+        "bullets": [
+          "Organic Threat Evaluation: Opposing AI combatants now assess threats strictly based on distance and line-of-sight, eliminating artificial targeting priority on players over friendly squadmates.",
+          "Visual Notice Latency: Removed instantaneous 360-degree awareness upon bot respawn. Hostile units now require clear visual line-of-sight and a realistic reaction threshold (~0.55s) before acquiring targets.",
+          "Natural Weapon Dispersion: Opposing automatic riflemen and squad marksmen burst spreads have been tuned to authentic combat suppression tolerances, eliminating laser-accurate single-burst eliminations.",
+          "Tactical Engagement Cooldown: Hostile units now feature a minimum 1.2s combat observation window upon deployment before engaging hostile targets."
+        ]
+      },
+      {
+        "title": "Deployment & Field Survivability",
+        "icon": "[TACTICAL]",
+        "bullets": [
+          "Dynamic Covered Spawn Anchors: Operatives now deploy dynamically across three reinforced tactical positions (Left Flank, Center Bunker, Right Barrier), automatically selecting the anchor furthest from active enemy concentrations to prevent spawn containment.",
+          "Tactical Deployment Shield: Deployed operatives receive a 4.0-second combat invulnerability shield providing complete immunity to bullet impacts, high-explosive blast waves, and mortar strikes.",
+          "Interactive Shield Telemetry: Real-time HUD banner displays remaining tactical shield duration. Discharging weapons automatically breaks the protective shield to maintain competitive balance.",
+          "Hostile Targeting Immunity: Enemy combatants actively disengage and disregard operatives while their tactical deployment shield remains active."
+        ]
+      },
+      {
+        "title": "Logistics & Munitions Replenishment",
+        "icon": "[LOGISTICS]",
+        "bullets": [
+          "Full Weapon Chambering: Primary carbines and sidearms are automatically chambered with full magazine capacities upon each deployment.",
+          "Standard-Issue Munitions Restock: Operatives are guaranteed a baseline reserve stock of 180 rounds of 5.56x45mm / 5.45x39mm rifle munitions and 60 rounds of 9x19mm sidearm ammunition on every respawn.",
+          "Field Medical Supply: Restocked with 3 emergency sterile field bandages in tactical rigs on every deployment.",
+          "Ballistic Armor Maintenance: Body armor vest and trauma plate integrity are completely repaired to 100% durability upon deployment."
+        ]
+      },
+      {
+        "title": "Client HUD & Audio Polish",
+        "icon": "[INTERFACE]",
+        "bullets": [
+          "Modern Tactical HUD: Integrated sleek top-screen tactical shield countdown gauge with glowing active status borders.",
+          "Combat Audio Cues: Synchronized deployment confirmation audio telemetry and tactical shield status audio pings."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "patch-v1.0.0",
+    "tag": "MAJOR PRODUCTION RELEASE",
+    "version": "v1.0.0",
+    "date": "November 3, 2026",
+    "headline": "Mercenary: Frontline Operations Official Production Release",
+    "summary": "The culmination of extensive closed combat playtests: Mercenary: Frontline Operations officially enters production architecture featuring authoritative zero-anonymous authentication, embedded SQLite WAL database management, dynamic on-demand match micro-servers, and complete operative cosmetic diversity synchronization.",
+    "sections": [
+      {
+        "title": "Production Infrastructure & Match Lifecycle",
+        "icon": "[INFRASTRUCTURE]",
+        "bullets": [
+          "Authoritative Authentication: Secure in-game account creation and authentication terminal with SHA-256 encrypted credential validation.",
+          "Steam Silent Onboarding: Instant 1-click seamless operative provisioning via hardware Steam ID and persona profiles.",
+          "Embedded Master Database Engine: Centralized SQLite WAL architecture for cloud operative persistence, ranks, and loadout caches.",
+          "On-Demand Micro-Servers: Fast ephemeral match servers deployed dynamically for 5v5 Team Deathmatch and Infiltration raids."
+        ]
+      },
+      {
+        "title": "Visual Identity & Uniform Diversity",
+        "icon": "[CUSTOMIZATION]",
+        "bullets": [
+          "Operative Customization: Synchronized face meshes, skin tones, tactical beards, hairstyles, ballistics helmets, chest rigs, and backpacks.",
+          "Network Diversity Replication: Full visual replication across all connected multiplayer operatives."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "patch-v0.9.8",
+    "tag": "CONTENT & BALLISTICS UPDATE",
+    "version": "v0.9.8",
+    "date": "October 30, 2026",
+    "headline": "Siversky River Warzone Expansion & 3D Atmospheric Ballistics",
+    "summary": "Expansion of the eastern river frontline sector introducing enhanced tactical cover, physical spent shell casing ejection, and triple-layer phosphorus tracer ionization.",
+    "sections": [
+      {
+        "title": "Ballistics & Weapon Mechanics",
+        "icon": "[BALLISTICS]",
+        "bullets": [
+          "Triple-Layer 3D Tracers: Atmospheric night-vision tracer glow with volumetric smoke trail ionization.",
+          "Dynamic Shell Casings: Spent brass physically ejects from weapon receivers, bouncing off terrain and concrete surfaces."
+        ]
+      },
+      {
+        "title": "Theater of War Expansion",
+        "icon": "[MAPS]",
+        "bullets": [
+          "Riverline Crossing Bridges: Reinforced tactical bridgeheads and river embankment fortifications.",
+          "Tactical Supply Crates: 10 contested supply cache drops distributed across strategic sector chokepoints."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "patch-v0.9.5",
+    "tag": "STRATEGIC CONQUEST UPDATE",
+    "version": "v0.9.5",
+    "date": "October 25, 2026",
+    "headline": "Frontline Strategic Sectors & Dynamic Artillery Integration",
+    "summary": "Introduces strategic frontline territory control inspired by classic theater warfare games, including frontline sectors, garrison spawn points, and tactical field artillery strikes.",
+    "sections": [
+      {
+        "title": "Territorial Warfare",
+        "icon": "[STRATEGY]",
+        "bullets": [
+          "Sector Capture Mechanics: Capturing strategic bunker flags dynamically shifts the frontline boundary.",
+          "Field Artillery Strikes: Dynamic off-map mortar and howitzer barrages targeting enemy trench formations."
+        ]
+      }
+    ]
+  }
+]
