@@ -1,20 +1,12 @@
 [
   {
-    "id": "eu-central-1",
-    "name": "EUROPE CENTRAL // FRANKFURT SHARD 01",
-    "region": "Frankfurt, DE",
-    "host": "185.241.211.91",
-    "port": 7777,
-    "maxCapacity": 3000,
-    "isOfficial": true
-  },
-  {
-    "id": "local-dev",
-    "name": "LOCAL DEV CLUSTER // LOOPBACK",
-    "region": "Local Host",
+    "id": "master-cluster-01",
+    "name": "PRIMARY BATTLEFIELD CLUSTER // DEDICATED",
+    "region": "Frankfurt, EU",
     "host": "127.0.0.1",
     "port": 7777,
-    "maxCapacity": 3000,
-    "isOfficial": false
+    "max_capacity": 3000,
+    "is_official": true,
+    "active_players": 0
   }
 ]

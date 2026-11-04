@@ -502,6 +502,17 @@ void NetworkEngine::loadShardsConfig() {
             parseShardsJson(buffer.str());
         }
     }
+    if (m_shards.empty()) {
+        FrontlineShard localShard;
+        localShard.id = "local-dev";
+        localShard.name = "PRIMARY BATTLEFIELD CLUSTER // DEDICATED";
+        localShard.region = "Local Host";
+        localShard.host = "127.0.0.1";
+        localShard.port = 7777;
+        localShard.isOfficial = true;
+        localShard.lastProbeTimer = 99.0f;
+        m_shards.push_back(localShard);
+    }
 }
 
 void NetworkEngine::fetchRemoteShardsAsync() {

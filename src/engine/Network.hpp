@@ -92,7 +92,13 @@ public:
     void setSelectedShardIndex(int idx) {
         if (idx >= 0 && idx < (int)m_shards.size()) m_selectedShardIndex = idx;
     }
-    const FrontlineShard& getActiveShard() const { return m_shards[m_selectedShardIndex]; }
+    const FrontlineShard& getActiveShard() const {
+        static FrontlineShard s_fallback{"local-dev", "LOCAL DEV // LOOPBACK", "Local Host", "127.0.0.1", 7777, 3000, 0, 0, false, false, 0.0f, 0.0f};
+        if (m_shards.empty() || m_selectedShardIndex < 0 || m_selectedShardIndex >= (int)m_shards.size()) {
+            return s_fallback;
+        }
+        return m_shards[m_selectedShardIndex];
+    }
     std::string getServerHost() const {
         return m_shards.empty() ? "127.0.0.1" : m_shards[m_selectedShardIndex].host;
     }
