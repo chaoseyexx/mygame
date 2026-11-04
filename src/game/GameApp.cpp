@@ -2435,6 +2435,8 @@ void GameApp::run() {
 
 void GameApp::shutdown() {
     std::cout << "[Mercenary Engine] Exiting cleanly.\n";
+    VoiceChatManager::get().shutdown();
+    NetworkEngine::get().shutdown();
     NavMeshManager::instance().shutdown();
     PhysicsEngine::get().shutdown();
     SteamIntegration::get().shutdown();
