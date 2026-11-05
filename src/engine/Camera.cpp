@@ -88,7 +88,7 @@ glm::vec3 Camera::getUpVector() const {
     return glm::normalize(glm::cross(getRightVector(), getForwardVector()));
 }
 
-void Camera::update(float dt, const glm::vec3& targetPos, const glm::vec2& mouseScreenPos, int screenW, int screenH, bool isAiming, int adsZoomLevel, bool isSprinting, float moveSpeed, const World* world, float eyeHeight, float strafeVelocity) {
+void Camera::update(float dt, const glm::vec3& targetPos, const glm::vec2& mouseScreenPos, int screenW, int screenH, bool isAiming, int adsZoomLevel, bool isSprinting, float moveSpeed, const World* world, float eyeHeight, float strafeVelocity, bool inCover, float coverLean) {
     (void)mouseScreenPos;
     (void)screenW;
     (void)screenH;
@@ -144,6 +144,15 @@ void Camera::update(float dt, const glm::vec3& targetPos, const glm::vec2& mouse
     if (isSprinting && !isAiming && moveSpeed > 3.0f) {
         targetFOV = m_baseFov + 10.0f;     // Athletic sprint wide tactical perspective
         targetDist += 0.35f;
+    }
+
+    // Tactical Cover-Aware Camera Framing
+    if (inCover) {
+        targetDist = isAiming ? 1.45f : 1.90f; // Closer over-the-shoulder tactical view
+        targetShoulderY += 0.04f;             // Slightly higher to survey over barriers
+        if (std::abs(coverLean) > 0.001f) {
+            targetShoulderX += coverLean * 0.42f; // Shift shoulder outward toward exposed corner
+        }
     }
 
     if (eyeHeight < 0.50f) {

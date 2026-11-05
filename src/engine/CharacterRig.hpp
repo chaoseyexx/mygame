@@ -284,16 +284,22 @@ public:
 
     float getLowerBodyYaw() const { return m_lowerBodyYaw; }
 
-    void setCoverParameters(bool inCover, bool isLowCover, float coverHeight, float coverAimWeight) {
-
+    void setCoverParameters(bool inCover, bool isLowCover, float coverHeight, float coverAimWeight, float coverLeanAngle = 0.0f) {
         m_inCover = inCover;
-
         m_isLowCover = isLowCover;
-
         m_coverHeight = coverHeight;
-
         m_coverAimWeight = coverAimWeight;
+        m_coverLeanAngle = coverLeanAngle;
+    }
 
+    void setCoverLeanAngle(float leanAngle) {
+        m_coverLeanAngle = leanAngle;
+    }
+
+    void setVaultParameters(bool isVaulting, float progress, const glm::vec3& plantPos) {
+        m_isVaulting = isVaulting;
+        m_vaultProgress = progress;
+        m_vaultPlantPos = plantPos;
     }
 
 
@@ -493,6 +499,10 @@ private:
     float m_coverHeight = 0.95f;
 
     float m_coverAimWeight = 0.0f;
+    float m_coverLeanAngle = 0.0f;
+    bool m_isVaulting = false;
+    float m_vaultProgress = 0.0f;
+    glm::vec3 m_vaultPlantPos{0.0f};
 
 };
 

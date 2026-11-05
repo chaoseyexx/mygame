@@ -92,6 +92,11 @@ public:
 
     // GTA 5 / Ghost Recon Dynamic Cover Mechanics
     bool isInCover() const { return m_inCover; }
+    bool isAtCoverEdge() const { return m_isAtCoverEdge; }
+    float getCoverEdgeDir() const { return m_coverEdgeDir; }
+    float getCoverLeanAngle() const { return m_coverLeanAngle; }
+    float getVaultProgress() const { return m_vaultDuration > 0.0f ? (m_vaultTimer / m_vaultDuration) : 0.0f; }
+    glm::vec3 getVaultHandPlantPos() const { return m_vaultHandPlantPos; }
     bool isLowCover() const { return m_isLowCover; }
     bool isNearCover() const { return m_nearCover; }
     glm::vec3 getCoverNormal() const { return m_coverNormal; }
@@ -189,6 +194,13 @@ private:
     float m_coverHeight = 1.0f;
     float m_coverDepth = 0.6f;
     float m_coverAimWeight = 0.0f;
+    bool m_isSnappingToCover = false;
+    float m_coverSnapTimer = 0.0f;
+    float m_coverSnapDuration = 0.14f;
+    glm::vec3 m_coverSnapStartPos{0.0f};
+    bool m_isAtCoverEdge = false;
+    float m_coverEdgeDir = 0.0f;
+    float m_coverLeanAngle = 0.0f;
     bool m_qPressedLast = false;
     bool m_spacePressedLast = false;
     bool m_fPressedLast = false;
@@ -212,6 +224,8 @@ private:
     glm::vec3 m_vaultStartPos{0.0f};
     glm::vec3 m_vaultTargetPos{0.0f};
     float m_vaultPeakY = 0.0f;
+    glm::vec3 m_vaultHandPlantPos{0.0f};
+    glm::vec3 m_vaultTraverseDir{0.0f, 0.0f, 1.0f};
 
     bool m_isClimbing = false;
     float m_climbTimer = 0.0f;

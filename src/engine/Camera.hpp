@@ -17,7 +17,7 @@ class Camera {
 public:
     Camera();
 
-    void update(float dt, const glm::vec3& targetPos, const glm::vec2& mouseScreenPos, int screenW, int screenH, bool isAiming = false, int adsZoomLevel = 0, bool isSprinting = false, float moveSpeed = 0.0f, const World* world = nullptr, float eyeHeight = 1.55f, float strafeVelocity = 0.0f);
+    void update(float dt, const glm::vec3& targetPos, const glm::vec2& mouseScreenPos, int screenW, int screenH, bool isAiming = false, int adsZoomLevel = 0, bool isSprinting = false, float moveSpeed = 0.0f, const World* world = nullptr, float eyeHeight = 1.55f, float strafeVelocity = 0.0f, bool inCover = false, float coverLean = 0.0f);
     void handleScroll(float scrollDelta, bool invertScroll = false);
 
     glm::mat4 getViewMatrix() const;

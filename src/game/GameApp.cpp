@@ -965,7 +965,7 @@ void GameApp::run() {
             }
             camera.update(dt, player.getPosition(), effMouse, window.getWidth(), window.getHeight(), 
                           player.isAiming(), player.getAdsZoomLevel(), player.isSprinting(), glm::length(player.getVelocity()), &world,
-                          player.getEyeHeight(), strafeSpeed);
+                          player.getEyeHeight(), strafeSpeed, player.isInCover(), player.getCoverLeanAngle());
         }
 
         // Apply Real-time Graphics & Atmosphere Toggles

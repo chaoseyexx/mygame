@@ -280,9 +280,9 @@ void CharacterRig::updateWeaponTransform() {
         float leanZ = sprintLean + 0.14f * cCurve + m_woundTorsoHunch * 0.25f;
 
         // Accurate forward direction lean (prevents muzzle detachment when facing arbitrary angles)
-        glm::vec3 pelvisPos = m_rootPos + rightDir * m_pelvisSway + forwardDir * (leanZ * 0.45f) + glm::vec3(0.0f, 0.81f + m_stanceHeight + m_pelvisBob, 0.0f);
-        glm::vec3 spine1 = pelvisPos + forwardDir * (leanZ * 0.25f) + glm::vec3(0.0f, 0.18f, 0.0f);
-        glm::vec3 chestPos = spine1 + forwardDir * (leanZ * 0.35f) + glm::vec3(0.0f, 0.18f, 0.0f);
+        glm::vec3 pelvisPos = m_rootPos + rightDir * (m_pelvisSway + m_coverLeanAngle * 0.20f) + forwardDir * (leanZ * 0.45f) + glm::vec3(0.0f, 0.81f + m_stanceHeight + m_pelvisBob, 0.0f);
+        glm::vec3 spine1 = pelvisPos + rightDir * (m_coverLeanAngle * 0.12f) + forwardDir * (leanZ * 0.25f) + glm::vec3(0.0f, 0.18f, 0.0f);
+        glm::vec3 chestPos = spine1 + rightDir * (m_coverLeanAngle * 0.18f) + forwardDir * (leanZ * 0.35f) + glm::vec3(0.0f, 0.18f, 0.0f);
 
         // Tactical Low Cover Peeking & Weapon Mounting
         float coverChestElevation = 0.0f;
@@ -716,7 +716,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         float limpPelvisDip = (m_isMoving && m_woundLimpFactor > 0.05f) ? -std::abs(std::sin(m_walkCycle)) * 0.065f * m_woundLimpFactor : 0.0f;
 
         // --- 2. PELVIS & SACRUM ---
-        glm::vec3 pelvisPos = lowerToWorld(glm::vec3(m_pelvisSway, 0.81f + m_stanceHeight + m_pelvisBob + limpPelvisDip + coverChestElevation * 0.45f, leanZ * 0.45f));
+        glm::vec3 pelvisPos = lowerToWorld(glm::vec3(m_pelvisSway + m_coverLeanAngle * 0.18f, 0.81f + m_stanceHeight + m_pelvisBob + limpPelvisDip + coverChestElevation * 0.45f, leanZ * 0.45f));
 
         // --- 3. BIOMECHANICALLY REALISTIC TWO-BONE LEG IK LOCOMOTION ---
         // Calibrated to maintain a natural knee bend within the 0.84m leg reach envelope
@@ -799,6 +799,12 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         glm::vec3 leftFootPos  = lowerToWorld(glm::vec3(-0.13f + leftStrideX,  0.07f + leftLift,  leftStrideZ));
         glm::vec3 rightFootPos = lowerToWorld(glm::vec3( 0.13f + rightStrideX, 0.07f + rightLift, rightStrideZ));
 
+        if (m_isVaulting) {
+            float tuck = std::sin(m_vaultProgress * 3.14159f) * 0.35f;
+            leftFootPos = lowerToWorld(glm::vec3(-0.13f, 0.07f + tuck + 0.12f, -0.15f + m_vaultProgress * 0.35f));
+            rightFootPos = lowerToWorld(glm::vec3(0.13f, 0.07f + tuck, -0.22f + m_vaultProgress * 0.40f));
+        }
+
         float pelvisDrop = 0.0f;
         glm::vec3 normalL(0.0f, 1.0f, 0.0f);
         glm::vec3 normalR(0.0f, 1.0f, 0.0f);
@@ -838,12 +844,18 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         InverseKinematics::solveTwoBoneIK(rightHipPos, rightFootPos, rightKneePole, 0.43f, 0.41f, rightKneePos, uRot, lRot);
 
         // --- 4. TORSO, CHEST & ANATOMICAL HEAD ---
-        glm::vec3 chestPos = localToWorld(glm::vec3(0.0f, 1.15f + m_stanceHeight + m_pelvisBob + coverChestElevation, leanZ + (m_isMoving ? std::sin(m_walkCycle) * 0.02f : 0.0f)));
+        glm::vec3 chestPos = localToWorld(glm::vec3(m_coverLeanAngle * 0.38f, 1.15f + m_stanceHeight + m_pelvisBob + coverChestElevation, leanZ + (m_isMoving ? std::sin(m_walkCycle) * 0.02f : 0.0f)));
 
         // Natural Spine Pitch (follows player's aim heading toward target)
         float chestPitchAngle = -m_aimPitch * 0.15f + (m_isSprinting ? 0.24f : 0.0f) + m_woundTorsoHunch * 0.25f + glm::radians(m_woundFlinchPitch);
+        if (m_isVaulting) {
+            chestPitchAngle += 0.32f * std::sin(m_vaultProgress * 3.14159f);
+        }
         glm::mat4 chestRot = glm::rotate(glm::mat4(1.0f), m_yaw, glm::vec3(0, 1, 0));
         chestRot = glm::rotate(chestRot, chestPitchAngle, glm::vec3(1, 0, 0));
+        if (std::abs(m_coverLeanAngle) > 0.001f) {
+            chestRot = glm::rotate(chestRot, m_coverLeanAngle * 0.22f, glm::vec3(0, 0, 1));
+        }
         if (std::abs(m_woundFlinchRoll) > 0.01f) {
             chestRot = glm::rotate(chestRot, glm::radians(m_woundFlinchRoll), glm::vec3(0, 0, 1));
         }
@@ -875,7 +887,28 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         renderPitch = m_aimPitch;
 
         if (shouldDrawWeapon) {
-            if (m_isReloading && m_hasWeapon) {
+            if (m_isVaulting) {
+                // Biomechanical Athletic Vault IK: Left hand plants firmly on obstacle top, right hand tucks weapon
+                renderPitch = 0.52f;
+                float cp = std::cos(renderPitch);
+                float sp = -std::sin(renderPitch);
+                aimForward = forwardDir * cp + glm::vec3(0, sp, 0);
+                rifleUp = glm::normalize(glm::cross(aimForward, rightDir));
+
+                rifleRoot = chestPos + rightDir * 0.16f - glm::vec3(0.0f, 0.12f, 0.0f) + aimForward * 0.14f;
+                rightHandTarget = rifleRoot - aimForward * 0.06f - rifleUp * 0.06f;
+                rightElbowPole = chestPos + rightDir * 0.44f - rifleUp * 0.18f;
+
+                if (m_vaultProgress <= 0.72f && glm::length(m_vaultPlantPos) > 0.1f) {
+                    leftHandTarget = m_vaultPlantPos - rightDir * 0.08f;
+                    leftElbowPole = leftHandTarget + glm::vec3(0.0f, 0.35f, 0.0f) - rightDir * 0.25f;
+                } else {
+                    float followT = (m_vaultProgress - 0.72f) / 0.28f;
+                    glm::vec3 reachForward = chestPos - rightDir * 0.15f + forwardDir * 0.25f - glm::vec3(0.0f, 0.15f, 0.0f);
+                    leftHandTarget = glm::mix(m_vaultPlantPos, reachForward, followT);
+                    leftElbowPole = chestPos - rightDir * 0.40f - rifleUp * 0.20f;
+                }
+            } else if (m_isReloading && m_hasWeapon) {
                 // Tactical Reload Procedural Inverse Kinematics
                 renderPitch = -0.15f;
                 float cp = std::cos(renderPitch);
