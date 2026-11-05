@@ -434,8 +434,8 @@ void CharacterRig::updateWeaponTransform() {
 }
 
 void CharacterRig::render(Renderer& renderer, const CharacterCustomization& custom) {
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
+    m_renderVertices.clear();
+    m_renderIndices.clear();
 
     float cCurve = glm::smoothstep(0.0f, 1.0f, m_crouchTransition);
     float pCurve = glm::smoothstep(0.0f, 1.0f, m_proneTransition);
@@ -1475,10 +1475,10 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
 
     // --- 7. DEFORM MESH VIA LINEAR BLEND SKINNING & UPLOAD ---
     // (IFF Identification Armbands, anatomical head, and gear are fully skinned in SkinnedSoldier)
-    m_skinnedModel.deform(m_pose, custom, vertices, indices, m_dismemberMask);
+    m_skinnedModel.deform(m_pose, custom, m_renderVertices, m_renderIndices, m_dismemberMask);
 
     if (!m_dynamicMesh) m_dynamicMesh = std::make_unique<Mesh>();
-    m_dynamicMesh->upload(vertices, indices);
+    m_dynamicMesh->upload(m_renderVertices, m_renderIndices);
 
     // Render textured modern military operative with PBR materials
     renderer.drawTexturedMesh(*m_dynamicMesh, glm::mat4(1.0f), renderer.getSoldierTexture(), renderer.getSoldierNormal());

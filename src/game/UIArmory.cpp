@@ -2096,7 +2096,8 @@ void UIManager::renderCustomizationMenu(CharacterProfile* active, Player* player
         ImGui::TextDisabled("%s", label);
         ImGui::Spacing();
         float availW = ImGui::GetContentRegionAvail().x;
-        float pillW = availW / count;
+        if (count <= 0) return;
+        float pillW = availW / std::max(1, count);
         float rowY = ImGui::GetCursorScreenPos().y;
         float startX = ImGui::GetCursorScreenPos().x;
         float bH = 28.0f;

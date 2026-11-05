@@ -488,6 +488,8 @@ private:
     SkeletonPose m_pose;
 
     std::unique_ptr<Mesh> m_dynamicMesh;
+    std::vector<Vertex> m_renderVertices;
+    std::vector<uint32_t> m_renderIndices;
 
 
 

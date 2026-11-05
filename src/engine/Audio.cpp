@@ -1546,29 +1546,19 @@ const std::vector<float>* AudioEngine::selectHmgBuffer(AcousticEnvironment env, 
 }
 
 const std::vector<float>* AudioEngine::selectFootstepBuffer(SoundType type, size_t variationIdx) {
-    size_t idx = variationIdx % 4;
+    auto getBuf = [variationIdx](const std::vector<std::vector<float>>& bank) -> const std::vector<float>* {
+        if (bank.empty()) return nullptr;
+        return &bank[variationIdx % bank.size()];
+    };
     switch (type) {
-        case SoundType::FootstepConcrete:
-            if (!m_soundBank.footstepsConcrete.empty()) return &m_soundBank.footstepsConcrete[idx];
-            break;
+        case SoundType::FootstepConcrete: return getBuf(m_soundBank.footstepsConcrete);
         case SoundType::Footstep:
-        case SoundType::FootstepDirt:
-            if (!m_soundBank.footstepsDirt.empty()) return &m_soundBank.footstepsDirt[idx];
-            break;
-        case SoundType::FootstepWood:
-            if (!m_soundBank.footstepsWood.empty()) return &m_soundBank.footstepsWood[idx];
-            break;
-        case SoundType::FootstepMud:
-            if (!m_soundBank.footstepsMud.empty()) return &m_soundBank.footstepsMud[idx];
-            break;
-        case SoundType::FootstepWater:
-            if (!m_soundBank.footstepsWater.empty()) return &m_soundBank.footstepsWater[idx];
-            break;
-        case SoundType::GearRustle:
-            if (!m_soundBank.gearRustles.empty()) return &m_soundBank.gearRustles[idx];
-            break;
-        default:
-            break;
+        case SoundType::FootstepDirt:     return getBuf(m_soundBank.footstepsDirt);
+        case SoundType::FootstepWood:     return getBuf(m_soundBank.footstepsWood);
+        case SoundType::FootstepMud:      return getBuf(m_soundBank.footstepsMud);
+        case SoundType::FootstepWater:    return getBuf(m_soundBank.footstepsWater);
+        case SoundType::GearRustle:       return getBuf(m_soundBank.gearRustles);
+        default: break;
     }
     return nullptr;
 }

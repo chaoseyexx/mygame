@@ -730,7 +730,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
             AudioEngine::get().playSound(SoundType::AimDownSightOut, 0.35f, 1.05f);
             m_isHoldingBreath = false;
             m_breathHoldTimer = 0.0f;
-            m_adsZoomLevel = weaponOptic;
+            m_adsZoomLevel = weaponOptic; // Preserve current weapon's configured optic
         }
     }
 
@@ -744,6 +744,9 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     if (toggleOpticPressed && !m_toggleOpticPressedLast) {
         // Toggle magnification for variable optics (e.g. 1.0x CQB <-> 2.5x Combat ACOG)
         m_adsZoomLevel = (m_adsZoomLevel == 1) ? 0 : 1;
+        if (activeEquip.has_value()) {
+            activeEquip->opticZoomLevel = m_adsZoomLevel; // Persist zoom level per weapon!
+        }
         AudioEngine::get().playSound(SoundType::ItemEquip, 0.45f, 1.35f + static_cast<float>(m_adsZoomLevel) * 0.15f);
     }
     m_toggleOpticPressedLast = toggleOpticPressed;

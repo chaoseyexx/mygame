@@ -2046,7 +2046,7 @@ void GameApp::run() {
                         GoreSystem::get().spawnBloodBurst(closestPt, bullet.velocity, 35, 1.0f);
 
                         if (bullet.isPlayer) {
-                            ui.triggerHitMarker(wound.instantKill || (bot.health - damageDealt) <= 0.0f);
+                            ui.triggerHitMarker(wound.instantKill || bot.health <= 0.0f);
                             bot.hasNoticedPlayer = true;
                             bot.recentDamageTakenTimer = 6.0f;
                             for (auto& ally : frontline.getBots()) {
