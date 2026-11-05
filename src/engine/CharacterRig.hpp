@@ -124,7 +124,7 @@ public:
 
         m_muzzleFlashTimer = 0.07f;
 
-        m_recoilKick = std::min(0.045f, m_recoilKick + kickMagnitude * 0.45f);
+        m_recoilKick = std::min(0.065f, m_recoilKick + kickMagnitude * 0.60f);
 
     }
 

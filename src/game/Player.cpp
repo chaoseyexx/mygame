@@ -1245,19 +1245,38 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
 
     if (isMoving) targetBloom += wantsSprint ? 0.012f : 0.003f;
 
-    // Settle recoil rapidly and smoothly (crisp tactical recovery)
-    float recoverySpeed = recoilRecovRate * 6.5f;
-    m_recoilPitch = glm::mix(m_recoilPitch, 0.0f, std::clamp(dt * recoverySpeed, 0.0f, 1.0f));
-    m_recoilYaw   = glm::mix(m_recoilYaw, 0.0f, std::clamp(dt * (recoverySpeed * 2.0f), 0.0f, 1.0f));
-    if (m_recoilPitch < 0.001f) m_recoilPitch = 0.0f;
-    if (std::abs(m_recoilYaw) < 0.001f) m_recoilYaw = 0.0f;
+    // Organic 2nd-order damped harmonic spring-mass recoil recovery
+    // d^2x/dt^2 = -2 * zeta * omega * dx/dt - omega^2 * x
+    float omega = recoilRecovRate * 4.2f;
+    float zeta = 0.88f; // Near-critical damping for crisp tactical return without rubber-banding
+
+    // Pitch spring
+    float accelPitch = -2.0f * zeta * omega * m_recoilPitchVel - (omega * omega) * m_recoilPitch;
+    m_recoilPitchVel += accelPitch * dt;
+    m_recoilPitch += m_recoilPitchVel * dt;
+    if (m_recoilPitch < 0.0f && m_recoilPitchVel < 0.0f) {
+        m_recoilPitch = 0.0f;
+        m_recoilPitchVel = 0.0f;
+    }
+
+    // Yaw spring (settles twice as fast laterally)
+    float omegaYaw = omega * 1.4f;
+    float accelYaw = -2.0f * zeta * omegaYaw * m_recoilYawVel - (omegaYaw * omegaYaw) * m_recoilYaw;
+    m_recoilYawVel += accelYaw * dt;
+    m_recoilYaw += m_recoilYawVel * dt;
+    if (std::abs(m_recoilYaw) < 0.0005f && std::abs(m_recoilYawVel) < 0.001f) {
+        m_recoilYaw = 0.0f;
+        m_recoilYawVel = 0.0f;
+    }
 
     // View kick compensation (tactical weapon recentering after burst firing)
     if (camera && m_recoilClimbAccum > 0.001f && (!fireInput || m_fireCooldown > 0.02f)) {
-        float recoverStep = std::min(m_recoilClimbAccum, m_recoilClimbAccum * std::clamp(dt * 7.5f, 0.0f, 1.0f));
+        float recoverRate = 8.5f;
+        float recoverStep = m_recoilClimbAccum * std::clamp(dt * recoverRate, 0.0f, 1.0f);
+        if (recoverStep < 0.0005f) recoverStep = m_recoilClimbAccum;
         camera->rotatePitch(recoverStep);
         m_recoilClimbAccum -= recoverStep;
-        if (m_recoilClimbAccum < 0.001f) m_recoilClimbAccum = 0.0f;
+        if (m_recoilClimbAccum < 0.0005f) m_recoilClimbAccum = 0.0f;
     }
 
     float bloomRecoveryRate = (m_recoilPitch > 0.005f) ? 28.0f : 40.0f;
@@ -1308,9 +1327,13 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                     vRecoil *= 0.40f;
                 }
 
-                m_recoilPitch += vRecoil;
+                // Dynamic spring-mass impulse injection
+                m_recoilPitchVel += vRecoil * 18.0f;
+                m_recoilPitch += vRecoil * 0.35f;
+                float yawSpread = spreadDist(randGen);
+                m_recoilYawVel += yawSpread * (hRecoil * 16.0f);
+                m_recoilYaw += yawSpread * (hRecoil * 0.25f);
                 m_currentBloom = std::min(0.09f, m_currentBloom + vRecoil * 0.35f);
-                m_recoilYaw += spreadDist(randGen) * hRecoil;
 
                 // Frame-accurate muzzle spawn position directly from 3D weapon barrel matrix
                 glm::vec3 muzzlePos = m_rig.getMuzzlePosition();

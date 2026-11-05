@@ -496,11 +496,11 @@ void FrontlineWarfare::update(float dt, const glm::vec3& playerPos, float player
                 glm::vec3 casingPos = muzzle - aimDir * 0.35f + rightDir * 0.08f + trueUp * 0.04f;
                 ballistics.spawnShellCasing(casingPos, rightDir, trueUp, aimDir, botWType);
 
-                float bulletSpeed = (bot.faction == Faction::FactionA) ? 460.0f : 480.0f;
+                float bulletSpeed = (bot.faction == Faction::FactionA) ? 880.0f : 900.0f;
                 float bulletDmg = (bot.role == CombatRole::AutomaticRifleman) ? 26.0f : ((bot.role == CombatRole::SquadLeader) ? 48.0f : 22.0f);
-                float maxRange = (bot.role == CombatRole::AutomaticRifleman) ? 40.0f : ((bot.role == CombatRole::SquadLeader) ? 55.0f : 35.0f);
+                float maxRange = (bot.role == CombatRole::AutomaticRifleman) ? 90.0f : ((bot.role == CombatRole::SquadLeader) ? 120.0f : 75.0f);
                 if (m_isTdmMode) {
-                    maxRange = 85.0f; // Guarantee bullets reach enemies across the yard arena
+                    maxRange = 250.0f; // Guarantee bullets reach enemies across the arena
                 }
                 ballistics.fireBullet(muzzle, aimDir, bulletSpeed, bulletDmg, 1.0f, isFriendlyToPlayer, bot.faction, static_cast<int>(bot.id), maxRange, botWType);
 

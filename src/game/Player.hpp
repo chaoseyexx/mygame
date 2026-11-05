@@ -182,6 +182,8 @@ private:
     float m_adsProgress = 0.0f;
     float m_recoilPitch = 0.0f;
     float m_recoilYaw = 0.0f;
+    float m_recoilPitchVel = 0.0f;
+    float m_recoilYawVel = 0.0f;
     float m_recoilClimbAccum = 0.0f;
 
     // Dynamic Tactical Cover System (Q to Cover)
