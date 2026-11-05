@@ -57,7 +57,12 @@ glm::mat3 SkinnedSoldier::computeLimbRotation(const glm::vec3& bindDir, const gl
 
     // 2. Compute smooth angular deflection in world frame and composite with base rotation
 
-    glm::vec3 axis = glm::normalize(glm::cross(vBindWorld, vPosed));
+    glm::vec3 crossVec = glm::cross(vBindWorld, vPosed);
+    float crossLen = glm::length(crossVec);
+    if (crossLen < 0.0001f) {
+        return baseRot;
+    }
+    glm::vec3 axis = crossVec / crossLen;
 
     float angle = std::acos(cosTheta);
 
@@ -72,6 +77,9 @@ void SkinnedSoldier::buildBindPoseModel() {
     m_bindVertices.clear();
 
     m_indices.clear();
+
+    m_bindVertices.reserve(16000);
+    m_indices.reserve(32000);
 
     // 1. Establish Bind Pose Joint Coordinates (Athletic modern male operator, 1.82m height)
 
@@ -161,7 +169,7 @@ void SkinnedSoldier::appendSkinnedTube(
 
 {
 
-    size_t numRings = ringCenters.size();
+    size_t numRings = std::min({ringCenters.size(), ringRadii.size(), ringWeightsBone0.size()});
 
     if (numRings < 2) return;
 
@@ -738,27 +746,39 @@ void SkinnedSoldier::buildTorsoAndPants() {
 
         }
 
-        // Outer face
+        if (side == 0) {
+            // Left thigh pocket (dirX = -1.0f): Invert index order to preserve outward CCW winding
+            // Outer face
+            m_indices.push_back(pocBase + 4); m_indices.push_back(pocBase + 6); m_indices.push_back(pocBase + 5);
+            m_indices.push_back(pocBase + 4); m_indices.push_back(pocBase + 7); m_indices.push_back(pocBase + 6);
 
-        m_indices.push_back(pocBase + 4); m_indices.push_back(pocBase + 5); m_indices.push_back(pocBase + 6);
+            // Top flap
+            m_indices.push_back(pocBase + 3); m_indices.push_back(pocBase + 6); m_indices.push_back(pocBase + 2);
+            m_indices.push_back(pocBase + 3); m_indices.push_back(pocBase + 7); m_indices.push_back(pocBase + 6);
 
-        m_indices.push_back(pocBase + 4); m_indices.push_back(pocBase + 6); m_indices.push_back(pocBase + 7);
+            // Front & Back bellows
+            m_indices.push_back(pocBase + 2); m_indices.push_back(pocBase + 5); m_indices.push_back(pocBase + 1);
+            m_indices.push_back(pocBase + 2); m_indices.push_back(pocBase + 6); m_indices.push_back(pocBase + 5);
 
-        // Top flap
+            m_indices.push_back(pocBase + 0); m_indices.push_back(pocBase + 7); m_indices.push_back(pocBase + 3);
+            m_indices.push_back(pocBase + 0); m_indices.push_back(pocBase + 4); m_indices.push_back(pocBase + 7);
+        } else {
+            // Right thigh pocket (dirX = 1.0f): Outward CCW winding
+            // Outer face
+            m_indices.push_back(pocBase + 4); m_indices.push_back(pocBase + 5); m_indices.push_back(pocBase + 6);
+            m_indices.push_back(pocBase + 4); m_indices.push_back(pocBase + 6); m_indices.push_back(pocBase + 7);
 
-        m_indices.push_back(pocBase + 3); m_indices.push_back(pocBase + 2); m_indices.push_back(pocBase + 6);
+            // Top flap
+            m_indices.push_back(pocBase + 3); m_indices.push_back(pocBase + 2); m_indices.push_back(pocBase + 6);
+            m_indices.push_back(pocBase + 3); m_indices.push_back(pocBase + 6); m_indices.push_back(pocBase + 7);
 
-        m_indices.push_back(pocBase + 3); m_indices.push_back(pocBase + 6); m_indices.push_back(pocBase + 7);
+            // Front & Back bellows
+            m_indices.push_back(pocBase + 2); m_indices.push_back(pocBase + 1); m_indices.push_back(pocBase + 5);
+            m_indices.push_back(pocBase + 2); m_indices.push_back(pocBase + 5); m_indices.push_back(pocBase + 6);
 
-        // Front & Back bellows
-
-        m_indices.push_back(pocBase + 2); m_indices.push_back(pocBase + 1); m_indices.push_back(pocBase + 5);
-
-        m_indices.push_back(pocBase + 2); m_indices.push_back(pocBase + 5); m_indices.push_back(pocBase + 6);
-
-        m_indices.push_back(pocBase + 0); m_indices.push_back(pocBase + 3); m_indices.push_back(pocBase + 7);
-
-        m_indices.push_back(pocBase + 0); m_indices.push_back(pocBase + 7); m_indices.push_back(pocBase + 4);
+            m_indices.push_back(pocBase + 0); m_indices.push_back(pocBase + 3); m_indices.push_back(pocBase + 7);
+            m_indices.push_back(pocBase + 0); m_indices.push_back(pocBase + 7); m_indices.push_back(pocBase + 4);
+        }
 
     }
 
@@ -1149,17 +1169,14 @@ void SkinnedSoldier::buildTacticalGlovesAndFingers() {
 
                     uint32_t i11 = fingerStartVertex + (j + 1) * radialSegments + nextS;
 
+                    // Outward-facing CCW quad triangles in (rgt, up, segDir) basis
                     m_indices.push_back(i00);
-
+                    m_indices.push_back(i01);
                     m_indices.push_back(i10);
 
                     m_indices.push_back(i01);
-
-                    m_indices.push_back(i01);
-
-                    m_indices.push_back(i10);
-
                     m_indices.push_back(i11);
+                    m_indices.push_back(i10);
 
                 }
 
@@ -1427,167 +1444,121 @@ void SkinnedSoldier::buildCombatBoots() {
 
         }
 
-        // Top vamp & toe cap quads
+        // Top vamp & toe cap quads (strictly CCW outward-facing)
+        m_indices.push_back(toeBase + 0); m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 2);
+        m_indices.push_back(toeBase + 0); m_indices.push_back(toeBase + 2); m_indices.push_back(toeBase + 1);
 
-        m_indices.push_back(toeBase + 0); m_indices.push_back(toeBase + 1); m_indices.push_back(toeBase + 2);
+        m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 5); m_indices.push_back(toeBase + 4);
+        m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 4); m_indices.push_back(toeBase + 2);
 
-        m_indices.push_back(toeBase + 0); m_indices.push_back(toeBase + 2); m_indices.push_back(toeBase + 3);
+        // Sides connecting to welt (strictly CCW outward-facing)
+        // Rear wall
+        m_indices.push_back(toeBase + 0); m_indices.push_back(toeBase + 1); m_indices.push_back(toeBase + 7);
+        m_indices.push_back(toeBase + 0); m_indices.push_back(toeBase + 7); m_indices.push_back(toeBase + 6);
 
-        m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 2); m_indices.push_back(toeBase + 4);
+        // Right side
+        m_indices.push_back(toeBase + 1); m_indices.push_back(toeBase + 2); m_indices.push_back(toeBase + 8);
+        m_indices.push_back(toeBase + 1); m_indices.push_back(toeBase + 8); m_indices.push_back(toeBase + 7);
 
-        m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 4); m_indices.push_back(toeBase + 5);
+        // Front right
+        m_indices.push_back(toeBase + 2); m_indices.push_back(toeBase + 4); m_indices.push_back(toeBase + 10);
+        m_indices.push_back(toeBase + 2); m_indices.push_back(toeBase + 10); m_indices.push_back(toeBase + 8);
 
-        // Sides connecting to welt
+        // Front toe
+        m_indices.push_back(toeBase + 4); m_indices.push_back(toeBase + 5); m_indices.push_back(toeBase + 11);
+        m_indices.push_back(toeBase + 4); m_indices.push_back(toeBase + 11); m_indices.push_back(toeBase + 10);
 
-        m_indices.push_back(toeBase + 1); m_indices.push_back(toeBase + 0); m_indices.push_back(toeBase + 6);
+        // Front left
+        m_indices.push_back(toeBase + 5); m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 9);
+        m_indices.push_back(toeBase + 5); m_indices.push_back(toeBase + 9); m_indices.push_back(toeBase + 11);
 
-        m_indices.push_back(toeBase + 1); m_indices.push_back(toeBase + 6); m_indices.push_back(toeBase + 7);
-
-        m_indices.push_back(toeBase + 2); m_indices.push_back(toeBase + 1); m_indices.push_back(toeBase + 7);
-
-        m_indices.push_back(toeBase + 2); m_indices.push_back(toeBase + 7); m_indices.push_back(toeBase + 8);
-
-        m_indices.push_back(toeBase + 4); m_indices.push_back(toeBase + 2); m_indices.push_back(toeBase + 8);
-
-        m_indices.push_back(toeBase + 4); m_indices.push_back(toeBase + 8); m_indices.push_back(toeBase + 10);
-
-        m_indices.push_back(toeBase + 5); m_indices.push_back(toeBase + 4); m_indices.push_back(toeBase + 10);
-
-        m_indices.push_back(toeBase + 5); m_indices.push_back(toeBase + 10); m_indices.push_back(toeBase + 11);
-
-        m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 5); m_indices.push_back(toeBase + 11);
-
-        m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 11); m_indices.push_back(toeBase + 9);
-
-        m_indices.push_back(toeBase + 0); m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 9);
-
-        m_indices.push_back(toeBase + 0); m_indices.push_back(toeBase + 9); m_indices.push_back(toeBase + 6);
+        // Left side
+        m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 0); m_indices.push_back(toeBase + 6);
+        m_indices.push_back(toeBase + 3); m_indices.push_back(toeBase + 6); m_indices.push_back(toeBase + 9);
 
         // Lowa Zephyr PU Monowrap Exoskeleton Webbing Ribs (Signature triangular lateral stabilizers)
-
         uint32_t monoBase = static_cast<uint32_t>(m_bindVertices.size());
-
         float mSide = (side == 0) ? -1.0f : 1.0f;
-
         glm::vec3 mPts[6] = {
-
             ankle + glm::vec3(mSide * 0.054f, -0.058f, -0.040f),
-
             ankle + glm::vec3(mSide * 0.055f, -0.022f,  0.010f), // Raised skeletal triangle apex
-
             ankle + glm::vec3(mSide * 0.054f, -0.058f,  0.060f),
-
             ankle + glm::vec3(mSide * 0.054f, -0.058f,  0.070f),
-
             ankle + glm::vec3(mSide * 0.055f, -0.024f,  0.110f), // Second triangle apex
-
             ankle + glm::vec3(mSide * 0.050f, -0.058f,  0.150f)
-
         };
 
         for (int p = 0; p < 6; ++p) {
-
             SkinnedVertex mv;
-
             mv.bindPos = mPts[p];
-
             mv.bindNormal = glm::vec3(mSide, 0.2f, 0);
-
             mv.uv = glm::vec2(0.20f, 0.80f);
-
             mv.color = frameMat;
-
             mv.bone0 = footBone;
-
             mv.bone1 = footBone;
-
             mv.weight0 = 1.0f;
-
             mv.weight1 = 0.0f;
-
             mv.part = PART_BODY;
-
             m_bindVertices.push_back(mv);
-
         }
 
-        m_indices.push_back(monoBase + 0); m_indices.push_back(monoBase + 1); m_indices.push_back(monoBase + 2);
-
-        m_indices.push_back(monoBase + 3); m_indices.push_back(monoBase + 4); m_indices.push_back(monoBase + 5);
+        if (side == 0) {
+            // Left foot: invert triangle index order to face outward (-X)
+            m_indices.push_back(monoBase + 0); m_indices.push_back(monoBase + 2); m_indices.push_back(monoBase + 1);
+            m_indices.push_back(monoBase + 3); m_indices.push_back(monoBase + 5); m_indices.push_back(monoBase + 4);
+        } else {
+            // Right foot: face outward (+X)
+            m_indices.push_back(monoBase + 0); m_indices.push_back(monoBase + 1); m_indices.push_back(monoBase + 2);
+            m_indices.push_back(monoBase + 3); m_indices.push_back(monoBase + 4); m_indices.push_back(monoBase + 5);
+        }
 
         // Vulcanized Vibram Deep-Lug Tread Sole with Heel Block
-
         uint32_t soleBase = static_cast<uint32_t>(m_bindVertices.size());
-
         glm::vec3 soleCorn[8] = {
-
             ankle + glm::vec3(-0.055f, -0.060f, -0.078f),
-
             ankle + glm::vec3( 0.055f, -0.060f, -0.078f),
-
             ankle + glm::vec3( 0.053f, -0.060f,  0.168f),
-
             ankle + glm::vec3(-0.053f, -0.060f,  0.168f),
-
             ankle + glm::vec3(-0.058f, -0.086f, -0.082f),
-
             ankle + glm::vec3( 0.058f, -0.086f, -0.082f),
-
             ankle + glm::vec3( 0.055f, -0.086f,  0.174f),
-
             ankle + glm::vec3(-0.055f, -0.086f,  0.174f)
-
         };
 
         for (int i = 0; i < 8; ++i) {
-
             SkinnedVertex sv;
-
             sv.bindPos = soleCorn[i];
-
             sv.bindNormal = (i < 4) ? glm::vec3(0, 1.0f, 0) : glm::vec3(0, -1.0f, 0);
-
             sv.uv = glm::vec2(0.15f, 0.85f);
-
             sv.color = soleMat;
-
             sv.bone0 = footBone;
-
             sv.bone1 = footBone;
-
             sv.weight0 = 1.0f;
-
             sv.weight1 = 0.0f;
-
             sv.part = PART_BODY;
-
             m_bindVertices.push_back(sv);
-
         }
 
-        // Sole bottom tread
+        // Sole bottom tread (strictly CCW facing downwards -Y)
+        m_indices.push_back(soleBase + 4); m_indices.push_back(soleBase + 5); m_indices.push_back(soleBase + 6);
+        m_indices.push_back(soleBase + 4); m_indices.push_back(soleBase + 6); m_indices.push_back(soleBase + 7);
 
-        m_indices.push_back(soleBase + 4); m_indices.push_back(soleBase + 6); m_indices.push_back(soleBase + 5);
+        // Sole perimeter sidewalls (strictly CCW facing outwards)
+        // Back wall
+        m_indices.push_back(soleBase + 0); m_indices.push_back(soleBase + 1); m_indices.push_back(soleBase + 5);
+        m_indices.push_back(soleBase + 0); m_indices.push_back(soleBase + 5); m_indices.push_back(soleBase + 4);
 
-        m_indices.push_back(soleBase + 4); m_indices.push_back(soleBase + 7); m_indices.push_back(soleBase + 6);
+        // Right wall
+        m_indices.push_back(soleBase + 1); m_indices.push_back(soleBase + 2); m_indices.push_back(soleBase + 6);
+        m_indices.push_back(soleBase + 1); m_indices.push_back(soleBase + 6); m_indices.push_back(soleBase + 5);
 
-        // Sole perimeter sidewalls
+        // Front wall
+        m_indices.push_back(soleBase + 2); m_indices.push_back(soleBase + 3); m_indices.push_back(soleBase + 7);
+        m_indices.push_back(soleBase + 2); m_indices.push_back(soleBase + 7); m_indices.push_back(soleBase + 6);
 
-        m_indices.push_back(soleBase + 0); m_indices.push_back(soleBase + 4); m_indices.push_back(soleBase + 5);
-
-        m_indices.push_back(soleBase + 0); m_indices.push_back(soleBase + 5); m_indices.push_back(soleBase + 1);
-
-        m_indices.push_back(soleBase + 1); m_indices.push_back(soleBase + 5); m_indices.push_back(soleBase + 6);
-
-        m_indices.push_back(soleBase + 1); m_indices.push_back(soleBase + 6); m_indices.push_back(soleBase + 2);
-
-        m_indices.push_back(soleBase + 2); m_indices.push_back(soleBase + 6); m_indices.push_back(soleBase + 7);
-
-        m_indices.push_back(soleBase + 2); m_indices.push_back(soleBase + 7); m_indices.push_back(soleBase + 3);
-
-        m_indices.push_back(soleBase + 3); m_indices.push_back(soleBase + 7); m_indices.push_back(soleBase + 4);
-
-        m_indices.push_back(soleBase + 3); m_indices.push_back(soleBase + 4); m_indices.push_back(soleBase + 0);
+        // Left wall
+        m_indices.push_back(soleBase + 3); m_indices.push_back(soleBase + 0); m_indices.push_back(soleBase + 4);
+        m_indices.push_back(soleBase + 3); m_indices.push_back(soleBase + 4); m_indices.push_back(soleBase + 7);
 
     }
 
@@ -2215,8 +2186,15 @@ void SkinnedSoldier::buildBallisticHelmetAndEyewear() {
             asv.part = PART_HELMET_FAST;
             m_bindVertices.push_back(asv);
         }
-        m_indices.push_back(arcBase + 0); m_indices.push_back(arcBase + 1); m_indices.push_back(arcBase + 2);
-        m_indices.push_back(arcBase + 0); m_indices.push_back(arcBase + 2); m_indices.push_back(arcBase + 3);
+        if (side == 0) {
+            // Left ARC rail: invert winding to face outward (-X)
+            m_indices.push_back(arcBase + 0); m_indices.push_back(arcBase + 2); m_indices.push_back(arcBase + 1);
+            m_indices.push_back(arcBase + 0); m_indices.push_back(arcBase + 3); m_indices.push_back(arcBase + 2);
+        } else {
+            // Right ARC rail: face outward (+X)
+            m_indices.push_back(arcBase + 0); m_indices.push_back(arcBase + 1); m_indices.push_back(arcBase + 2);
+            m_indices.push_back(arcBase + 0); m_indices.push_back(arcBase + 2); m_indices.push_back(arcBase + 3);
+        }
     }
 
     // --- 4. COMTAC DUAL-COMM TACTICAL HEADSET (High-cut ear clearance) ---
@@ -2245,10 +2223,19 @@ void SkinnedSoldier::buildBallisticHelmetAndEyewear() {
             csv.part = PART_HELMET_FAST;
             m_bindVertices.push_back(csv);
         }
-        m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 0); m_indices.push_back(comtacBase + 1);
-        m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 1); m_indices.push_back(comtacBase + 2);
-        m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 2); m_indices.push_back(comtacBase + 3);
-        m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 3); m_indices.push_back(comtacBase + 0);
+        if (side == 0) {
+            // Left ComTac headset: invert fan winding to face outward (-X)
+            m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 1); m_indices.push_back(comtacBase + 0);
+            m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 2); m_indices.push_back(comtacBase + 1);
+            m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 3); m_indices.push_back(comtacBase + 2);
+            m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 0); m_indices.push_back(comtacBase + 3);
+        } else {
+            // Right ComTac headset: face outward (+X)
+            m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 0); m_indices.push_back(comtacBase + 1);
+            m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 1); m_indices.push_back(comtacBase + 2);
+            m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 2); m_indices.push_back(comtacBase + 3);
+            m_indices.push_back(comtacBase + 4); m_indices.push_back(comtacBase + 3); m_indices.push_back(comtacBase + 0);
+        }
     }
 
     // --- 5. ESS PROFILE NVG BALLISTIC SMOKED GOGGLES (Placed directly over eyes) ---
@@ -2580,7 +2567,7 @@ void SkinnedSoldier::buildFacialHair() {
         float minAngle, float maxAngle, int angularSegments,
         uint8_t partTag
     ) {
-        size_t numRings = ringCenters.size();
+        size_t numRings = std::min(ringCenters.size(), ringRadii.size());
         if (numRings < 2) return;
         uint32_t baseVertex = static_cast<uint32_t>(m_bindVertices.size());
         int cols = angularSegments + 1;
@@ -2684,7 +2671,7 @@ void SkinnedSoldier::appendVolumetricArmband(
     uint8_t bone0, uint8_t bone1,
     const glm::vec4& color, int radialSegments)
 {
-    size_t numRings = ringCenters.size();
+    size_t numRings = std::min({ringCenters.size(), outerRadii.size(), innerRadii.size(), ringWeightsBone0.size()});
     if (numRings < 2) return;
 
     // 1. Generate Outer Wall Vertices (facing outward)
@@ -2870,11 +2857,12 @@ void SkinnedSoldier::deform(const SkeletonPose& pose,
     m_remapCache.assign(m_bindVertices.size(), -1);
 
     outVertices.reserve(m_bindVertices.size());
+    outIndices.reserve(m_indices.size());
 
     // Pre-convert 16 bone matrices to unit quaternions for spherical blending
     glm::quat boneQuats[NUM_CHARACTER_BONES];
     for (int b = 0; b < NUM_CHARACTER_BONES; ++b) {
-        boneQuats[b] = glm::quat_cast(pose.boneRotations[b]);
+        boneQuats[b] = glm::normalize(glm::quat_cast(pose.boneRotations[b]));
     }
 
     // Color Selection from persistent mercenary customization
