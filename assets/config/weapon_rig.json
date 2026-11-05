@@ -1,0 +1,56 @@
+{
+  "weapons": {
+    "Mosin-Nagant": {
+      "rootOffset": [0.1600, -0.1000, 0.1000],
+      "rootOffsetADS": [0.0400, 0.0200, 0.1800],
+      "rightHandOffset": [0.0000, -0.0350, -0.1600],
+      "leftHandOffset": [-0.0150, -0.0250, 0.3200],
+      "leftHandOffsetADS": [-0.0150, -0.0250, 0.3200],
+      "lowReadyPitch": 0.2400,
+      "rollTrim": 0.0000,
+      "yawTrim": 0.0000,
+      "groundClearance": 0.0450,
+      "shadowRadius": 0.4200,
+      "shadowAlpha": 0.6500
+    },
+    "AK-74M": {
+      "rootOffset": [0.1600, -0.1000, 0.1200],
+      "rootOffsetADS": [0.0400, 0.0150, 0.2000],
+      "rightHandOffset": [0.0000, -0.0650, -0.0600],
+      "leftHandOffset": [-0.0150, -0.0350, 0.2600],
+      "leftHandOffsetADS": [-0.0150, -0.0350, 0.2600],
+      "lowReadyPitch": 0.2200,
+      "rollTrim": 0.0000,
+      "yawTrim": 0.0000,
+      "groundClearance": 0.0450,
+      "shadowRadius": 0.3600,
+      "shadowAlpha": 0.6500
+    },
+    "Beretta M9": {
+      "rootOffset": [0.1200, -0.1400, 0.1800],
+      "rootOffsetADS": [0.0300, 0.0600, 0.3600],
+      "rightHandOffset": [0.0000, -0.0550, -0.0300],
+      "leftHandOffset": [-0.0150, -0.0650, -0.0250],
+      "leftHandOffsetADS": [-0.0150, -0.0650, -0.0250],
+      "lowReadyPitch": 0.3000,
+      "rollTrim": 0.0000,
+      "yawTrim": 0.0000,
+      "groundClearance": 0.0300,
+      "shadowRadius": 0.2200,
+      "shadowAlpha": 0.5500
+    },
+    "M4A1": {
+      "rootOffset": [0.1400, -0.1000, 0.1200],
+      "rootOffsetADS": [0.0400, 0.0200, 0.2000],
+      "rightHandOffset": [0.0000, -0.0650, -0.0800],
+      "leftHandOffset": [-0.0150, -0.0450, 0.2400],
+      "leftHandOffsetADS": [-0.0150, -0.0450, 0.2400],
+      "lowReadyPitch": 0.2200,
+      "rollTrim": 0.0000,
+      "yawTrim": 0.0000,
+      "groundClearance": 0.0450,
+      "shadowRadius": 0.3500,
+      "shadowAlpha": 0.6500
+    }
+  }
+}

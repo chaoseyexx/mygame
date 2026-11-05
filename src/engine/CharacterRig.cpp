@@ -585,8 +585,8 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             leftElbowPole   = leftShoulder  - rightDir * 0.20f + glm::vec3(0, 0.06f, 0);
         }
 
-        InverseKinematics::solveTwoBoneIK(rightShoulder, rightHandTarget, rightElbowPole, 0.30f, 0.28f, rightElbowPos, uRot, lRot);
-        InverseKinematics::solveTwoBoneIK(leftShoulder, leftHandTarget, leftElbowPole, 0.30f, 0.28f, leftElbowPos, uRot, lRot);
+        InverseKinematics::solveTwoBoneIK(rightShoulder, rightHandTarget, rightElbowPole, 0.31f, 0.30f, rightElbowPos, uRot, lRot);
+        InverseKinematics::solveTwoBoneIK(leftShoulder, leftHandTarget, leftElbowPole, 0.31f, 0.30f, leftElbowPos, uRot, lRot);
 
         m_pose.bonePositions[BONE_PELVIS] = pelvisPos;
         m_pose.boneRotations[BONE_PELVIS] = chestRot3;
@@ -1063,13 +1063,13 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     if (isPistol) {
                         rightHandTarget = uprightRifleRoot - aimForward * 0.02f - rifleUp * 0.05f;
                         leftHandTarget  = uprightRifleRoot - aimForward * 0.00f - rifleUp * 0.055f - rightDir * 0.03f;
-                        rightElbowPole = chestPos + rightDir * 0.38f - rifleUp * 0.20f;
-                        leftElbowPole  = chestPos - rightDir * 0.38f - rifleUp * 0.20f;
+                        rightElbowPole = rightShoulder + rightDir * 0.18f - rifleUp * 0.20f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.18f - rifleUp * 0.20f;
                     } else {
-                        rightHandTarget = uprightRifleRoot - aimForward * 0.06f - rifleUp * 0.06f;
-                        leftHandTarget  = uprightRifleRoot + aimForward * 0.16f - rifleUp * 0.02f - rightDir * 0.02f;
-                        rightElbowPole = chestPos + rightDir * 0.42f - aimForward * 0.08f - rifleUp * 0.18f;
-                        leftElbowPole  = chestPos - rightDir * 0.42f + aimForward * 0.06f - rifleUp * 0.20f;
+                        rightHandTarget = uprightRifleRoot - aimForward * 0.08f - rifleUp * 0.065f;
+                        leftHandTarget  = uprightRifleRoot + aimForward * 0.24f - rifleUp * 0.045f - rightDir * 0.015f;
+                        rightElbowPole = rightShoulder + rightDir * 0.18f - aimForward * 0.06f - rifleUp * 0.18f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.18f + aimForward * 0.06f - rifleUp * 0.18f;
                     }
 
                 } else {
@@ -1101,11 +1101,11 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     leftHandTarget = uprightRifleRoot + rightDir * lHandOffset.x + rifleUp * lHandOffset.y + aimForward * lHandOffset.z;
 
                     if (m_shoulderRight) {
-                        rightElbowPole = chestPos + rightDir * 0.42f - rifleUp * 0.22f - aimForward * 0.04f;
-                        leftElbowPole  = chestPos - rightDir * 0.46f - rifleUp * 0.24f + aimForward * 0.06f;
+                        rightElbowPole = rightShoulder + rightDir * 0.18f - rifleUp * 0.22f - aimForward * 0.04f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.18f - rifleUp * 0.22f + aimForward * 0.04f;
                     } else {
-                        rightElbowPole = chestPos + rightDir * 0.24f - rifleUp * 0.22f + aimForward * 0.04f;
-                        leftElbowPole  = chestPos - rightDir * 0.42f - rifleUp * 0.24f - aimForward * 0.04f;
+                        rightElbowPole = rightShoulder + rightDir * 0.14f - rifleUp * 0.22f + aimForward * 0.04f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.14f - rifleUp * 0.22f - aimForward * 0.04f;
                     }
                 }
             } else {
@@ -1122,8 +1122,8 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 leftElbowPole  = chestPos - rightDir * 0.34f - glm::vec3(0, 0.18f, 0) - forwardDir * 0.04f;
             }
 
-            InverseKinematics::solveTwoBoneIK(rightShoulder, rightHandTarget, rightElbowPole, 0.30f, 0.28f, rightElbowPos, uRot, lRot);
-            InverseKinematics::solveTwoBoneIK(leftShoulder, leftHandTarget, leftElbowPole, 0.30f, 0.28f, leftElbowPos, uRot, lRot);
+            InverseKinematics::solveTwoBoneIK(rightShoulder, rightHandTarget, rightElbowPole, 0.31f, 0.30f, rightElbowPos, uRot, lRot);
+            InverseKinematics::solveTwoBoneIK(leftShoulder, leftHandTarget, leftElbowPole, 0.31f, 0.30f, leftElbowPos, uRot, lRot);
 
             // --- 5. ASSEMBLE UPRIGHT SKELETON POSE ---
             // Dynamic Pelvis 3D Roll (Trendelenburg gait weight transfer) & Yaw Twist

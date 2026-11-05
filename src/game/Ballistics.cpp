@@ -434,10 +434,17 @@ void BallisticsSystem::update(float dt, const glm::vec3& listenerPos, float came
         if (b.lifetime >= b.maxLifetime || b.distanceTraveled >= b.maxRange || b.position.y <= terrainY) {
             b.alive = false;
             // Only spawn ground impact decals when the bullet physically strikes terrain, NEVER on mid-air range expiration!
-            if (b.position.y <= terrainY + 0.08f) {
-                spawnImpactFX(glm::vec3(b.position.x, terrainY + 0.05f, b.position.z), glm::vec3(0, 1, 0), 0);
-                PunctureSystem::get().addPuncture(glm::vec3(b.position.x, terrainY + 0.02f, b.position.z), glm::vec3(0, 1, 0), b.velocity, 3, false, b.caliberSize, b.weaponType);
-                DecalSystem::get().addBulletHole(glm::vec3(b.position.x, terrainY + 0.02f, b.position.z), glm::vec3(0, 1, 0), DecalSurface::Dirt, b.caliberSize, b.weaponType);
+            float prevTerrainY = World::sampleTerrainHeight(b.prevPosition.x, b.prevPosition.z);
+            if (b.position.y <= terrainY + 0.08f && b.prevPosition.y >= prevTerrainY - 0.08f) {
+                float dyPrev = b.prevPosition.y - prevTerrainY;
+                float dyCur  = b.position.y - terrainY;
+                float tHit = (dyPrev - dyCur > 0.0001f) ? std::clamp(dyPrev / (dyPrev - dyCur), 0.0f, 1.0f) : 1.0f;
+                glm::vec3 hitGround = glm::mix(b.prevPosition, b.position, tHit);
+                hitGround.y = World::sampleTerrainHeight(hitGround.x, hitGround.z);
+
+                spawnImpactFX(hitGround + glm::vec3(0, 0.05f, 0), glm::vec3(0, 1, 0), 0);
+                PunctureSystem::get().addPuncture(hitGround + glm::vec3(0, 0.02f, 0), glm::vec3(0, 1, 0), b.velocity, 3, false, b.caliberSize, b.weaponType);
+                DecalSystem::get().addBulletHole(hitGround + glm::vec3(0, 0.02f, 0), glm::vec3(0, 1, 0), DecalSurface::Dirt, b.caliberSize, b.weaponType);
             }
         }
     }

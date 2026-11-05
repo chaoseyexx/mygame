@@ -1342,24 +1342,30 @@ void GameApp::run() {
                     }
                 }
 
-                if (hitObstacle && glm::dot(hitPoint - player.getPosition(), camHorizFwd) >= 0.2f) {
-                    if (hitGround && glm::distance(rayOrigin, groundHitPos) < glm::distance(rayOrigin, hitPoint)) {
+                bool hitValidObstacle = hitObstacle && (glm::dot(hitPoint - rayOrigin, rayDir) > tPlayer - 0.2f);
+                bool hitValidGround = hitGround && (glm::dot(groundHitPos - rayOrigin, rayDir) > 0.5f);
+
+                if (hitValidObstacle && hitValidGround) {
+                    if (glm::distance(rayOrigin, groundHitPos) < glm::distance(rayOrigin, hitPoint)) {
                         mouseWorldPos = groundHitPos;
                     } else {
                         mouseWorldPos = hitPoint;
                     }
-                } else if (hitGround && glm::dot(groundHitPos - player.getPosition(), camHorizFwd) >= 0.2f) {
+                } else if (hitValidObstacle) {
+                    mouseWorldPos = hitPoint;
+                } else if (hitValidGround) {
                     mouseWorldPos = groundHitPos;
                 } else {
-                    mouseWorldPos = rayOrigin + rayDir * 150.0f;
+                    // Open sky fallback: project into distance ahead of player
+                    float tFar = std::max(120.0f, tPlayer + 60.0f);
+                    mouseWorldPos = rayOrigin + rayDir * tFar;
                 }
             }
 
-            // Safety guarantee: Aim target is ALWAYS projected ahead of the player along the crosshair ray
-            float projDist = glm::dot(mouseWorldPos - player.getPosition(), camHorizFwd);
-            if (projDist < 0.6f) {
+            // Safety guarantee: Ensure aim target is in front of the camera
+            if (glm::dot(mouseWorldPos - rayOrigin, rayDir) < 0.8f) {
                 float tPlayer = std::max(0.0f, glm::dot(player.getPosition() - rayOrigin, rayDir));
-                mouseWorldPos = rayOrigin + rayDir * std::max(5.0f, tPlayer + 2.5f);
+                mouseWorldPos = rayOrigin + rayDir * std::max(3.0f, tPlayer + 2.0f);
             }
 
             // Update Player Controller with Camera-Relative Direction and Precision 3D Aim Target
