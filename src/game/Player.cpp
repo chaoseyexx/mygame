@@ -1167,6 +1167,10 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     m_rig.setGroundSurface(surface);
     if (camera) {
         m_rig.setShoulderRight(camera->isShoulderRight());
+        // Directly drive character rig aim pitch from camera pitch (full elevation range)
+        // camera->getPitch(): positive = looking down, negative = looking up
+        // CharacterRig sign convention: negative = looking down, positive = looking up
+        m_rig.setDirectAimPitch(glm::radians(-camera->getPitch()));
     }
 
     // Update character rig IK & frame-accurate weapon matrix before raycasting and weapon firing

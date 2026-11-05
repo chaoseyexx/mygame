@@ -172,6 +172,11 @@ public:
 
     Mesh* getMesh() const { return m_dynamicMesh.get(); }
 
+    void setDirectAimPitch(float pitchRad) {
+        m_directAimPitch = pitchRad;
+        m_hasDirectAimPitch = true;
+    }
+
     float getAimPitch() const { return m_aimPitch; }
 
     bool isAiming() const { return m_isAiming; }
@@ -435,6 +440,9 @@ private:
     float m_muzzleFlashTimer = 0.0f;
 
     glm::vec3 m_rifleRoot{0.0f};
+
+    float m_directAimPitch = 0.0f;
+    bool m_hasDirectAimPitch = false;
 
     float m_renderPitch = 0.0f;
     float m_weaponLagYaw = 0.0f;

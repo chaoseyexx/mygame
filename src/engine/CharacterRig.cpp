@@ -54,12 +54,17 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
     float targetAimWeight = activeAim ? 1.0f : 0.0f;
     m_aimWeight = glm::mix(m_aimWeight, targetAimWeight, std::clamp(dt * 12.0f, 0.0f, 1.0f));
 
-    // 1. Calculate vertical aim pitch towards 3D mouse target
-    glm::vec3 toTarget = aimTarget - (worldPos + glm::vec3(0.0f, 1.48f + m_stanceHeight, 0.0f));
-    float horizontalDist = std::sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
-    if (horizontalDist > 0.1f) {
-        float elev = std::atan2(toTarget.y, horizontalDist);
-        m_aimPitch = std::clamp(elev, -0.30f, 0.40f); // Natural elevation range
+    // 1. Calculate vertical aim pitch from direct camera feed or 3D target ray
+    if (m_hasDirectAimPitch) {
+        m_aimPitch = std::clamp(m_directAimPitch, -1.22f, 1.15f); // Full -70 deg to +66 deg range
+        m_hasDirectAimPitch = false;
+    } else {
+        glm::vec3 toTarget = aimTarget - (worldPos + glm::vec3(0.0f, 1.48f + m_stanceHeight, 0.0f));
+        float horizontalDist = std::sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
+        if (horizontalDist > 0.1f) {
+            float elev = std::atan2(toTarget.y, horizontalDist);
+            m_aimPitch = std::clamp(elev, -1.22f, 1.15f);
+        }
     }
 
     // 2. Continuous Organic Stance Transition (Standing <-> Crouching <-> Prone)
@@ -1073,12 +1078,44 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             headRot = glm::rotate(headRot, totalHeadPitch, glm::vec3(1, 0, 0));
             uprightPose.boneRotations[BONE_HEAD] = glm::mat3(headRot);
 
-            glm::mat3 lowerRot = glm::mat3(glm::rotate(glm::mat4(1.0f), m_lowerBodyYaw, glm::vec3(0, 1, 0)));
+            float lFootYaw = m_lowerBodyYaw;
+            float rFootYaw = m_lowerBodyYaw;
+
+            if (!m_isMoving) {
+                if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
+                    float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
+                    float ease = t * t * (3.0f - 2.0f * t);
+                    if (m_stepTurnFoot > 0) {
+                        // Turning Right: Left foot is SUPPORT (100% frozen in world space), Right foot is LEAD
+                        lFootYaw = m_stepTurnStartLowerYaw;
+                        rFootYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnBeat1Yaw, ease);
+                    } else {
+                        // Turning Left: Right foot is SUPPORT (100% frozen in world space), Left foot is LEAD
+                        rFootYaw = m_stepTurnStartLowerYaw;
+                        lFootYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnBeat1Yaw, ease);
+                    }
+                } else if (m_stepTurnPhase == StepTurnPhase::Beat2_TrailingFoot) {
+                    float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat2, 0.0f, 1.0f);
+                    float ease = t * t * (3.0f - 2.0f * t);
+                    if (m_stepTurnFoot > 0) {
+                        // Turning Right: Right foot is SUPPORT (frozen at beat1 plant), Left foot is TRAILING
+                        rFootYaw = m_stepTurnBeat1Yaw;
+                        lFootYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnTargetLowerYaw, ease);
+                    } else {
+                        // Turning Left: Left foot is SUPPORT (frozen at beat1 plant), Right foot is TRAILING
+                        lFootYaw = m_stepTurnBeat1Yaw;
+                        rFootYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnTargetLowerYaw, ease);
+                    }
+                }
+            }
+
+            glm::mat3 lowerRotL = glm::mat3(glm::rotate(glm::mat4(1.0f), lFootYaw, glm::vec3(0, 1, 0)));
+            glm::mat3 lowerRotR = glm::mat3(glm::rotate(glm::mat4(1.0f), rFootYaw, glm::vec3(0, 1, 0)));
             glm::vec3 bindThighDir(0.0f, -1.0f, 0.0f);
             glm::vec3 bindCalfDir(0.0f, -1.0f, 0.0f);
 
             uprightPose.bonePositions[BONE_L_THIGH] = leftHipPos;
-            glm::mat3 stdLThighRot = SkinnedSoldier::computeLimbRotation(bindThighDir, leftKneePos - leftHipPos, lowerRot);
+            glm::mat3 stdLThighRot = SkinnedSoldier::computeLimbRotation(bindThighDir, leftKneePos - leftHipPos, lowerRotL);
             uprightPose.boneRotations[BONE_L_THIGH] = stdLThighRot;
 
             uprightPose.bonePositions[BONE_L_CALF] = leftKneePos;
@@ -1105,7 +1142,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             float uR = std::fmod(phaseNorm + 0.5f, 1.0f); if (uR < 0.0f) uR += 1.0f;
 
             float lAnklePitch = m_isMoving ? calcAnklePitch(uL, cCurve) : 0.0f;
-            glm::mat4 lFootRot = glm::rotate(glm::mat4(1.0f), m_lowerBodyYaw, glm::vec3(0, 1, 0));
+            glm::mat4 lFootRot = glm::rotate(glm::mat4(1.0f), lFootYaw, glm::vec3(0, 1, 0));
             lFootRot = glm::rotate(lFootRot, lAnklePitch, glm::vec3(1, 0, 0));
             if (!m_isAirborne) {
                 float slopePitchL = glm::dot(normalL, lowerForward);
@@ -1117,14 +1154,14 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             uprightPose.boneRotations[BONE_L_FOOT] = glm::mat3(lFootRot);
 
             uprightPose.bonePositions[BONE_R_THIGH] = rightHipPos;
-            glm::mat3 stdRThighRot = SkinnedSoldier::computeLimbRotation(bindThighDir, rightKneePos - rightHipPos, lowerRot);
+            glm::mat3 stdRThighRot = SkinnedSoldier::computeLimbRotation(bindThighDir, rightKneePos - rightHipPos, lowerRotR);
             uprightPose.boneRotations[BONE_R_THIGH] = stdRThighRot;
 
             uprightPose.bonePositions[BONE_R_CALF] = rightKneePos;
             uprightPose.boneRotations[BONE_R_CALF] = SkinnedSoldier::computeLimbRotation(bindCalfDir, rightFootPos - rightKneePos, stdRThighRot);
 
             float rAnklePitch = m_isMoving ? calcAnklePitch(uR, cCurve) : 0.0f;
-            glm::mat4 rFootRot = glm::rotate(glm::mat4(1.0f), m_lowerBodyYaw, glm::vec3(0, 1, 0));
+            glm::mat4 rFootRot = glm::rotate(glm::mat4(1.0f), rFootYaw, glm::vec3(0, 1, 0));
             rFootRot = glm::rotate(rFootRot, rAnklePitch, glm::vec3(1, 0, 0));
             if (!m_isAirborne) {
                 float slopePitchR = glm::dot(normalR, lowerForward);
