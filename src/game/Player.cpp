@@ -1352,11 +1352,17 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 glm::vec3 muzzlePos = m_rig.getMuzzlePosition();
 
                 glm::vec3 targetPoint = unifiedTarget;
+                glm::vec3 playerFwd(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+                float fwdDist = glm::dot(targetPoint - muzzlePos, playerFwd);
+                if (fwdDist < 0.20f) {
+                    targetPoint += playerFwd * (0.20f - fwdDist);
+                }
+
                 glm::vec3 aimDir = targetPoint - muzzlePos;
                 if (glm::length(aimDir) > 0.001f) {
                     aimDir = glm::normalize(aimDir);
                 } else {
-                    aimDir = glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+                    aimDir = playerFwd;
                 }
 
                 glm::vec3 upRef = (std::abs(aimDir.y) > 0.95f) ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);

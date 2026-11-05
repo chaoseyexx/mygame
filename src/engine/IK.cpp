@@ -43,7 +43,7 @@ bool InverseKinematics::solveTwoBoneIK(
     }
 
     float maxDist = (upperLength + lowerLength) * 0.999f;
-    float minDist = std::abs(upperLength - lowerLength) * 1.001f;
+    float minDist = std::max(0.02f, std::abs(upperLength - lowerLength) * 1.001f);
     float clampedDist = std::clamp(dist, minDist, maxDist);
 
     glm::vec3 dir = toTarget / dist;

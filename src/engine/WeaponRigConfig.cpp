@@ -19,8 +19,8 @@ void WeaponRigManager::resetToDefaults() {
 
     // Default Assault Rifle (M4A1 SOPMOD) - calibrated tactical forward mount
     WeaponGripConfig m4;
-    m4.rootOffset = glm::vec3(0.12f, -0.02f, 0.32f);   // Relaxed patrol low-ready resting across chest
-    m4.rootOffsetADS = glm::vec3(0.04f, 0.14f, 0.28f); // Optic aligned directly with sightline
+    m4.rootOffset = glm::vec3(0.13f, -0.035f, 0.395f);  // Relaxed patrol low-ready resting cleanly forward of chest plate
+    m4.rootOffsetADS = glm::vec3(0.04f, 0.14f, 0.28f);  // Optic aligned directly with sightline
     m4.rightHandOffset = glm::vec3(0.00f, -0.065f, -0.080f); // Firm trigger grip on pistol grip
     m4.leftHandOffset = glm::vec3(-0.015f, -0.055f, 0.080f); // Support hand cupping magazine well / rear handguard
     m4.leftHandOffsetADS = glm::vec3(-0.015f, -0.055f, 0.080f);
@@ -34,7 +34,7 @@ void WeaponRigManager::resetToDefaults() {
 
     // AK-74M
     WeaponGripConfig ak;
-    ak.rootOffset = glm::vec3(0.12f, -0.02f, 0.32f);
+    ak.rootOffset = glm::vec3(0.13f, -0.035f, 0.395f);
     ak.rootOffsetADS = glm::vec3(0.04f, 0.14f, 0.28f);
     ak.rightHandOffset = glm::vec3(0.00f, -0.065f, -0.060f);
     ak.leftHandOffset = glm::vec3(-0.015f, -0.045f, 0.100f); // Support hand on lower polymer handguard
@@ -49,7 +49,7 @@ void WeaponRigManager::resetToDefaults() {
 
     // Mosin-Nagant Bolt-Action Sniper
     WeaponGripConfig mosin;
-    mosin.rootOffset = glm::vec3(0.12f, -0.02f, 0.33f);
+    mosin.rootOffset = glm::vec3(0.13f, -0.035f, 0.405f);
     mosin.rootOffsetADS = glm::vec3(0.04f, 0.14f, 0.26f); // PU 3.5x scope centered to eye
     mosin.rightHandOffset = glm::vec3(0.00f, -0.035f, -0.160f); // Classic semi-pistol grip wrist
     mosin.leftHandOffset = glm::vec3(-0.015f, -0.035f, 0.120f); // Wooden fore-end forward support
@@ -64,7 +64,7 @@ void WeaponRigManager::resetToDefaults() {
 
     // Beretta M9 Handgun (Cupped two-handed grip)
     WeaponGripConfig m9;
-    m9.rootOffset = glm::vec3(0.08f, 0.00f, 0.30f);
+    m9.rootOffset = glm::vec3(0.09f, -0.010f, 0.33f);
     m9.rootOffsetADS = glm::vec3(0.03f, 0.15f, 0.36f); // Two-handed punched out Isosceles stance
     m9.rightHandOffset = glm::vec3(0.00f, -0.055f, -0.030f);
     m9.leftHandOffset = glm::vec3(-0.015f, -0.065f, -0.025f); // Support hand cupping bottom of grip

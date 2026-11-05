@@ -1,7 +1,7 @@
 {
   "weapons": {
     "Mosin-Nagant": {
-      "rootOffset": [0.1200, -0.0200, 0.3300],
+      "rootOffset": [0.1300, -0.0350, 0.4050],
       "rootOffsetADS": [0.0400, 0.1400, 0.2600],
       "rightHandOffset": [0.0000, -0.0350, -0.1600],
       "leftHandOffset": [-0.0150, -0.0350, 0.1200],
@@ -14,7 +14,7 @@
       "shadowAlpha": 0.6500
     },
     "AK-74M": {
-      "rootOffset": [0.1200, -0.0200, 0.3200],
+      "rootOffset": [0.1300, -0.0350, 0.3950],
       "rootOffsetADS": [0.0400, 0.1400, 0.2800],
       "rightHandOffset": [0.0000, -0.0650, -0.0600],
       "leftHandOffset": [-0.0150, -0.0450, 0.1000],
@@ -27,7 +27,7 @@
       "shadowAlpha": 0.6500
     },
     "Beretta M9": {
-      "rootOffset": [0.0800, 0.0000, 0.3000],
+      "rootOffset": [0.0900, -0.0100, 0.3300],
       "rootOffsetADS": [0.0300, 0.1500, 0.3600],
       "rightHandOffset": [0.0000, -0.0550, -0.0300],
       "leftHandOffset": [-0.0150, -0.0650, -0.0250],
@@ -40,7 +40,7 @@
       "shadowAlpha": 0.5500
     },
     "M4A1": {
-      "rootOffset": [0.1200, -0.0200, 0.3200],
+      "rootOffset": [0.1300, -0.0350, 0.3950],
       "rootOffsetADS": [0.0400, 0.1400, 0.2800],
       "rightHandOffset": [0.0000, -0.0650, -0.0800],
       "leftHandOffset": [-0.0150, -0.0550, 0.0800],

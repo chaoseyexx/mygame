@@ -1109,6 +1109,9 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     glm::vec3 weaponUp      = glm::vec3(wRot * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
                     glm::vec3 weaponRight   = glm::vec3(wRot * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
 
+                    aimForward = weaponForward;
+                    rifleUp    = weaponUp;
+
                     float rootY = glm::mix(gripCfg.rootOffset.y, gripCfg.rootOffsetADS.y, m_aimWeight) + breathY;
                     float rootRight = glm::mix(gripCfg.rootOffset.x, gripCfg.rootOffsetADS.x, m_aimWeight) + breathX;
                     if (!m_shoulderRight) rootRight = -rootRight;
@@ -1129,11 +1132,11 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     leftHandTarget = uprightRifleRoot + weaponRight * lHandOffset.x + weaponUp * lHandOffset.y + weaponForward * lHandOffset.z;
 
                     if (m_shoulderRight) {
-                        rightElbowPole = rightShoulder + rightDir * 0.22f - glm::vec3(0.0f, 0.20f, 0.0f) + weaponForward * 0.08f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.16f - glm::vec3(0.0f, 0.20f, 0.0f) + forwardDir * 0.12f;
+                        rightElbowPole = rightShoulder - glm::vec3(0.0f, 0.32f, 0.0f) + rightDir * 0.08f - weaponForward * 0.05f;
+                        leftElbowPole  = leftShoulder  - glm::vec3(0.0f, 0.30f, 0.0f) - rightDir * 0.08f + forwardDir * 0.10f;
                     } else {
-                        rightElbowPole = rightShoulder + rightDir * 0.16f - glm::vec3(0.0f, 0.20f, 0.0f) + forwardDir * 0.12f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.22f - glm::vec3(0.0f, 0.20f, 0.0f) + weaponForward * 0.08f;
+                        rightElbowPole = rightShoulder - glm::vec3(0.0f, 0.30f, 0.0f) + rightDir * 0.08f + forwardDir * 0.10f;
+                        leftElbowPole  = leftShoulder  - glm::vec3(0.0f, 0.32f, 0.0f) - rightDir * 0.08f - weaponForward * 0.05f;
                     }
                 }
             } else {
@@ -1273,10 +1276,10 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             uprightPose.boneRotations[BONE_R_FOOT] = glm::mat3(rFootRot);
 
             // Upper Extremities
-            glm::vec3 bindLArmDir = glm::normalize(glm::vec3(-0.08f, -0.30f, 0.0f));
-            glm::vec3 bindLForeDir = glm::normalize(glm::vec3(-0.02f, -0.30f, 0.0f));
-            glm::vec3 bindRArmDir = glm::normalize(glm::vec3(0.08f, -0.30f, 0.0f));
-            glm::vec3 bindRForeDir = glm::normalize(glm::vec3(0.02f, -0.30f, 0.0f));
+            glm::vec3 bindLArmDir = glm::normalize(glm::vec3(-0.07f, -0.30f, 0.0f));
+            glm::vec3 bindLForeDir = glm::normalize(glm::vec3(-0.03f, -0.30f, 0.0f));
+            glm::vec3 bindRArmDir = glm::normalize(glm::vec3(0.07f, -0.30f, 0.0f));
+            glm::vec3 bindRForeDir = glm::normalize(glm::vec3(0.03f, -0.30f, 0.0f));
 
             uprightPose.bonePositions[BONE_L_UPPER_ARM] = leftShoulder;
             glm::mat3 stdLArmRot = SkinnedSoldier::computeLimbRotation(bindLArmDir, leftElbowPos - leftShoulder, chestRot3);
@@ -1391,9 +1394,12 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 glm::vec3 rElbowProne = chestPosProne + rightDir * 0.22f + forwardDir * 0.14f - glm::vec3(0.0f, 0.14f, 0.0f);
                 glm::vec3 lElbowProne = chestPosProne - rightDir * 0.22f + forwardDir * 0.18f - glm::vec3(0.0f, 0.14f, 0.0f);
 
-                proneRifleRoot = chestPosProne + rightDir * 0.08f + forwardDir * 0.24f - glm::vec3(0.0f, 0.02f, 0.0f);
-                glm::vec3 rHandProne = proneRifleRoot - aimFwdProne * 0.08f - rifleUpProne * 0.06f;
-                glm::vec3 lHandProne = proneRifleRoot + aimFwdProne * 0.24f - rifleUpProne * 0.04f;
+                proneRifleRoot = chestPosProne + rightDir * 0.08f + forwardDir * 0.35f - glm::vec3(0.0f, 0.02f, 0.0f);
+                bool isPistolProne = (weaponToDraw.find("M9") != std::string::npos ||
+                                      weaponToDraw.find("Beretta") != std::string::npos ||
+                                      weaponToDraw.find("Pistol") != std::string::npos);
+                glm::vec3 rHandProne = isPistolProne ? (proneRifleRoot - aimFwdProne * 0.02f - rifleUpProne * 0.05f) : (proneRifleRoot - aimFwdProne * 0.08f - rifleUpProne * 0.06f);
+                glm::vec3 lHandProne = isPistolProne ? (proneRifleRoot - aimFwdProne * 0.00f - rifleUpProne * 0.055f - rightDir * 0.025f) : (proneRifleRoot + aimFwdProne * 0.12f - rifleUpProne * 0.045f - rightDir * 0.015f);
 
                 if (m_isReloading) {
                     float p = m_reloadProgress;
@@ -1444,10 +1450,10 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 pronePose.bonePositions[BONE_R_FOOT] = rightFootProne;
                 pronePose.boneRotations[BONE_R_FOOT] = glm::mat3(rotYProne);
 
-                glm::vec3 bindLArmDirP = glm::normalize(glm::vec3(-0.08f, -0.30f, 0.0f));
-                glm::vec3 bindLForeDirP = glm::normalize(glm::vec3(-0.02f, -0.30f, 0.0f));
-                glm::vec3 bindRArmDirP = glm::normalize(glm::vec3(0.08f, -0.30f, 0.0f));
-                glm::vec3 bindRForeDirP = glm::normalize(glm::vec3(0.02f, -0.30f, 0.0f));
+                glm::vec3 bindLArmDirP = glm::normalize(glm::vec3(-0.07f, -0.30f, 0.0f));
+                glm::vec3 bindLForeDirP = glm::normalize(glm::vec3(-0.03f, -0.30f, 0.0f));
+                glm::vec3 bindRArmDirP = glm::normalize(glm::vec3(0.07f, -0.30f, 0.0f));
+                glm::vec3 bindRForeDirP = glm::normalize(glm::vec3(0.03f, -0.30f, 0.0f));
 
                 pronePose.bonePositions[BONE_L_UPPER_ARM] = lShoulderProne;
                 glm::mat3 pLArmRot = SkinnedSoldier::computeLimbRotation(bindLArmDirP, lElbowProne - lShoulderProne, chestRot3P);

@@ -6,6 +6,14 @@ def package_player_client():
     dist_dir = 'dist'
     os.makedirs(dist_dir, exist_ok=True)
 
+    # Auto-sync binaries from build/ if newer
+    for bin_name in ['MercenaryGame.exe', 'MercenaryServer.exe', 'MercenaryEditor.exe']:
+        build_bin = os.path.join('build', bin_name)
+        if os.path.exists(build_bin):
+            if not os.path.exists(bin_name) or os.path.getmtime(build_bin) > os.path.getmtime(bin_name):
+                print(f"[Sync] Copying newer {build_bin} -> {bin_name}")
+                shutil.copy2(build_bin, bin_name)
+
     player_zip_path = os.path.join(dist_dir, 'Mercenary_Release_v0.0.1.zip')
     player_zip_path_generic = os.path.join(dist_dir, 'Mercenary_Release.zip')
     player_root_zip = 'Mercenary_Release.zip'
