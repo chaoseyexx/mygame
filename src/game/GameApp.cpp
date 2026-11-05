@@ -2316,14 +2316,16 @@ void GameApp::run() {
         bool isCustomizing = (ui.getGameState() == GameState::CharacterSelect) ||
                              (ui.getGameState() == GameState::MainMenu && ui.getMenuTab() == MainMenuTab::Customize);
         if (!isCustomizing) {
-            // Equipment is dynamically driven by player's equipped inventory items:
+            // Equipment is dynamically driven by player's equipped inventory items, falling back to profile customization:
             auto& eqVest = player.getInventory().getEquipped(EquipSlot::Vest);
             if (eqVest.has_value()) {
                 if (eqVest->name.find("6B45") != std::string::npos) customAppearance.vestId = 1;
                 else if (eqVest->name.find("JPC") != std::string::npos) customAppearance.vestId = 0;
                 else customAppearance.vestId = 2; // Chest Rig
+            } else if (activeProfile) {
+                customAppearance.vestId = activeProfile->customization.vestId;
             } else {
-                customAppearance.vestId = 3; // None: Default Combat Uniform Shirt
+                customAppearance.vestId = 0; // Default: Crye Precision JPC 2.0 Plate Carrier
             }
 
             auto& eqHelm = player.getInventory().getEquipped(EquipSlot::Helmet);
@@ -2332,16 +2334,20 @@ void GameApp::run() {
                 else if (eqHelm->name.find("Boonie") != std::string::npos) customAppearance.helmetId = 2;
                 else if (eqHelm->name.find("FAST") != std::string::npos) customAppearance.helmetId = 0;
                 else customAppearance.helmetId = 3; // Balaclava
+            } else if (activeProfile) {
+                customAppearance.helmetId = activeProfile->customization.helmetId;
             } else {
-                customAppearance.helmetId = 4; // None: Full face and hair visible!
+                customAppearance.helmetId = 0; // Default: FAST MT High-Cut + ComTacs
             }
 
             auto& eqPack = player.getInventory().getEquipped(EquipSlot::Backpack);
             if (eqPack.has_value()) {
                 if (eqPack->name.find("3-Day") != std::string::npos) customAppearance.backpackId = 0;
                 else customAppearance.backpackId = 1;
+            } else if (activeProfile) {
+                customAppearance.backpackId = activeProfile->customization.backpackId;
             } else {
-                customAppearance.backpackId = 2; // None: Slick
+                customAppearance.backpackId = 1; // Default: Compact Patrol Pack
             }
         } else {
             // In Character Creation & Customization Tab: Show face, hair & uniform clearly

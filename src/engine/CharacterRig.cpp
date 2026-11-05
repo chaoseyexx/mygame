@@ -906,8 +906,8 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
 
             glm::vec3 leftKneePos, rightKneePos;
             glm::quat uRot, lRot;
-            InverseKinematics::solveTwoBoneIK(leftHipPos, leftFootPos, leftKneePole, 0.43f, 0.41f, leftKneePos, uRot, lRot);
-            InverseKinematics::solveTwoBoneIK(rightHipPos, rightFootPos, rightKneePole, 0.43f, 0.41f, rightKneePos, uRot, lRot);
+            InverseKinematics::solveTwoBoneIK(leftHipPos, leftFootPos, leftKneePole, 0.40f, 0.38f, leftKneePos, uRot, lRot);
+            InverseKinematics::solveTwoBoneIK(rightHipPos, rightFootPos, rightKneePole, 0.40f, 0.38f, rightKneePos, uRot, lRot);
 
             // --- 3. TORSO, CHEST & ANATOMICAL HEAD ---
             // 4-Tier Hierarchical Look-At:
@@ -1063,13 +1063,13 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     if (isPistol) {
                         rightHandTarget = uprightRifleRoot - aimForward * 0.02f - rifleUp * 0.05f;
                         leftHandTarget  = uprightRifleRoot - aimForward * 0.00f - rifleUp * 0.055f - rightDir * 0.03f;
-                        rightElbowPole = rightShoulder + rightDir * 0.18f - rifleUp * 0.20f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.18f - rifleUp * 0.20f;
+                        rightElbowPole = rightShoulder + rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.08f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.08f;
                     } else {
                         rightHandTarget = uprightRifleRoot - aimForward * 0.08f - rifleUp * 0.065f;
                         leftHandTarget  = uprightRifleRoot + aimForward * 0.24f - rifleUp * 0.045f - rightDir * 0.015f;
-                        rightElbowPole = rightShoulder + rightDir * 0.18f - aimForward * 0.06f - rifleUp * 0.18f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.18f + aimForward * 0.06f - rifleUp * 0.18f;
+                        rightElbowPole = rightShoulder + rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.08f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.16f - rifleUp * 0.20f + aimForward * 0.14f;
                     }
 
                 } else {
@@ -1101,11 +1101,11 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     leftHandTarget = uprightRifleRoot + rightDir * lHandOffset.x + rifleUp * lHandOffset.y + aimForward * lHandOffset.z;
 
                     if (m_shoulderRight) {
-                        rightElbowPole = rightShoulder + rightDir * 0.18f - rifleUp * 0.22f - aimForward * 0.04f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.18f - rifleUp * 0.22f + aimForward * 0.04f;
+                        rightElbowPole = rightShoulder + rightDir * 0.22f - rifleUp * 0.24f + aimForward * 0.06f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.16f - rifleUp * 0.22f + aimForward * 0.14f;
                     } else {
-                        rightElbowPole = rightShoulder + rightDir * 0.14f - rifleUp * 0.22f + aimForward * 0.04f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.14f - rifleUp * 0.22f - aimForward * 0.04f;
+                        rightElbowPole = rightShoulder + rightDir * 0.16f - rifleUp * 0.22f + aimForward * 0.14f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.22f - rifleUp * 0.24f + aimForward * 0.06f;
                     }
                 }
             } else {
@@ -1269,13 +1269,13 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             uprightPose.bonePositions[BONE_R_HAND] = rightHandTarget;
 
             if (shouldDrawWeapon) {
-                glm::vec3 gripAxis = glm::normalize(-rifleUp * 0.94f - aimForward * 0.34f);
-                glm::vec3 palmFacing = glm::normalize(aimForward * 0.94f - rifleUp * 0.34f);
-                glm::vec3 lateralAxis = glm::normalize(glm::cross(gripAxis, palmFacing));
+                glm::vec3 gripDir = glm::normalize(-rifleUp * 0.88f - aimForward * 0.47f);
+                glm::vec3 palmDir = glm::normalize(aimForward * 0.88f - rifleUp * 0.47f);
+                glm::vec3 latDir  = glm::normalize(glm::cross(palmDir, gripDir));
 
-                uprightPose.boneRotations[BONE_R_HAND] = glm::mat3(lateralAxis, -gripAxis, palmFacing);
+                uprightPose.boneRotations[BONE_R_HAND] = glm::mat3(latDir, -gripDir, palmDir);
 
-                glm::vec3 triggerBase = rightHandTarget + palmFacing * 0.010f - lateralAxis * 0.016f;
+                glm::vec3 triggerBase = rightHandTarget + palmDir * 0.012f - latDir * 0.014f;
                 uprightPose.bonePositions[BONE_R_TRIGGER_FINGER] = triggerBase;
 
                 float curlAngle = m_rightHand.triggerPull * 0.42f;
@@ -1283,24 +1283,24 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 glm::mat4 trigRot = glm::rotate(baseTrig, curlAngle, glm::vec3(1.0f, 0.0f, 0.0f));
                 uprightPose.boneRotations[BONE_R_TRIGGER_FINGER] = glm::mat3(trigRot);
 
-                glm::vec3 lHandAxis = glm::normalize(aimForward * 0.88f + rifleUp * 0.22f);
-                glm::vec3 lPalmFacing = glm::normalize(rifleUp * 0.88f - aimForward * 0.22f);
-                glm::vec3 lLateralAxis = glm::normalize(glm::cross(lPalmFacing, lHandAxis));
+                glm::vec3 lGripDir = glm::normalize(aimForward * 0.72f + rifleUp * 0.69f);
+                glm::vec3 lPalmDir = glm::normalize(rifleUp * 0.72f - aimForward * 0.69f);
+                glm::vec3 lLatDir  = glm::normalize(glm::cross(lPalmDir, lGripDir));
 
-                uprightPose.boneRotations[BONE_L_HAND] = glm::mat3(lLateralAxis, -lHandAxis, lPalmFacing);
+                uprightPose.boneRotations[BONE_L_HAND] = glm::mat3(lLatDir, -lGripDir, lPalmDir);
             } else {
                 glm::vec3 rForeDir = glm::normalize(rightHandTarget - rightElbowPos);
                 glm::vec3 lForeDir = glm::normalize(leftHandTarget - leftElbowPos);
 
-                glm::vec3 rPalm = glm::normalize(-rightDir * 0.90f + forwardDir * 0.25f);
-                glm::vec3 rLat = glm::normalize(glm::cross(rForeDir, rPalm));
+                glm::vec3 rPalm = glm::normalize(-rightDir * 0.85f + forwardDir * 0.25f);
+                glm::vec3 rLat  = glm::normalize(glm::cross(-rForeDir, rPalm));
                 uprightPose.boneRotations[BONE_R_HAND] = glm::mat3(rLat, -rForeDir, rPalm);
 
-                uprightPose.bonePositions[BONE_R_TRIGGER_FINGER] = rightHandTarget + rPalm * 0.008f - rLat * 0.016f;
+                uprightPose.bonePositions[BONE_R_TRIGGER_FINGER] = rightHandTarget + rPalm * 0.008f - rLat * 0.014f;
                 uprightPose.boneRotations[BONE_R_TRIGGER_FINGER] = uprightPose.boneRotations[BONE_R_HAND];
 
-                glm::vec3 lPalm = glm::normalize(rightDir * 0.90f + forwardDir * 0.25f);
-                glm::vec3 lLat = glm::normalize(glm::cross(lForeDir, lPalm));
+                glm::vec3 lPalm = glm::normalize(rightDir * 0.85f + forwardDir * 0.25f);
+                glm::vec3 lLat  = glm::normalize(glm::cross(-lForeDir, lPalm));
                 uprightPose.boneRotations[BONE_L_HAND] = glm::mat3(lLat, -lForeDir, lPalm);
             }
         }

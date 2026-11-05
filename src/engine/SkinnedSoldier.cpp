@@ -411,7 +411,8 @@ void SkinnedSoldier::buildTorsoAndPants() {
         glm::vec3(0.0f, 1.30f,  0.010f), // Latissimus dorsi & pectoral base
         glm::vec3(0.0f, 1.35f,  0.016f), // Pectoral major prominence
         glm::vec3(0.0f, 1.37f,  0.008f), // Clavicle / Shoulder line
-        glm::vec3(0.0f, 1.395f, 0.002f)  // Mandarin zipper collar (snugly wraps over neck base!)
+        glm::vec3(0.0f, 1.395f, 0.002f), // Mandarin zipper collar base
+        glm::vec3(0.0f, 1.415f, 0.002f)  // Raised Mandarin tactical collar (snugly wraps over neck base!)
     };
 
     std::vector<glm::vec2> torsoRadii = {
@@ -425,7 +426,8 @@ void SkinnedSoldier::buildTorsoAndPants() {
         glm::vec2(0.198f, 0.132f), // Chest breadth
         glm::vec2(0.208f, 0.138f), // Pectorals
         glm::vec2(0.165f, 0.110f), // Clavicle
-        glm::vec2(0.065f, 0.068f)  // Mandarin collar (snugly wraps over neck base!)
+        glm::vec2(0.065f, 0.068f), // Mandarin collar base
+        glm::vec2(0.060f, 0.063f)  // Raised Mandarin collar
     };
 
     // Smooth dual-bone weighting from Pelvis -> Spine/Chest
@@ -452,7 +454,9 @@ void SkinnedSoldier::buildTorsoAndPants() {
 
         0.00f, // 100% Spine/Chest
 
-        0.00f  // 100% Spine/Chest (collar base is 100% Spine/Chest!)
+        0.00f, // 100% Spine/Chest
+
+        0.00f  // 100% Spine/Chest (collar is 100% Spine/Chest!)
 
     };
 
@@ -602,7 +606,9 @@ void SkinnedSoldier::buildTorsoAndPants() {
 
             glm::vec3(sX, 0.11f,  0.006f), // 14: Bloused pant cuff roll
 
-            glm::vec3(sX, 0.08f,  0.002f)  // 15: Boot collar tuck
+            glm::vec3(sX, 0.08f,  0.002f), // 15: Boot collar tuck
+
+            glm::vec3(sX, 0.045f, 0.000f)  // 16: Deep boot collar overlap (seam sealed!)
 
         };
 
@@ -638,7 +644,9 @@ void SkinnedSoldier::buildTorsoAndPants() {
 
             glm::vec2(0.064f, 0.062f), // 14 (Flared blousing roll)
 
-            glm::vec2(0.055f, 0.053f)  // 15
+            glm::vec2(0.055f, 0.053f), // 15
+
+            glm::vec2(0.050f, 0.048f)  // 16: Deep overlap inside boot
 
         };
 
@@ -650,7 +658,7 @@ void SkinnedSoldier::buildTorsoAndPants() {
 
             0.68f, 0.52f, 0.48f, 0.32f, 0.15f,
 
-            0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f
+            0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f
 
         };
 
@@ -1340,6 +1348,8 @@ void SkinnedSoldier::buildCombatBoots() {
 
         float sX = (side == 0) ? -0.13f : 0.13f;
 
+        uint8_t calfBone = (side == 0) ? BONE_L_CALF : BONE_R_CALF;
+
         uint8_t footBone = (side == 0) ? BONE_L_FOOT : BONE_R_FOOT;
 
         glm::vec3 ankle = m_bindJoints[footBone];
@@ -1348,21 +1358,21 @@ void SkinnedSoldier::buildCombatBoots() {
 
         std::vector<glm::vec3> bootRings = {
 
-            ankle + glm::vec3(0.0f,  0.07f,  0.002f), // Upper collar at pant blousing
+            ankle + glm::vec3(0.0f,  0.075f, 0.002f), // Upper collar overlapping deeply with bloused pant (Y=0.155m)
 
-            ankle + glm::vec3(0.0f,  0.04f,  0.008f), // Mid collar / speed-lace hooks
+            ankle + glm::vec3(0.0f,  0.045f, 0.008f), // Mid collar / speed-lace hooks (Y=0.125m)
 
-            ankle + glm::vec3(0.0f,  0.01f,  0.016f), // Lower collar / instep crease
+            ankle + glm::vec3(0.0f,  0.015f, 0.016f), // Lower collar / instep crease (Y=0.095m)
 
-            ankle + glm::vec3(0.0f, -0.02f,  0.026f)  // Heel counter & ankle bone swell
+            ankle + glm::vec3(0.0f, -0.020f, 0.026f)  // Heel counter & ankle bone swell (Y=0.060m)
 
         };
 
         std::vector<glm::vec2> bootRadii = {
 
-            glm::vec2(0.055f, 0.053f),
+            glm::vec2(0.056f, 0.054f),
 
-            glm::vec2(0.053f, 0.058f),
+            glm::vec2(0.054f, 0.058f),
 
             glm::vec2(0.052f, 0.066f),
 
@@ -1370,11 +1380,12 @@ void SkinnedSoldier::buildCombatBoots() {
 
         };
 
-        std::vector<float> bootWeights = { 1.0f, 1.0f, 1.0f, 1.0f };
+        // Dual-bone skinning blends collar with calf bone to ensure ZERO air gap
+        std::vector<float> bootWeights = { 0.50f, 0.20f, 0.0f, 0.0f };
 
         appendSkinnedTube(bootRings, bootRadii, bootWeights,
 
-                          footBone, footBone,
+                          calfBone, footBone,
 
                           glm::vec2(0.05f, 0.55f), glm::vec2(0.25f, 0.85f),
 
@@ -2288,38 +2299,38 @@ void SkinnedSoldier::buildAnatomicalHeadAndFace() {
 
     // Leonardo Da Vinci & Gold Standard Human Facial Canon (1.82m Athletic Military Operator)
     std::vector<HeadRingDef> ringDefs = {
-        // 0: Mandarin collar junction (Y=1.370m) - securely nested inside jacket collar
-        { glm::vec3(0.0f, 1.370f,  0.002f), glm::vec2(0.056f, 0.058f), 1.00f, 0.530f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-        // 1: Lower neck / trapezius slope (Y=1.395m)
-        { glm::vec3(0.0f, 1.395f,  0.001f), glm::vec2(0.059f, 0.061f), 0.70f, 0.550f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-        // 2: Upper neck / thyroid prominence (Adam's apple, Y=1.420m)
-        { glm::vec3(0.0f, 1.420f,  0.000f), glm::vec2(0.057f, 0.060f), 0.35f, 0.575f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-        // 3: Submental crease & gonial angles of mandible (Y=1.440m - jaw angle undercut!)
-        { glm::vec3(0.0f, 1.440f,  0.000f), glm::vec2(0.054f, 0.060f), 0.05f, 0.600f, 0.0f, 0.0f, 0.002f, 0.0f, 0.0f, 0.004f },
+        // 0: Collar junction (Y=1.400m) - securely nested inside jacket collar
+        { glm::vec3(0.0f, 1.400f,  0.002f), glm::vec2(0.058f, 0.060f), 1.00f, 0.540f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        // 1: Collar rim / lower neck (Y=1.418m)
+        { glm::vec3(0.0f, 1.418f,  0.001f), glm::vec2(0.058f, 0.061f), 0.70f, 0.565f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        // 2: Upper neck / thyroid prominence (Adam's apple, Y=1.432m)
+        { glm::vec3(0.0f, 1.432f,  0.000f), glm::vec2(0.057f, 0.060f), 0.35f, 0.585f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        // 3: Submental crease & gonial angles of mandible (Y=1.444m - masculine jawline)
+        { glm::vec3(0.0f, 1.444f,  0.000f), glm::vec2(0.062f, 0.066f), 0.05f, 0.605f, 0.0f, 0.0f, 0.004f, 0.0f, 0.0f, 0.006f },
         // 4: Chin (Mental protuberance, Y=1.455m - 100% Head Bone, athletic masculine chin)
-        { glm::vec3(0.0f, 1.455f,  0.002f), glm::vec2(0.050f, 0.067f), 0.00f, 0.625f, 0.0f, 0.0f, 0.005f, 0.0f, 0.0f, 0.008f },
+        { glm::vec3(0.0f, 1.455f,  0.002f), glm::vec2(0.056f, 0.072f), 0.00f, 0.625f, 0.0f, 0.0f, 0.008f, 0.0f, 0.0f, 0.010f },
         // 5: Mental sulcus (crease above chin, Y=1.472m)
-        { glm::vec3(0.0f, 1.472f,  0.003f), glm::vec2(0.056f, 0.069f), 0.00f, 0.655f, 0.0f, 0.004f, 0.002f, 0.0f, 0.0f, 0.010f },
+        { glm::vec3(0.0f, 1.472f,  0.003f), glm::vec2(0.058f, 0.070f), 0.00f, 0.655f, 0.0f, 0.004f, 0.003f, 0.0f, 0.0f, 0.010f },
         // 6: Lower lip pout (Y=1.484m)
-        { glm::vec3(0.0f, 1.484f,  0.004f), glm::vec2(0.059f, 0.071f), 0.00f, 0.665f, 0.0f, 0.005f, 0.0f, 0.0f, 0.0f, 0.011f },
+        { glm::vec3(0.0f, 1.484f,  0.004f), glm::vec2(0.060f, 0.072f), 0.00f, 0.665f, 0.0f, 0.005f, 0.0f, 0.0f, 0.0f, 0.011f },
         // 7: Upper lip Cupid's bow & oral slit (Y=1.496m, v=0.675 matches texture lips!)
-        { glm::vec3(0.0f, 1.496f,  0.005f), glm::vec2(0.063f, 0.073f), 0.00f, 0.675f, 0.0f, 0.005f, 0.0f, 0.0f, 0.0f, 0.012f },
+        { glm::vec3(0.0f, 1.496f,  0.005f), glm::vec2(0.064f, 0.074f), 0.00f, 0.675f, 0.0f, 0.005f, 0.0f, 0.0f, 0.0f, 0.012f },
         // 8: Nasal base, nostrils & philtrum (Y=1.516m, v=0.722 matches texture nostrils!)
-        { glm::vec3(0.0f, 1.516f,  0.005f), glm::vec2(0.067f, 0.076f), 0.00f, 0.722f, 0.016f, 0.0f, 0.0f, 0.0f, 0.0f, 0.014f },
+        { glm::vec3(0.0f, 1.516f,  0.005f), glm::vec2(0.068f, 0.078f), 0.00f, 0.722f, 0.018f, 0.0f, 0.0f, 0.0f, 0.0f, 0.014f },
         // 9: Rhinion / nose bridge & cheekbones (Y=1.540m, v=0.745 matches texture nose bridge!)
-        { glm::vec3(0.0f, 1.540f,  0.004f), glm::vec2(0.072f, 0.082f), 0.00f, 0.745f, 0.012f, 0.0f, 0.0f, 0.0f, 0.0f, 0.014f },
+        { glm::vec3(0.0f, 1.540f,  0.004f), glm::vec2(0.074f, 0.084f), 0.00f, 0.745f, 0.014f, 0.0f, 0.0f, 0.0f, 0.0f, 0.014f },
         // 10: Orbital eye cavities & nasion (Y=1.560m, v=0.770 matches texture eyes!)
-        { glm::vec3(0.0f, 1.560f,  0.003f), glm::vec2(0.075f, 0.086f), 0.00f, 0.770f, 0.005f, 0.0f, 0.0f, -0.006f, 0.0f, 0.012f },
+        { glm::vec3(0.0f, 1.560f,  0.003f), glm::vec2(0.076f, 0.087f), 0.00f, 0.770f, 0.006f, 0.0f, 0.0f, -0.008f, 0.0f, 0.012f },
         // 11: Supraorbital brow ridge (Y=1.580m, v=0.805 matches texture eyebrows!)
-        { glm::vec3(0.0f, 1.580f,  0.001f), glm::vec2(0.076f, 0.088f), 0.00f, 0.805f, 0.0f, 0.0f, 0.0f, 0.0f, 0.006f, 0.006f },
+        { glm::vec3(0.0f, 1.580f,  0.001f), glm::vec2(0.077f, 0.089f), 0.00f, 0.805f, 0.0f, 0.0f, 0.0f, 0.0f, 0.008f, 0.006f },
         // 12: Temples & lower forehead (Y=1.600m)
-        { glm::vec3(0.0f, 1.600f, -0.002f), glm::vec2(0.075f, 0.087f), 0.00f, 0.830f, 0.0f, 0.0f, 0.0f, 0.0f, 0.002f, 0.0f },
+        { glm::vec3(0.0f, 1.600f, -0.002f), glm::vec2(0.076f, 0.088f), 0.00f, 0.830f, 0.0f, 0.0f, 0.0f, 0.0f, 0.002f, 0.0f },
         // 13: Frontal hairline / upper forehead (Y=1.620m, v=0.855 matches texture hairline!)
-        { glm::vec3(0.0f, 1.620f, -0.005f), glm::vec2(0.074f, 0.087f), 0.00f, 0.855f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        { glm::vec3(0.0f, 1.620f, -0.005f), glm::vec2(0.075f, 0.088f), 0.00f, 0.855f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
         // 14: Parietal cranial vault (broad rounded human skull dome, Y=1.645m)
-        { glm::vec3(0.0f, 1.645f, -0.008f), glm::vec2(0.072f, 0.084f), 0.00f, 0.900f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        { glm::vec3(0.0f, 1.645f, -0.008f), glm::vec2(0.073f, 0.085f), 0.00f, 0.900f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
         // 15: Upper cranial crown dome (Y=1.668m)
-        { glm::vec3(0.0f, 1.668f, -0.012f), glm::vec2(0.064f, 0.074f), 0.00f, 0.940f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        { glm::vec3(0.0f, 1.668f, -0.012f), glm::vec2(0.065f, 0.075f), 0.00f, 0.940f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
         // 16: Scalp apex dome (Y=1.685m, broad rounded dome)
         { glm::vec3(0.0f, 1.685f, -0.015f), glm::vec2(0.040f, 0.046f), 0.00f, 0.980f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }
     };
