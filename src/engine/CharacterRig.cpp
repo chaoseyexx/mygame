@@ -346,10 +346,14 @@ void CharacterRig::updateWeaponTransform() {
         weaponToDraw = "M4A1";
     }
 
+    glm::mat4 wModel(1.0f);
     if (m_stance == 2) {
         glm::vec3 chestPos = m_rootPos + glm::vec3(0.0f, 0.22f, 0.0f) + forwardDir * 0.15f;
         m_renderPitch = m_aimPitch;
         m_rifleRoot = chestPos + rightDir * 0.08f + forwardDir * 0.35f - glm::vec3(0.0f, 0.02f, 0.0f);
+        wModel = glm::translate(glm::mat4(1.0f), m_rifleRoot);
+        wModel = glm::rotate(wModel, m_yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+        wModel = glm::rotate(wModel, m_renderPitch, glm::vec3(1.0f, 0.0f, 0.0f));
     } else {
         float cCurve = glm::smoothstep(0.0f, 1.0f, m_crouchTransition);
         float sprintLean = (m_isSprinting && m_isMoving) ? 0.30f : ((m_isMoving) ? 0.11f : 0.0f);
@@ -387,32 +391,40 @@ void CharacterRig::updateWeaponTransform() {
             m_renderPitch = glm::mix(m_renderPitch, -m_aimPitch * 0.85f, m_coverAimWeight);
         }
 
-        float cp = std::cos(m_renderPitch);
-        float sp = -std::sin(m_renderPitch);
-        glm::vec3 aimForward = forwardDir * cp + glm::vec3(0.0f, sp, 0.0f);
+        bool isPistol = (weaponToDraw.find("M9") != std::string::npos ||
+                         weaponToDraw.find("Beretta") != std::string::npos ||
+                         weaponToDraw.find("Pistol") != std::string::npos);
+        float idleYaw = isPistol ? (m_shoulderRight ? -0.10f : 0.10f) : (m_shoulderRight ? -0.32f : 0.32f);
+        float idleRoll = isPistol ? 0.0f : (m_shoulderRight ? -0.12f : 0.12f);
+        float curYaw = glm::mix(idleYaw, 0.0f, m_aimWeight);
+        float curRoll = glm::mix(idleRoll, 0.0f, m_aimWeight);
+
+        glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), m_yaw + curYaw + m_weaponLagYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+        float finalPitch = m_renderPitch + m_weaponLagPitch + m_sprintCarryAngle;
+        if (std::abs(finalPitch) > 0.001f) {
+            wRot = glm::rotate(wRot, finalPitch, glm::vec3(1.0f, 0.0f, 0.0f));
+        }
+        float finalRoll = curRoll - m_sprintCarryAngle * 0.45f;
+        if (std::abs(finalRoll) > 0.001f) {
+            wRot = glm::rotate(wRot, finalRoll, glm::vec3(0.0f, 0.0f, 1.0f));
+        }
+
+        glm::vec3 weaponForward = glm::vec3(wRot * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
 
         float rootY = glm::mix(gripCfg.rootOffset.y, gripCfg.rootOffsetADS.y, m_aimWeight);
         float rootRight = glm::mix(gripCfg.rootOffset.x, gripCfg.rootOffsetADS.x, m_aimWeight);
         if (!m_shoulderRight) rootRight = -rootRight;
         float rootForward = glm::mix(gripCfg.rootOffset.z, gripCfg.rootOffsetADS.z, m_aimWeight) - m_recoilKick;
 
-        m_rifleRoot = chestPos + rightDir * rootRight + glm::vec3(0.0f, rootY, 0.0f) + aimForward * rootForward;
+        m_rifleRoot = chestPos + rightDir * rootRight + glm::vec3(0.0f, rootY, 0.0f) + weaponForward * rootForward;
 
         if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
             float desiredRifleY = m_rootPos.y + m_coverHeight + 0.04f;
             m_rifleRoot.y = glm::mix(m_rifleRoot.y, desiredRifleY, m_coverAimWeight);
             m_rifleRoot += forwardDir * (0.18f * m_coverAimWeight);
         }
-    }
 
-    glm::mat4 wModel = glm::translate(glm::mat4(1.0f), m_rifleRoot);
-    wModel = glm::rotate(wModel, m_weaponLagYaw, glm::vec3(0.0f, 1.0f, 0.0f));
-    float finalPitch = m_weaponLagPitch + m_sprintCarryAngle;
-    if (std::abs(finalPitch) > 0.001f) {
-        wModel = glm::rotate(wModel, finalPitch, glm::vec3(1.0f, 0.0f, 0.0f));
-    }
-    if (m_sprintCarryAngle > 0.01f) {
-        wModel = glm::rotate(wModel, -m_sprintCarryAngle * 0.45f, glm::vec3(0.0f, 0.0f, 1.0f));
+        wModel = glm::translate(glm::mat4(1.0f), m_rifleRoot) * wRot;
     }
 
     glm::vec3 localMuzzle(0.0f, 0.02f, 0.55f);
@@ -1075,37 +1087,53 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 } else {
                     const auto& gripCfg = WeaponRigManager::get().getConfig(weaponToDraw);
                     uprightRenderPitch = glm::mix(gripCfg.lowReadyPitch, -m_aimPitch, m_aimWeight) - m_recoilKick * 2.8f;
-                    float cp = std::cos(uprightRenderPitch);
-                    float sp = -std::sin(uprightRenderPitch);
-                    aimForward = forwardDir * cp + glm::vec3(0, sp, 0);
-                    rifleUp = glm::normalize(glm::cross(aimForward, rightDir));
+                    if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
+                        uprightRenderPitch = glm::mix(uprightRenderPitch, -m_aimPitch * 0.85f, m_coverAimWeight);
+                    }
+
+                    bool isPistol = (weaponToDraw.find("M9") != std::string::npos ||
+                                     weaponToDraw.find("Beretta") != std::string::npos ||
+                                     weaponToDraw.find("Pistol") != std::string::npos);
+                    float idleYaw = isPistol ? (m_shoulderRight ? -0.10f : 0.10f) : (m_shoulderRight ? -0.32f : 0.32f);
+                    float idleRoll = isPistol ? 0.0f : (m_shoulderRight ? -0.12f : 0.12f);
+                    float curYaw = glm::mix(idleYaw, 0.0f, m_aimWeight);
+                    float curRoll = glm::mix(idleRoll, 0.0f, m_aimWeight);
+
+                    glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), m_yaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+                    wRot = glm::rotate(wRot, uprightRenderPitch, glm::vec3(1.0f, 0.0f, 0.0f));
+                    if (std::abs(curRoll) > 0.001f) {
+                        wRot = glm::rotate(wRot, curRoll, glm::vec3(0.0f, 0.0f, 1.0f));
+                    }
+
+                    glm::vec3 weaponForward = glm::vec3(wRot * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
+                    glm::vec3 weaponUp      = glm::vec3(wRot * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
+                    glm::vec3 weaponRight   = glm::vec3(wRot * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
 
                     float rootY = glm::mix(gripCfg.rootOffset.y, gripCfg.rootOffsetADS.y, m_aimWeight) + breathY;
                     float rootRight = glm::mix(gripCfg.rootOffset.x, gripCfg.rootOffsetADS.x, m_aimWeight) + breathX;
                     if (!m_shoulderRight) rootRight = -rootRight;
                     float rootForward = glm::mix(gripCfg.rootOffset.z, gripCfg.rootOffsetADS.z, m_aimWeight) - m_recoilKick;
 
-                    uprightRifleRoot = chestPos + rightDir * rootRight + glm::vec3(0, rootY, 0) + aimForward * rootForward;
+                    uprightRifleRoot = chestPos + rightDir * rootRight + glm::vec3(0, rootY, 0) + weaponForward * rootForward;
 
                     if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
                         float desiredRifleY = m_rootPos.y + m_coverHeight + 0.04f;
                         uprightRifleRoot.y = glm::mix(uprightRifleRoot.y, desiredRifleY, m_coverAimWeight);
                         uprightRifleRoot += forwardDir * (0.18f * m_coverAimWeight);
-                        uprightRenderPitch = glm::mix(uprightRenderPitch, -m_aimPitch * 0.85f, m_coverAimWeight);
                     }
 
                     glm::vec3 rHandOffset = gripCfg.rightHandOffset;
-                    rightHandTarget = uprightRifleRoot + rightDir * rHandOffset.x + rifleUp * rHandOffset.y + aimForward * rHandOffset.z;
+                    rightHandTarget = uprightRifleRoot + weaponRight * rHandOffset.x + weaponUp * rHandOffset.y + weaponForward * rHandOffset.z;
 
                     glm::vec3 lHandOffset = glm::mix(gripCfg.leftHandOffset, gripCfg.leftHandOffsetADS, m_aimWeight);
-                    leftHandTarget = uprightRifleRoot + rightDir * lHandOffset.x + rifleUp * lHandOffset.y + aimForward * lHandOffset.z;
+                    leftHandTarget = uprightRifleRoot + weaponRight * lHandOffset.x + weaponUp * lHandOffset.y + weaponForward * lHandOffset.z;
 
                     if (m_shoulderRight) {
-                        rightElbowPole = rightShoulder + rightDir * 0.24f - rifleUp * 0.22f + aimForward * 0.12f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.18f - rifleUp * 0.20f + aimForward * 0.16f;
+                        rightElbowPole = rightShoulder + rightDir * 0.22f - glm::vec3(0.0f, 0.20f, 0.0f) + weaponForward * 0.08f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.16f - glm::vec3(0.0f, 0.20f, 0.0f) + forwardDir * 0.12f;
                     } else {
-                        rightElbowPole = rightShoulder + rightDir * 0.18f - rifleUp * 0.20f + aimForward * 0.16f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.24f - rifleUp * 0.22f + aimForward * 0.12f;
+                        rightElbowPole = rightShoulder + rightDir * 0.16f - glm::vec3(0.0f, 0.20f, 0.0f) + forwardDir * 0.12f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.22f - glm::vec3(0.0f, 0.20f, 0.0f) + weaponForward * 0.08f;
                     }
                 }
             } else {
@@ -1489,10 +1517,21 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         drawAttachedWeapon = m_deathGrip && !(m_dismemberMask & DISMEMBER_R_ARM) && (weaponToDraw != "None");
     }
     if (drawAttachedWeapon) {
+        bool isPistol = (weaponToDraw.find("M9") != std::string::npos ||
+                         weaponToDraw.find("Beretta") != std::string::npos ||
+                         weaponToDraw.find("Pistol") != std::string::npos);
+        float idleYaw = isPistol ? (m_shoulderRight ? -0.10f : 0.10f) : (m_shoulderRight ? -0.32f : 0.32f);
+        float idleRoll = isPistol ? 0.0f : (m_shoulderRight ? -0.12f : 0.12f);
+        float curYaw = glm::mix(idleYaw, 0.0f, m_aimWeight);
+        float curRoll = glm::mix(idleRoll, 0.0f, m_aimWeight);
+
         glm::mat4 wModel = glm::translate(glm::mat4(1.0f), rifleRoot);
-        wModel = glm::rotate(wModel, m_yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+        wModel = glm::rotate(wModel, m_yaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
         if (std::abs(renderPitch) > 0.001f) {
             wModel = glm::rotate(wModel, renderPitch, glm::vec3(1.0f, 0.0f, 0.0f));
+        }
+        if (std::abs(curRoll) > 0.001f) {
+            wModel = glm::rotate(wModel, curRoll, glm::vec3(0.0f, 0.0f, 1.0f));
         }
 
         glm::vec3 localMuzzle(0.0f, 0.02f, 0.55f);
@@ -1513,7 +1552,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         m_rifleRoot = rifleRoot;
         m_renderPitch = renderPitch;
 
-        renderer.drawWeapon(weaponToDraw, rifleRoot, m_yaw, renderPitch);
+        renderer.drawWeapon(weaponToDraw, wModel);
     }
 }
 
