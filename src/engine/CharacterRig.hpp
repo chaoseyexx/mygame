@@ -149,11 +149,11 @@ public:
 
 
     void snapYaw(float yaw) {
-
         m_yaw = yaw;
-
         m_lowerBodyYaw = yaw;
-
+        m_leftFootPlantedYaw = yaw;
+        m_rightFootPlantedYaw = yaw;
+        m_stanceFeetInitialized = true;
     }
 
 
@@ -402,6 +402,10 @@ private:
     float m_stepTurnStartLowerYaw = 0.0f;
     float m_stepTurnBeat1Yaw = 0.0f;
     float m_stepTurnTargetLowerYaw = 0.0f;
+    bool m_isSingleLegOnly = false;
+    float m_leftFootPlantedYaw = 0.0f;
+    float m_rightFootPlantedYaw = 0.0f;
+    bool m_stanceFeetInitialized = false;
 
     // Locomotion & walk cycle
     float m_walkCycle = 0.0f;

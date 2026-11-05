@@ -29,6 +29,13 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
     m_rootPos = worldPos;
     m_yaw = yaw;
 
+    if (!m_stanceFeetInitialized) {
+        m_lowerBodyYaw = yaw;
+        m_leftFootPlantedYaw = yaw;
+        m_rightFootPlantedYaw = yaw;
+        m_stanceFeetInitialized = true;
+    }
+
     if (m_isDead) {
         m_deathTimer += dt;
         return;
@@ -133,6 +140,9 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         }
         m_turnInPlaceTimer = 0.0f;
         m_stepTurnPhase = StepTurnPhase::Idle;
+        m_leftFootPlantedYaw = m_lowerBodyYaw;
+        m_rightFootPlantedYaw = m_lowerBodyYaw;
+        m_stanceFeetInitialized = true;
 
         // Walk cycle progression driven strictly by ground displacement
         float horizDistTraveled = speed * dt;
@@ -181,7 +191,7 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         m_walkCycle += phaseDiff * std::clamp(dt * 12.0f, 0.0f, 1.0f);
         m_prevWalkPhase = m_walkCycle / (2.0f * glm::pi<float>());
 
-        // Stationary Turn-in-Place & Two-Beat Step-Turn
+        // Stationary Turn-in-Place & Progressive Stepping (4 Tiers)
         float diff = yaw - m_lowerBodyYaw;
         while (diff > glm::pi<float>()) diff -= 2.0f * glm::pi<float>();
         while (diff < -glm::pi<float>()) diff += 2.0f * glm::pi<float>();
@@ -190,35 +200,82 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
             // Instant realignment on extreme 180 flick turns
             m_stepTurnPhase = StepTurnPhase::Idle;
             m_lowerBodyYaw += diff * std::clamp(dt * 30.0f, 0.0f, 1.0f);
+            m_leftFootPlantedYaw = m_lowerBodyYaw;
+            m_rightFootPlantedYaw = m_lowerBodyYaw;
         } else if (m_stepTurnPhase == StepTurnPhase::Idle) {
-            // GASP-Style Deadzone: for |diff| <= 52 deg, lower body is 100% locked to floor.
-            // Tier 1 (0-26 deg): head-only visage rotation.
-            // Tier 2 (26-52 deg): torso twists. Pelvis & feet remain frozen (zero slip!).
-            if (std::abs(diff) > glm::radians(52.0f)) {
+            // Tier 1 (0-24 deg): visage / head glance only. Pelvis & feet 100% frozen.
+            // Tier 2 (24-38 deg): torso twists smoothly. Pelvis & feet 100% frozen.
+            // Tier 3 (38-70 deg): Single leg steps out! Support leg remains 100% locked.
+            // Tier 4 (> 70 deg): Two-beat step turn (lead foot steps, trailing foot squares).
+            if (std::abs(diff) > glm::radians(38.0f)) {
                 m_stepTurnPhase = StepTurnPhase::Beat1_LeadFoot;
                 m_stepTurnTimer = 0.0f;
                 m_stepTurnDir = (diff > 0.0f) ? 1.0f : -1.0f;
                 m_stepTurnFoot = (diff > 0.0f) ? 1 : -1;
-                m_stepTurnStartLowerYaw = m_lowerBodyYaw;
-                m_stepTurnTargetLowerYaw = m_lowerBodyYaw + diff;
-                m_stepTurnBeat1Yaw = m_lowerBodyYaw + diff * 0.55f;
+                m_stepTurnStartLowerYaw = (diff > 0.0f) ? m_rightFootPlantedYaw : m_leftFootPlantedYaw;
+
+                if (std::abs(diff) <= glm::radians(70.0f)) {
+                    // Tier 3: Moderate Turn -> ONLY 1 LEG STEPS!
+                    m_isSingleLegOnly = true;
+                    m_stepTurnBeat1Yaw = m_lowerBodyYaw + diff;
+                    m_stepTurnTargetLowerYaw = m_stepTurnBeat1Yaw;
+                } else {
+                    // Tier 4: Large Turn (> 70 deg) -> Two-beat step turn
+                    m_isSingleLegOnly = false;
+                    m_stepTurnBeat1Yaw = m_lowerBodyYaw + diff * 0.55f;
+                    m_stepTurnTargetLowerYaw = m_lowerBodyYaw + diff;
+                }
             }
         } else if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
-            // Beat 1: Lead foot lifts and pivots hips 55% toward target
+            // Lead foot lifts and pivots hips toward target
             m_stepTurnTimer += dt;
             float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
             float ease = t * t * (3.0f - 2.0f * t);
-            m_lowerBodyYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnBeat1Yaw, ease);
+
+            if (m_isSingleLegOnly) {
+                float targetHips = (m_stepTurnFoot > 0) ?
+                    glm::mix(m_leftFootPlantedYaw, m_stepTurnBeat1Yaw, 0.5f) :
+                    glm::mix(m_rightFootPlantedYaw, m_stepTurnBeat1Yaw, 0.5f);
+                m_lowerBodyYaw = glm::mix(m_stepTurnStartLowerYaw, targetHips, ease);
+            } else {
+                m_lowerBodyYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnBeat1Yaw, ease);
+            }
+
             if (t >= 1.0f) {
-                m_lowerBodyYaw = m_stepTurnBeat1Yaw;
-                m_stepTurnPhase = StepTurnPhase::Beat2_TrailingFoot;
-                m_stepTurnTimer = 0.0f;
-                // Re-evaluate target lower yaw based on current player yaw so mouse tracking stays accurate
-                float remDiff = yaw - m_stepTurnBeat1Yaw;
-                while (remDiff > glm::pi<float>()) remDiff -= 2.0f * glm::pi<float>();
-                while (remDiff < -glm::pi<float>()) remDiff += 2.0f * glm::pi<float>();
-                m_stepTurnTargetLowerYaw = m_stepTurnBeat1Yaw + remDiff;
+                if (m_stepTurnFoot > 0) {
+                    m_rightFootPlantedYaw = m_stepTurnBeat1Yaw;
+                } else {
+                    m_leftFootPlantedYaw = m_stepTurnBeat1Yaw;
+                }
                 m_footstepEvent = 3; // Stationary pivot step event
+
+                if (m_isSingleLegOnly) {
+                    // ONLY 1 LEG STEPS: Transition directly to Idle! Trailing leg NEVER moves!
+                    m_stepTurnPhase = StepTurnPhase::Idle;
+                    m_stepTurnTimer = 0.0f;
+                    float footDiff = m_rightFootPlantedYaw - m_leftFootPlantedYaw;
+                    while (footDiff > glm::pi<float>()) footDiff -= 2.0f * glm::pi<float>();
+                    while (footDiff < -glm::pi<float>()) footDiff += 2.0f * glm::pi<float>();
+                    m_lowerBodyYaw = m_leftFootPlantedYaw + footDiff * 0.5f;
+                } else {
+                    // Tier 4: Check residual difference
+                    float remDiff = yaw - m_stepTurnBeat1Yaw;
+                    while (remDiff > glm::pi<float>()) remDiff -= 2.0f * glm::pi<float>();
+                    while (remDiff < -glm::pi<float>()) remDiff += 2.0f * glm::pi<float>();
+
+                    if (std::abs(remDiff) <= glm::radians(34.0f)) {
+                        m_stepTurnPhase = StepTurnPhase::Idle;
+                        m_stepTurnTimer = 0.0f;
+                        float footDiff = m_rightFootPlantedYaw - m_leftFootPlantedYaw;
+                        while (footDiff > glm::pi<float>()) footDiff -= 2.0f * glm::pi<float>();
+                        while (footDiff < -glm::pi<float>()) footDiff += 2.0f * glm::pi<float>();
+                        m_lowerBodyYaw = m_leftFootPlantedYaw + footDiff * 0.5f;
+                    } else {
+                        m_stepTurnPhase = StepTurnPhase::Beat2_TrailingFoot;
+                        m_stepTurnTimer = 0.0f;
+                        m_stepTurnTargetLowerYaw = m_stepTurnBeat1Yaw + remDiff;
+                    }
+                }
             }
         } else if (m_stepTurnPhase == StepTurnPhase::Beat2_TrailingFoot) {
             // Beat 2: Trailing foot lifts and completes catch-up to square the stance
@@ -228,6 +285,8 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
             m_lowerBodyYaw = glm::mix(m_stepTurnBeat1Yaw, m_stepTurnTargetLowerYaw, ease);
             if (t >= 1.0f) {
                 m_lowerBodyYaw = m_stepTurnTargetLowerYaw;
+                m_leftFootPlantedYaw = m_stepTurnTargetLowerYaw;
+                m_rightFootPlantedYaw = m_stepTurnTargetLowerYaw;
                 m_stepTurnPhase = StepTurnPhase::Idle;
                 m_stepTurnTimer = 0.0f;
                 m_footstepEvent = 3; // Stationary trailing step event
@@ -615,16 +674,21 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             float pelvisPitchDropY = -std::abs(std::sin(m_aimPitch)) * 0.035f;
 
             float stepTurnPelvisDip = 0.0f;
+            float stepTurnSway = 0.0f;
             if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
                 float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
                 stepTurnPelvisDip = -std::sin(t * glm::pi<float>()) * 0.024f;
+                float shiftDir = (m_stepTurnFoot > 0) ? -1.0f : 1.0f;
+                stepTurnSway = shiftDir * std::sin(t * glm::pi<float>()) * 0.025f;
             } else if (m_stepTurnPhase == StepTurnPhase::Beat2_TrailingFoot) {
                 float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat2, 0.0f, 1.0f);
                 stepTurnPelvisDip = -std::sin(t * glm::pi<float>()) * 0.016f;
+                float shiftDir = (m_stepTurnFoot > 0) ? 1.0f : -1.0f;
+                stepTurnSway = shiftDir * std::sin(t * glm::pi<float>()) * 0.018f;
             }
 
             // --- 1. PELVIS & SACRUM ---
-            glm::vec3 pelvisPos = lowerToWorld(glm::vec3(m_pelvisSway + m_coverLeanAngle * 0.18f, 
+            glm::vec3 pelvisPos = lowerToWorld(glm::vec3(m_pelvisSway + m_coverLeanAngle * 0.18f + stepTurnSway, 
                                                          0.81f + m_stanceHeight + m_pelvisBob + limpPelvisDip + coverChestElevation * 0.45f + pelvisPitchDropY + stepTurnPelvisDip, 
                                                          leanZ * 0.45f + pelvisPitchShiftZ));
 
@@ -724,13 +788,13 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 // Independent Leg Turn-in-Place Stepping:
                 // Support foot is 100% frozen in world space (zero slip).
                 // Lead foot lifts in clearance arc, bends knee, steps, and plants.
-                // Trailing foot catches up on Beat 2.
+                // Trailing foot catches up ONLY on Tier 4 (large turns).
                 if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
                     float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
                     float ease = t * t * (3.0f - 2.0f * t);
                     if (m_stepTurnFoot > 0) {
                         // Turning Right: Left foot is SUPPORT (locked in world space), Right foot is LEAD
-                        leftFootPos = getStanceFootWorld(m_stepTurnStartLowerYaw, false);
+                        leftFootPos = getStanceFootWorld(m_leftFootPlantedYaw, false);
                         leftLift = 0.0f;
 
                         glm::vec3 startR = getStanceFootWorld(m_stepTurnStartLowerYaw, true);
@@ -740,7 +804,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                         rightFootPos.y += rightLift;
                     } else {
                         // Turning Left: Right foot is SUPPORT (locked in world space), Left foot is LEAD
-                        rightFootPos = getStanceFootWorld(m_stepTurnStartLowerYaw, true);
+                        rightFootPos = getStanceFootWorld(m_rightFootPlantedYaw, true);
                         rightLift = 0.0f;
 
                         glm::vec3 startL = getStanceFootWorld(m_stepTurnStartLowerYaw, false);
@@ -754,29 +818,29 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     float ease = t * t * (3.0f - 2.0f * t);
                     if (m_stepTurnFoot > 0) {
                         // Turning Right: Right foot is NOW SUPPORT (locked where planted), Left foot is TRAILING
-                        rightFootPos = getStanceFootWorld(m_stepTurnBeat1Yaw, true);
+                        rightFootPos = getStanceFootWorld(m_rightFootPlantedYaw, true);
                         rightLift = 0.0f;
 
-                        glm::vec3 startL = getStanceFootWorld(m_stepTurnStartLowerYaw, false);
+                        glm::vec3 startL = getStanceFootWorld(m_leftFootPlantedYaw, false);
                         glm::vec3 targetL = getStanceFootWorld(m_stepTurnTargetLowerYaw, false);
                         leftLift = std::sin(t * glm::pi<float>()) * 0.042f;
                         leftFootPos = glm::mix(startL, targetL, ease);
                         leftFootPos.y += leftLift;
                     } else {
                         // Turning Left: Left foot is NOW SUPPORT (locked where planted), Right foot is TRAILING
-                        leftFootPos = getStanceFootWorld(m_stepTurnBeat1Yaw, false);
+                        leftFootPos = getStanceFootWorld(m_leftFootPlantedYaw, false);
                         leftLift = 0.0f;
 
-                        glm::vec3 startR = getStanceFootWorld(m_stepTurnStartLowerYaw, true);
+                        glm::vec3 startR = getStanceFootWorld(m_rightFootPlantedYaw, true);
                         glm::vec3 targetR = getStanceFootWorld(m_stepTurnTargetLowerYaw, true);
                         rightLift = std::sin(t * glm::pi<float>()) * 0.042f;
                         rightFootPos = glm::mix(startR, targetR, ease);
                         rightFootPos.y += rightLift;
                     }
                 } else {
-                    // Stationary idle: both feet resting
-                    leftFootPos = getStanceFootWorld(m_lowerBodyYaw, false);
-                    rightFootPos = getStanceFootWorld(m_lowerBodyYaw, true);
+                    // Stationary idle: each foot remains firmly anchored at its own planted yaw
+                    leftFootPos = getStanceFootWorld(m_leftFootPlantedYaw, false);
+                    rightFootPos = getStanceFootWorld(m_rightFootPlantedYaw, true);
                 }
             }
 
@@ -806,8 +870,8 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             }
 
             float hipBaseX = 0.13f + 0.03f * cCurve;
-            glm::vec3 leftHipPos  = lowerToWorld(glm::vec3(-hipBaseX + m_pelvisSway, 0.79f + m_stanceHeight + m_pelvisBob + pelvisPitchDropY + stepTurnPelvisDip, leanZ * 0.35f + pelvisPitchShiftZ));
-            glm::vec3 rightHipPos = lowerToWorld(glm::vec3( hipBaseX + m_pelvisSway, 0.79f + m_stanceHeight + m_pelvisBob + pelvisPitchDropY + stepTurnPelvisDip, leanZ * 0.35f + pelvisPitchShiftZ));
+            glm::vec3 leftHipPos  = lowerToWorld(glm::vec3(-hipBaseX + m_pelvisSway + stepTurnSway, 0.79f + m_stanceHeight + m_pelvisBob + pelvisPitchDropY + stepTurnPelvisDip, leanZ * 0.35f + pelvisPitchShiftZ));
+            glm::vec3 rightHipPos = lowerToWorld(glm::vec3( hipBaseX + m_pelvisSway + stepTurnSway, 0.79f + m_stanceHeight + m_pelvisBob + pelvisPitchDropY + stepTurnPelvisDip, leanZ * 0.35f + pelvisPitchShiftZ));
 
             leftHipPos.y  += pelvisDrop;
             rightHipPos.y += pelvisDrop;
@@ -846,10 +910,11 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             InverseKinematics::solveTwoBoneIK(rightHipPos, rightFootPos, rightKneePole, 0.43f, 0.41f, rightKneePos, uRot, lRot);
 
             // --- 3. TORSO, CHEST & ANATOMICAL HEAD ---
-            // 3-Tier Hierarchical Look-At:
-            // Tier 1 (0 - 26 deg): Visage/head only. Chest remains locked with lower body.
-            // Tier 2 (26 - 52 deg): Thoracic spine twist. Pelvis and boots remain 100% grounded.
-            // Tier 3 (> 52 deg): Two-beat step turn with lead and trailing foot lifts.
+            // 4-Tier Hierarchical Look-At:
+            // Tier 1 (0 - 24 deg): Visage/head only. Chest remains locked with lower body.
+            // Tier 2 (24 - 38 deg): Thoracic spine twist. Pelvis and boots remain 100% grounded.
+            // Tier 3 (38 - 70 deg): Single-leg step out. Support foot remains 100% grounded.
+            // Tier 4 (> 70 deg): Two-beat step turn with lead and trailing foot lifts.
             float deltaYaw = m_yaw - m_lowerBodyYaw;
             while (deltaYaw > glm::pi<float>()) deltaYaw -= 2.0f * glm::pi<float>();
             while (deltaYaw < -glm::pi<float>()) deltaYaw += 2.0f * glm::pi<float>();
@@ -858,13 +923,17 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             if (!m_isMoving) {
                 float absDelta = std::abs(deltaYaw);
                 float sign = (deltaYaw > 0.0f) ? 1.0f : -1.0f;
-                if (absDelta <= glm::radians(26.0f)) {
-                    // Tier 1: Micro-glance (< 26 deg) - Chest stays locked with hips/lower body
+                if (absDelta <= glm::radians(24.0f)) {
+                    // Tier 1: Micro-glance (< 24 deg) - Chest stays locked with hips/lower body
                     chestYaw = m_lowerBodyYaw;
+                } else if (absDelta <= glm::radians(38.0f)) {
+                    // Tier 2: Torso twists smoothly with view (24 to 38 deg)
+                    float excess = absDelta - glm::radians(24.0f);
+                    chestYaw = m_lowerBodyYaw + sign * (excess * 0.70f);
                 } else {
-                    // Tier 2 & 3: Torso twists smoothly with view
-                    float excess = absDelta - glm::radians(26.0f);
-                    chestYaw = m_lowerBodyYaw + sign * std::min(excess * 0.70f, glm::radians(28.0f));
+                    // Tier 3 & 4: Upper body tracks view smoothly while stepping
+                    float excess = absDelta - glm::radians(24.0f);
+                    chestYaw = m_lowerBodyYaw + sign * std::min(excess * 0.70f, glm::radians(32.0f));
                 }
             }
 
@@ -1078,20 +1147,23 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             headRot = glm::rotate(headRot, totalHeadPitch, glm::vec3(1, 0, 0));
             uprightPose.boneRotations[BONE_HEAD] = glm::mat3(headRot);
 
-            float lFootYaw = m_lowerBodyYaw;
-            float rFootYaw = m_lowerBodyYaw;
+            float lFootYaw = m_leftFootPlantedYaw;
+            float rFootYaw = m_rightFootPlantedYaw;
 
-            if (!m_isMoving) {
+            if (m_isMoving) {
+                lFootYaw = m_lowerBodyYaw;
+                rFootYaw = m_lowerBodyYaw;
+            } else {
                 if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
                     float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
                     float ease = t * t * (3.0f - 2.0f * t);
                     if (m_stepTurnFoot > 0) {
                         // Turning Right: Left foot is SUPPORT (100% frozen in world space), Right foot is LEAD
-                        lFootYaw = m_stepTurnStartLowerYaw;
+                        lFootYaw = m_leftFootPlantedYaw;
                         rFootYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnBeat1Yaw, ease);
                     } else {
                         // Turning Left: Right foot is SUPPORT (100% frozen in world space), Left foot is LEAD
-                        rFootYaw = m_stepTurnStartLowerYaw;
+                        rFootYaw = m_rightFootPlantedYaw;
                         lFootYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnBeat1Yaw, ease);
                     }
                 } else if (m_stepTurnPhase == StepTurnPhase::Beat2_TrailingFoot) {
@@ -1099,12 +1171,12 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     float ease = t * t * (3.0f - 2.0f * t);
                     if (m_stepTurnFoot > 0) {
                         // Turning Right: Right foot is SUPPORT (frozen at beat1 plant), Left foot is TRAILING
-                        rFootYaw = m_stepTurnBeat1Yaw;
-                        lFootYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnTargetLowerYaw, ease);
+                        rFootYaw = m_rightFootPlantedYaw;
+                        lFootYaw = glm::mix(m_leftFootPlantedYaw, m_stepTurnTargetLowerYaw, ease);
                     } else {
                         // Turning Left: Left foot is SUPPORT (frozen at beat1 plant), Right foot is TRAILING
-                        lFootYaw = m_stepTurnBeat1Yaw;
-                        rFootYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnTargetLowerYaw, ease);
+                        lFootYaw = m_leftFootPlantedYaw;
+                        rFootYaw = glm::mix(m_rightFootPlantedYaw, m_stepTurnTargetLowerYaw, ease);
                     }
                 }
             }
