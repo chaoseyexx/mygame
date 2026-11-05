@@ -131,7 +131,7 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
 
         // Walk cycle progression driven strictly by ground displacement
         float horizDistTraveled = speed * dt;
-        float strideLength = isSprinting ? 1.68f : (m_stance == 1 ? 0.96f : 1.28f);
+        float strideLength = isSprinting ? 2.10f : (m_stance == 1 ? 0.95f : 1.35f);
         strideLength *= (1.0f - 0.20f * cCurve - 0.45f * pCurve);
 
         float prevNorm = m_prevWalkPhase;
@@ -184,41 +184,55 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         if (std::abs(diff) > glm::radians(105.0f)) {
             // Instant realignment on extreme 180 flick turns
             m_stepTurnPhase = StepTurnPhase::Idle;
-            m_lowerBodyYaw += diff * std::clamp(dt * 45.0f, 0.0f, 1.0f);
-        } else if (std::abs(diff) > glm::radians(65.0f)) {
-            // Rapid catch-up on fast mouse flicks to prevent unnatural spine torsion
-            m_stepTurnPhase = StepTurnPhase::Idle;
-            m_lowerBodyYaw += diff * std::clamp(dt * 24.0f, 0.0f, 1.0f);
+            m_lowerBodyYaw += diff * std::clamp(dt * 30.0f, 0.0f, 1.0f);
         } else if (m_stepTurnPhase == StepTurnPhase::Idle) {
-            if (std::abs(diff) > glm::radians(38.0f)) {
+            // GASP-Style Deadzone: for |diff| <= 52 deg, lower body is 100% locked to floor.
+            // Tier 1 (0-26 deg): head-only visage rotation.
+            // Tier 2 (26-52 deg): torso twists. Pelvis & feet remain frozen (zero slip!).
+            if (std::abs(diff) > glm::radians(52.0f)) {
                 m_stepTurnPhase = StepTurnPhase::Beat1_LeadFoot;
                 m_stepTurnTimer = 0.0f;
                 m_stepTurnDir = (diff > 0.0f) ? 1.0f : -1.0f;
                 m_stepTurnFoot = (diff > 0.0f) ? 1 : -1;
                 m_stepTurnStartLowerYaw = m_lowerBodyYaw;
-            } else {
-                m_lowerBodyYaw += diff * std::clamp(dt * 6.0f, 0.0f, 1.0f);
+                m_stepTurnTargetLowerYaw = m_lowerBodyYaw + diff;
             }
         } else if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
+            // Beat 1: Lead foot lifts and pivots hips 55% toward target
             m_stepTurnTimer += dt;
             float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
-            m_lowerBodyYaw += diff * 0.55f * std::clamp(dt * 16.0f, 0.0f, 1.0f);
+            float ease = t * t * (3.0f - 2.0f * t);
+            float beat1Total = (m_stepTurnTargetLowerYaw - m_stepTurnStartLowerYaw) * 0.55f;
+            m_lowerBodyYaw = m_stepTurnStartLowerYaw + beat1Total * ease;
             if (t >= 1.0f) {
+                m_lowerBodyYaw = m_stepTurnStartLowerYaw + beat1Total;
                 m_stepTurnPhase = StepTurnPhase::Beat2_TrailingFoot;
                 m_stepTurnTimer = 0.0f;
                 m_stepTurnStartLowerYaw = m_lowerBodyYaw;
+                // Re-evaluate target lower yaw based on current player yaw so mouse tracking stays accurate
+                float remDiff = yaw - m_lowerBodyYaw;
+                while (remDiff > glm::pi<float>()) remDiff -= 2.0f * glm::pi<float>();
+                while (remDiff < -glm::pi<float>()) remDiff += 2.0f * glm::pi<float>();
+                m_stepTurnTargetLowerYaw = m_lowerBodyYaw + remDiff;
                 m_footstepEvent = 3; // Stationary pivot step event
             }
         } else if (m_stepTurnPhase == StepTurnPhase::Beat2_TrailingFoot) {
+            // Beat 2: Trailing foot lifts and completes catch-up to square the stance
             m_stepTurnTimer += dt;
             float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat2, 0.0f, 1.0f);
-            m_lowerBodyYaw += diff * std::clamp(dt * 20.0f, 0.0f, 1.0f);
+            float ease = t * t * (3.0f - 2.0f * t);
+            float remTotal = m_stepTurnTargetLowerYaw - m_stepTurnStartLowerYaw;
+            m_lowerBodyYaw = m_stepTurnStartLowerYaw + remTotal * ease;
             if (t >= 1.0f) {
+                m_lowerBodyYaw = m_stepTurnTargetLowerYaw;
                 m_stepTurnPhase = StepTurnPhase::Idle;
                 m_stepTurnTimer = 0.0f;
                 m_footstepEvent = 3; // Stationary trailing step event
             }
         }
+
+        while (m_lowerBodyYaw > glm::pi<float>()) m_lowerBodyYaw -= 2.0f * glm::pi<float>();
+        while (m_lowerBodyYaw < -glm::pi<float>()) m_lowerBodyYaw += 2.0f * glm::pi<float>();
 
         m_idleTime += dt;
         m_pelvisBob = std::sin(m_idleTime * 1.8f) * 0.006f; // Natural breathing rise & fall
@@ -587,10 +601,12 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             glm::vec3 pelvisPos = lowerToWorld(glm::vec3(m_pelvisSway + m_coverLeanAngle * 0.18f, 0.81f + m_stanceHeight + m_pelvisBob + limpPelvisDip + coverChestElevation * 0.45f, leanZ * 0.45f));
 
             // --- 2. BIOMECHANICALLY REALISTIC TWO-BONE LEG IK (60/40 Stance/Swing Gait) ---
-            float stride = m_isSprinting ? 0.44f : (m_isMoving ? 0.32f : 0.20f);
-            if (cCurve > 0.01f) {
-                stride = glm::mix(stride, 0.22f, cCurve); // Shorter, stealthy crouch stride
-            }
+            // Mathematical Zero-Slip Stride Matching:
+            // Stance phase occupies 60% of gait cycle (displacement 2 * stride).
+            // Stride displacement stride = 0.30 * strideLength precisely cancels forward body speed.
+            float currentStrideLength = m_isSprinting ? 2.10f : (m_stance == 1 ? 0.95f : 1.35f);
+            currentStrideLength *= (1.0f - 0.20f * cCurve - 0.45f * pCurve);
+            float stride = m_isMoving ? (0.30f * currentStrideLength) : 0.18f;
             float leftStrideZ = 0.0f, rightStrideZ = 0.0f;
             float leftStrideX = 0.0f, rightStrideX = 0.0f;
             float leftLift = 0.0f, rightLift = 0.0f;
@@ -666,7 +682,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
 
                 if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
                     float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
-                    float pivotLift = std::sin(t * glm::pi<float>()) * 0.045f;
+                    float pivotLift = std::sin(t * glm::pi<float>()) * 0.048f;
                     if (m_stepTurnFoot > 0) rightLift = pivotLift;
                     else leftLift = pivotLift;
                 } else if (m_stepTurnPhase == StepTurnPhase::Beat2_TrailingFoot) {
@@ -726,13 +742,43 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             InverseKinematics::solveTwoBoneIK(rightHipPos, rightFootPos, rightKneePole, 0.43f, 0.41f, rightKneePos, uRot, lRot);
 
             // --- 3. TORSO, CHEST & ANATOMICAL HEAD ---
-            glm::vec3 chestPos = localToWorld(glm::vec3(m_coverLeanAngle * 0.38f, 1.15f + m_stanceHeight + m_pelvisBob + coverChestElevation, leanZ + (m_isMoving ? std::sin(m_walkCycle) * 0.02f : 0.0f)));
+            // 3-Tier Hierarchical Look-At:
+            // Tier 1 (0 - 26 deg): Visage/head only. Chest remains locked with lower body.
+            // Tier 2 (26 - 52 deg): Thoracic spine twist. Pelvis and boots remain 100% grounded.
+            // Tier 3 (> 52 deg): Two-beat step turn with lead and trailing foot lifts.
+            float deltaYaw = m_yaw - m_lowerBodyYaw;
+            while (deltaYaw > glm::pi<float>()) deltaYaw -= 2.0f * glm::pi<float>();
+            while (deltaYaw < -glm::pi<float>()) deltaYaw += 2.0f * glm::pi<float>();
+
+            float chestYaw = m_yaw;
+            if (!m_isMoving) {
+                float absDelta = std::abs(deltaYaw);
+                float sign = (deltaYaw > 0.0f) ? 1.0f : -1.0f;
+                if (absDelta <= glm::radians(26.0f)) {
+                    // Tier 1: Micro-glance (< 26 deg) - Chest stays locked with hips/lower body
+                    chestYaw = m_lowerBodyYaw;
+                } else {
+                    // Tier 2 & 3: Torso twists smoothly with view
+                    float excess = absDelta - glm::radians(26.0f);
+                    chestYaw = m_lowerBodyYaw + sign * std::min(excess * 0.70f, glm::radians(28.0f));
+                }
+            }
+
+            float ccy = std::cos(chestYaw);
+            float csy = std::sin(chestYaw);
+            glm::vec3 chestForward(csy, 0.0f, ccy);
+            glm::vec3 chestRight(ccy, 0.0f, -csy);
+
+            glm::vec3 chestPos = pelvisPos + glm::vec3(0.0f, 0.34f + coverChestElevation * 0.55f, 0.0f)
+                                 + chestForward * (leanZ * 0.35f)
+                                 + chestRight * (m_coverLeanAngle * 0.20f)
+                                 + glm::vec3(0.0f, m_isMoving ? std::sin(m_walkCycle) * 0.02f : 0.0f, 0.0f);
 
             float chestPitchAngle = -m_aimPitch * 0.15f + (m_isSprinting ? 0.24f : 0.0f) + m_woundTorsoHunch * 0.25f + glm::radians(m_woundFlinchPitch);
             if (m_isVaulting) {
                 chestPitchAngle += 0.32f * std::sin(m_vaultProgress * 3.14159f);
             }
-            glm::mat4 chestRot = glm::rotate(glm::mat4(1.0f), m_yaw, glm::vec3(0, 1, 0));
+            glm::mat4 chestRot = glm::rotate(glm::mat4(1.0f), chestYaw, glm::vec3(0, 1, 0));
             chestRot = glm::rotate(chestRot, chestPitchAngle, glm::vec3(1, 0, 0));
             if (std::abs(m_coverLeanAngle) > 0.001f) {
                 chestRot = glm::rotate(chestRot, m_coverLeanAngle * 0.22f, glm::vec3(0, 0, 1));
