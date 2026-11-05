@@ -33,11 +33,7 @@ void BallisticsSystem::fireBullet(const glm::vec3& origin, const glm::vec3& dire
     }
     m_shotCounter++;
 
-    // Optical combat zeroing compensation (100m for rifles/snipers, 25m for pistols)
     glm::vec3 fireDir = glm::normalize(direction);
-    glm::vec3 upRef = (std::abs(fireDir.y) > 0.95f) ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
-    glm::vec3 rightDir = glm::normalize(glm::cross(fireDir, upRef));
-    glm::vec3 trueUp   = glm::normalize(glm::cross(rightDir, fireDir));
 
     float actualSpeed = speedMs;
     if (actualSpeed <= 0.0f) {
@@ -46,16 +42,6 @@ void BallisticsSystem::fireBullet(const glm::vec3& origin, const glm::vec3& dire
         else if (weaponType == 2) actualSpeed = 380.0f;
         else actualSpeed = 880.0f;
     }
-
-    float zeroRange = (weaponType == 2) ? 25.0f : 100.0f;
-    float sightHeight = (weaponType == 2) ? 0.025f : 0.050f;
-    float effectiveSpeed = std::max(120.0f, actualSpeed);
-    float tZero = zeroRange / effectiveSpeed;
-    float gravityDropAtZero = 0.5f * 9.81f * (tZero * tZero);
-    float zeroElevationAngle = (gravityDropAtZero + sightHeight) / zeroRange;
-
-    // Apply combat zero elevation so rounds strike reticle center at zero range
-    fireDir = glm::normalize(fireDir + trueUp * zeroElevationAngle);
 
     float dragFactor = 0.000048f;
     if (weaponType == 3) {

@@ -438,26 +438,16 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     float camRad = glm::radians(cameraYaw);
     glm::vec3 camHorizFwd(-std::sin(camRad), 0.0f, -std::cos(camRad));
 
-    if (aimInfo && aimInfo->hasTarget && glm::dot(aimInfo->worldPos - m_position, camHorizFwd) >= 1.0f) {
+    if (aimInfo && aimInfo->hasTarget && glm::dot(aimInfo->worldPos - m_position, camHorizFwd) >= 0.5f) {
         m_hasTargetLock = true;
         m_isHeadshotAim = aimInfo->isHeadshot;
         m_aimTargetInfo = *aimInfo;
-        // Precision micro-aim friction: smoother tracking when hovering on enemy / headshot
-        float frictionRate = aimInfo->isHeadshot ? 18.0f : 26.0f;
-        if (glm::length(m_aimTarget) < 0.001f || glm::dot(m_aimTarget - m_position, camHorizFwd) < 1.0f) {
-            m_aimTarget = aimInfo->worldPos;
-        } else {
-            m_aimTarget = glm::mix(m_aimTarget, aimInfo->worldPos, std::clamp(dt * frictionRate, 0.0f, 1.0f));
-        }
+        m_aimTarget = aimInfo->worldPos;
     } else {
         m_hasTargetLock = false;
         m_isHeadshotAim = false;
         m_aimTargetInfo = AimTargetInfo{};
-        if (glm::length(m_aimTarget) < 0.001f || glm::dot(m_aimTarget - m_position, camHorizFwd) < 1.0f) {
-            m_aimTarget = mouseWorldPos;
-        } else {
-            m_aimTarget = glm::mix(m_aimTarget, mouseWorldPos, std::clamp(dt * 36.0f, 0.0f, 1.0f));
-        }
+        m_aimTarget = mouseWorldPos;
     }
 
     // GTA 5 / Ghost Recon Tactical Cover Assessment
@@ -1350,8 +1340,9 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 glm::vec3 rightDir = glm::normalize(glm::cross(aimDir, upRef));
                 glm::vec3 trueUp   = glm::normalize(glm::cross(rightDir, aimDir));
 
-                float spreadX = spreadDist(randGen) * m_currentBloom + m_currentSightSway.x;
-                float spreadY = spreadDist(randGen) * m_currentBloom + m_currentSightSway.y;
+                float spreadMult = m_isAiming ? 0.15f : 1.0f;
+                float spreadX = spreadDist(randGen) * (m_currentBloom * spreadMult);
+                float spreadY = spreadDist(randGen) * (m_currentBloom * spreadMult);
                 aimDir = glm::normalize(aimDir + rightDir * spreadX + trueUp * spreadY);
 
                 float kickMagnitude = 0.035f * (weapon.recoilVertical / 40.0f) * recoilMod;

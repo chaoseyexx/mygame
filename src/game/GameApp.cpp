@@ -1312,17 +1312,19 @@ void GameApp::run() {
             if (aimInfo.hasTarget) {
                 mouseWorldPos = aimInfo.worldPos;
             } else {
-                // Raycast against physical world obstacles down the reticle line-of-sight starting in front of player
+                // Raycast against physical world obstacles down the EXACT reticle line-of-sight
                 glm::vec3 hitPoint, hitNormal;
                 WorldObstacle* hitObs = nullptr;
-                glm::vec3 rayStart = player.getPosition() + camHorizFwd * 1.0f + glm::vec3(0.0f, 1.4f, 0.0f);
-                bool hitObstacle = world.raycast(rayStart, rayStart + rayDir * 150.0f, hitPoint, hitNormal, hitObs);
+                float tPlayer = std::max(0.0f, glm::dot(player.getPosition() - rayOrigin, rayDir));
+                glm::vec3 crosshairRayStart = rayOrigin + rayDir * std::max(0.5f, tPlayer - 0.5f);
+                glm::vec3 crosshairRayEnd   = rayOrigin + rayDir * 200.0f;
+                bool hitObstacle = world.raycast(crosshairRayStart, crosshairRayEnd, hitPoint, hitNormal, hitObs);
 
-                // Precision terrain heightfield ray intersection
+                // Precision terrain heightfield ray intersection along exact crosshair ray
                 bool hitGround = false;
                 glm::vec3 groundHitPos = rayOrigin;
                 if (rayDir.y < -0.01f) {
-                    for (float t = 1.0f; t <= 180.0f; t += 0.8f) {
+                    for (float t = 1.0f; t <= 220.0f; t += 0.8f) {
                         glm::vec3 testP = rayOrigin + rayDir * t;
                         float terrH = World::sampleTerrainHeight(testP.x, testP.z);
                         if (testP.y <= terrH) {
@@ -1340,23 +1342,24 @@ void GameApp::run() {
                     }
                 }
 
-                if (hitObstacle && glm::dot(hitPoint - player.getPosition(), camHorizFwd) >= 1.0f) {
+                if (hitObstacle && glm::dot(hitPoint - player.getPosition(), camHorizFwd) >= 0.2f) {
                     if (hitGround && glm::distance(rayOrigin, groundHitPos) < glm::distance(rayOrigin, hitPoint)) {
                         mouseWorldPos = groundHitPos;
                     } else {
                         mouseWorldPos = hitPoint;
                     }
-                } else if (hitGround && glm::dot(groundHitPos - player.getPosition(), camHorizFwd) >= 1.0f) {
+                } else if (hitGround && glm::dot(groundHitPos - player.getPosition(), camHorizFwd) >= 0.2f) {
                     mouseWorldPos = groundHitPos;
                 } else {
-                    mouseWorldPos = rayOrigin + rayDir * 80.0f;
+                    mouseWorldPos = rayOrigin + rayDir * 150.0f;
                 }
             }
 
-            // Safety guarantee: Aim target is ALWAYS projected ahead of the player in horizontal camera forward
+            // Safety guarantee: Aim target is ALWAYS projected ahead of the player along the crosshair ray
             float projDist = glm::dot(mouseWorldPos - player.getPosition(), camHorizFwd);
-            if (projDist < 3.5f) {
-                mouseWorldPos = player.getPosition() + camHorizFwd * 35.0f + glm::vec3(0.0f, 1.5f, 0.0f);
+            if (projDist < 0.6f) {
+                float tPlayer = std::max(0.0f, glm::dot(player.getPosition() - rayOrigin, rayDir));
+                mouseWorldPos = rayOrigin + rayDir * std::max(5.0f, tPlayer + 2.5f);
             }
 
             // Update Player Controller with Camera-Relative Direction and Precision 3D Aim Target
