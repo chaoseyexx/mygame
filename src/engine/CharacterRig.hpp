@@ -395,6 +395,7 @@ private:
     GroundSurface m_groundSurface = GroundSurface::Dirt;
     float m_stepTurnDir = 1.0f;
     float m_stepTurnStartLowerYaw = 0.0f;
+    float m_stepTurnBeat1Yaw = 0.0f;
     float m_stepTurnTargetLowerYaw = 0.0f;
 
     // Locomotion & walk cycle

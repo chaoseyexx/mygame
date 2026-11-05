@@ -196,24 +196,23 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
                 m_stepTurnFoot = (diff > 0.0f) ? 1 : -1;
                 m_stepTurnStartLowerYaw = m_lowerBodyYaw;
                 m_stepTurnTargetLowerYaw = m_lowerBodyYaw + diff;
+                m_stepTurnBeat1Yaw = m_lowerBodyYaw + diff * 0.55f;
             }
         } else if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
             // Beat 1: Lead foot lifts and pivots hips 55% toward target
             m_stepTurnTimer += dt;
             float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
             float ease = t * t * (3.0f - 2.0f * t);
-            float beat1Total = (m_stepTurnTargetLowerYaw - m_stepTurnStartLowerYaw) * 0.55f;
-            m_lowerBodyYaw = m_stepTurnStartLowerYaw + beat1Total * ease;
+            m_lowerBodyYaw = glm::mix(m_stepTurnStartLowerYaw, m_stepTurnBeat1Yaw, ease);
             if (t >= 1.0f) {
-                m_lowerBodyYaw = m_stepTurnStartLowerYaw + beat1Total;
+                m_lowerBodyYaw = m_stepTurnBeat1Yaw;
                 m_stepTurnPhase = StepTurnPhase::Beat2_TrailingFoot;
                 m_stepTurnTimer = 0.0f;
-                m_stepTurnStartLowerYaw = m_lowerBodyYaw;
                 // Re-evaluate target lower yaw based on current player yaw so mouse tracking stays accurate
-                float remDiff = yaw - m_lowerBodyYaw;
+                float remDiff = yaw - m_stepTurnBeat1Yaw;
                 while (remDiff > glm::pi<float>()) remDiff -= 2.0f * glm::pi<float>();
                 while (remDiff < -glm::pi<float>()) remDiff += 2.0f * glm::pi<float>();
-                m_stepTurnTargetLowerYaw = m_lowerBodyYaw + remDiff;
+                m_stepTurnTargetLowerYaw = m_stepTurnBeat1Yaw + remDiff;
                 m_footstepEvent = 3; // Stationary pivot step event
             }
         } else if (m_stepTurnPhase == StepTurnPhase::Beat2_TrailingFoot) {
@@ -221,8 +220,7 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
             m_stepTurnTimer += dt;
             float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat2, 0.0f, 1.0f);
             float ease = t * t * (3.0f - 2.0f * t);
-            float remTotal = m_stepTurnTargetLowerYaw - m_stepTurnStartLowerYaw;
-            m_lowerBodyYaw = m_stepTurnStartLowerYaw + remTotal * ease;
+            m_lowerBodyYaw = glm::mix(m_stepTurnBeat1Yaw, m_stepTurnTargetLowerYaw, ease);
             if (t >= 1.0f) {
                 m_lowerBodyYaw = m_stepTurnTargetLowerYaw;
                 m_stepTurnPhase = StepTurnPhase::Idle;
@@ -293,10 +291,20 @@ void CharacterRig::updateWeaponTransform() {
         float sprintLean = (m_isSprinting && m_isMoving) ? 0.30f : ((m_isMoving) ? 0.11f : 0.0f);
         float leanZ = sprintLean + 0.14f * cCurve + m_woundTorsoHunch * 0.25f;
 
+        // Procedural Spine Pitch Distribution (60% thoracic/lumbar bending)
+        float spineAimPitch = -m_aimPitch * 0.60f;
+        float spineCurveForward = std::sin(spineAimPitch) * 0.22f;
+        float spineCurveHeight = (1.0f - std::cos(spineAimPitch)) * 0.08f;
+
+        float pelvisPitchShiftZ = (m_aimPitch < 0.0f) ? (std::sin(m_aimPitch) * 0.065f) : (std::sin(m_aimPitch) * 0.055f);
+        float pelvisPitchDropY = -std::abs(std::sin(m_aimPitch)) * 0.035f;
+
         // Accurate forward direction lean (prevents muzzle detachment when facing arbitrary angles)
-        glm::vec3 pelvisPos = m_rootPos + rightDir * (m_pelvisSway + m_coverLeanAngle * 0.20f) + forwardDir * (leanZ * 0.45f) + glm::vec3(0.0f, 0.81f + m_stanceHeight + m_pelvisBob, 0.0f);
-        glm::vec3 spine1 = pelvisPos + rightDir * (m_coverLeanAngle * 0.12f) + forwardDir * (leanZ * 0.25f) + glm::vec3(0.0f, 0.18f, 0.0f);
-        glm::vec3 chestPos = spine1 + rightDir * (m_coverLeanAngle * 0.18f) + forwardDir * (leanZ * 0.35f) + glm::vec3(0.0f, 0.18f, 0.0f);
+        glm::vec3 pelvisPos = m_rootPos + rightDir * (m_pelvisSway + m_coverLeanAngle * 0.20f) 
+                              + forwardDir * (leanZ * 0.45f + pelvisPitchShiftZ) 
+                              + glm::vec3(0.0f, 0.81f + m_stanceHeight + m_pelvisBob + pelvisPitchDropY, 0.0f);
+        glm::vec3 spine1 = pelvisPos + rightDir * (m_coverLeanAngle * 0.12f) + forwardDir * (leanZ * 0.25f + spineCurveForward * 0.5f) + glm::vec3(0.0f, 0.18f - spineCurveHeight * 0.4f, 0.0f);
+        glm::vec3 chestPos = spine1 + rightDir * (m_coverLeanAngle * 0.18f) + forwardDir * (leanZ * 0.35f + spineCurveForward * 0.5f) + glm::vec3(0.0f, 0.18f - spineCurveHeight * 0.6f, 0.0f);
 
         // Tactical Low Cover Peeking & Weapon Mounting
         float coverChestElevation = 0.0f;
@@ -597,8 +605,23 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             // Asymmetric limp dip when wounded in lower extremities
             float limpPelvisDip = (m_isMoving && m_woundLimpFactor > 0.05f) ? -std::abs(std::sin(m_walkCycle)) * 0.065f * m_woundLimpFactor : 0.0f;
 
+            // Aim pitch pelvis counterbalance & dynamic step turn weight dip
+            float pelvisPitchShiftZ = (m_aimPitch < 0.0f) ? (std::sin(m_aimPitch) * 0.065f) : (std::sin(m_aimPitch) * 0.055f);
+            float pelvisPitchDropY = -std::abs(std::sin(m_aimPitch)) * 0.035f;
+
+            float stepTurnPelvisDip = 0.0f;
+            if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
+                float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
+                stepTurnPelvisDip = -std::sin(t * glm::pi<float>()) * 0.024f;
+            } else if (m_stepTurnPhase == StepTurnPhase::Beat2_TrailingFoot) {
+                float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat2, 0.0f, 1.0f);
+                stepTurnPelvisDip = -std::sin(t * glm::pi<float>()) * 0.016f;
+            }
+
             // --- 1. PELVIS & SACRUM ---
-            glm::vec3 pelvisPos = lowerToWorld(glm::vec3(m_pelvisSway + m_coverLeanAngle * 0.18f, 0.81f + m_stanceHeight + m_pelvisBob + limpPelvisDip + coverChestElevation * 0.45f, leanZ * 0.45f));
+            glm::vec3 pelvisPos = lowerToWorld(glm::vec3(m_pelvisSway + m_coverLeanAngle * 0.18f, 
+                                                         0.81f + m_stanceHeight + m_pelvisBob + limpPelvisDip + coverChestElevation * 0.45f + pelvisPitchDropY + stepTurnPelvisDip, 
+                                                         leanZ * 0.45f + pelvisPitchShiftZ));
 
             // --- 2. BIOMECHANICALLY REALISTIC TWO-BONE LEG IK (60/40 Stance/Swing Gait) ---
             // Mathematical Zero-Slip Stride Matching:
@@ -626,6 +649,22 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 moveFwd = 1.0f;
                 moveRgt = 0.0f;
             }
+
+            auto getStanceFootWorld = [&](float bodyYaw, bool isRight) -> glm::vec3 {
+                float cy = std::cos(bodyYaw);
+                float sy = std::sin(bodyYaw);
+                glm::vec3 fwd(sy, 0.0f, cy);
+                glm::vec3 rgt(cy, 0.0f, -sy);
+                float footBaseX = 0.13f + 0.05f * cCurve;
+                float sign = isRight ? 1.0f : -1.0f;
+                float strideZ = isRight ? glm::mix(0.0f, 0.18f, cCurve) : glm::mix(0.0f, -0.14f, cCurve);
+                float strideX = isRight ? glm::mix(0.0f, 0.04f, cCurve) : glm::mix(0.0f, -0.04f, cCurve);
+                return m_rootPos + rgt * (sign * footBaseX + strideX) + fwd * strideZ + glm::vec3(0, 0.07f, 0);
+            };
+
+            float footBaseX = 0.13f + 0.05f * cCurve;
+            glm::vec3 leftFootPos(0.0f);
+            glm::vec3 rightFootPos(0.0f);
 
             if (m_isMoving) {
                 float phaseNorm = m_walkCycle / (2.0f * glm::pi<float>());
@@ -673,30 +712,68 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     leftStrideX *= (1.0f - m_woundLimpFactor * 0.40f);
                     leftLift    *= (1.0f - m_woundLimpFactor * 0.50f);
                 }
-            } else {
-                // Stationary Stance - tactical braced posture
-                leftStrideZ = glm::mix(0.0f, -0.14f, cCurve);
-                rightStrideZ = glm::mix(0.0f, 0.18f, cCurve);
-                leftStrideX = glm::mix(0.0f, -0.04f, cCurve);
-                rightStrideX = glm::mix(0.0f, 0.04f, cCurve);
 
+                leftFootPos  = lowerToWorld(glm::vec3(-footBaseX + leftStrideX,  0.07f + leftLift,  leftStrideZ));
+                rightFootPos = lowerToWorld(glm::vec3( footBaseX + rightStrideX, 0.07f + rightLift, rightStrideZ));
+            } else {
+                // Independent Leg Turn-in-Place Stepping:
+                // Support foot is 100% frozen in world space (zero slip).
+                // Lead foot lifts in clearance arc, bends knee, steps, and plants.
+                // Trailing foot catches up on Beat 2.
                 if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
                     float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
-                    float pivotLift = std::sin(t * glm::pi<float>()) * 0.048f;
-                    if (m_stepTurnFoot > 0) rightLift = pivotLift;
-                    else leftLift = pivotLift;
+                    float ease = t * t * (3.0f - 2.0f * t);
+                    if (m_stepTurnFoot > 0) {
+                        // Turning Right: Left foot is SUPPORT (locked in world space), Right foot is LEAD
+                        leftFootPos = getStanceFootWorld(m_stepTurnStartLowerYaw, false);
+                        leftLift = 0.0f;
+
+                        glm::vec3 startR = getStanceFootWorld(m_stepTurnStartLowerYaw, true);
+                        glm::vec3 targetR = getStanceFootWorld(m_stepTurnBeat1Yaw, true);
+                        rightLift = std::sin(t * glm::pi<float>()) * 0.055f;
+                        rightFootPos = glm::mix(startR, targetR, ease);
+                        rightFootPos.y += rightLift;
+                    } else {
+                        // Turning Left: Right foot is SUPPORT (locked in world space), Left foot is LEAD
+                        rightFootPos = getStanceFootWorld(m_stepTurnStartLowerYaw, true);
+                        rightLift = 0.0f;
+
+                        glm::vec3 startL = getStanceFootWorld(m_stepTurnStartLowerYaw, false);
+                        glm::vec3 targetL = getStanceFootWorld(m_stepTurnBeat1Yaw, false);
+                        leftLift = std::sin(t * glm::pi<float>()) * 0.055f;
+                        leftFootPos = glm::mix(startL, targetL, ease);
+                        leftFootPos.y += leftLift;
+                    }
                 } else if (m_stepTurnPhase == StepTurnPhase::Beat2_TrailingFoot) {
                     float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat2, 0.0f, 1.0f);
-                    float pivotLift = std::sin(t * glm::pi<float>()) * 0.038f;
-                    if (m_stepTurnFoot > 0) leftLift = pivotLift;
-                    else rightLift = pivotLift;
+                    float ease = t * t * (3.0f - 2.0f * t);
+                    if (m_stepTurnFoot > 0) {
+                        // Turning Right: Right foot is NOW SUPPORT (locked where planted), Left foot is TRAILING
+                        rightFootPos = getStanceFootWorld(m_stepTurnBeat1Yaw, true);
+                        rightLift = 0.0f;
+
+                        glm::vec3 startL = getStanceFootWorld(m_stepTurnStartLowerYaw, false);
+                        glm::vec3 targetL = getStanceFootWorld(m_stepTurnTargetLowerYaw, false);
+                        leftLift = std::sin(t * glm::pi<float>()) * 0.042f;
+                        leftFootPos = glm::mix(startL, targetL, ease);
+                        leftFootPos.y += leftLift;
+                    } else {
+                        // Turning Left: Left foot is NOW SUPPORT (locked where planted), Right foot is TRAILING
+                        leftFootPos = getStanceFootWorld(m_stepTurnBeat1Yaw, false);
+                        leftLift = 0.0f;
+
+                        glm::vec3 startR = getStanceFootWorld(m_stepTurnStartLowerYaw, true);
+                        glm::vec3 targetR = getStanceFootWorld(m_stepTurnTargetLowerYaw, true);
+                        rightLift = std::sin(t * glm::pi<float>()) * 0.042f;
+                        rightFootPos = glm::mix(startR, targetR, ease);
+                        rightFootPos.y += rightLift;
+                    }
+                } else {
+                    // Stationary idle: both feet resting
+                    leftFootPos = getStanceFootWorld(m_lowerBodyYaw, false);
+                    rightFootPos = getStanceFootWorld(m_lowerBodyYaw, true);
                 }
             }
-
-            // Calibrated foot separation width (wider in crouch for stability)
-            float footBaseX = 0.13f + 0.05f * cCurve;
-            glm::vec3 leftFootPos  = lowerToWorld(glm::vec3(-footBaseX + leftStrideX,  0.07f + leftLift,  leftStrideZ));
-            glm::vec3 rightFootPos = lowerToWorld(glm::vec3( footBaseX + rightStrideX, 0.07f + rightLift, rightStrideZ));
 
             if (m_isVaulting) {
                 float tuck = std::sin(m_vaultProgress * 3.14159f) * 0.35f;
@@ -724,17 +801,39 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             }
 
             float hipBaseX = 0.13f + 0.03f * cCurve;
-            glm::vec3 leftHipPos  = lowerToWorld(glm::vec3(-hipBaseX + m_pelvisSway, 0.79f + m_stanceHeight + m_pelvisBob, leanZ * 0.35f));
-            glm::vec3 rightHipPos = lowerToWorld(glm::vec3( hipBaseX + m_pelvisSway, 0.79f + m_stanceHeight + m_pelvisBob, leanZ * 0.35f));
+            glm::vec3 leftHipPos  = lowerToWorld(glm::vec3(-hipBaseX + m_pelvisSway, 0.79f + m_stanceHeight + m_pelvisBob + pelvisPitchDropY + stepTurnPelvisDip, leanZ * 0.35f + pelvisPitchShiftZ));
+            glm::vec3 rightHipPos = lowerToWorld(glm::vec3( hipBaseX + m_pelvisSway, 0.79f + m_stanceHeight + m_pelvisBob + pelvisPitchDropY + stepTurnPelvisDip, leanZ * 0.35f + pelvisPitchShiftZ));
 
             leftHipPos.y  += pelvisDrop;
             rightHipPos.y += pelvisDrop;
             pelvisPos.y   += pelvisDrop;
 
             // Knee Abduction (wider knee splay in crouch prevents chest/weapon clipping)
+            float kneePitchFlex = (m_aimPitch < 0.0f) ? (-std::sin(m_aimPitch) * 0.14f) : 0.0f;
             float kneeSplay = 0.16f + 0.18f * cCurve;
-            glm::vec3 leftKneePole  = lowerToWorld(glm::vec3(-kneeSplay + moveRgt * 0.08f, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve));
-            glm::vec3 rightKneePole = lowerToWorld(glm::vec3( kneeSplay + moveRgt * 0.08f, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve));
+            glm::vec3 leftKneePole  = lowerToWorld(glm::vec3(-kneeSplay + moveRgt * 0.08f, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex));
+            glm::vec3 rightKneePole = lowerToWorld(glm::vec3( kneeSplay + moveRgt * 0.08f, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex));
+
+            // Procedural knee flexion when stepping during turn in place
+            if (!m_isMoving) {
+                if (m_stepTurnPhase == StepTurnPhase::Beat1_LeadFoot) {
+                    float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat1, 0.0f, 1.0f);
+                    float kLift = std::sin(t * glm::pi<float>()) * 0.10f;
+                    if (m_stepTurnFoot > 0) {
+                        rightKneePole += lowerRight * 0.09f + glm::vec3(0.0f, kLift, 0.0f);
+                    } else {
+                        leftKneePole  -= lowerRight * 0.09f - glm::vec3(0.0f, kLift, 0.0f);
+                    }
+                } else if (m_stepTurnPhase == StepTurnPhase::Beat2_TrailingFoot) {
+                    float t = std::clamp(m_stepTurnTimer / m_stepTurnDurationBeat2, 0.0f, 1.0f);
+                    float kLift = std::sin(t * glm::pi<float>()) * 0.08f;
+                    if (m_stepTurnFoot > 0) {
+                        leftKneePole  -= lowerRight * 0.07f - glm::vec3(0.0f, kLift, 0.0f);
+                    } else {
+                        rightKneePole += lowerRight * 0.07f + glm::vec3(0.0f, kLift, 0.0f);
+                    }
+                }
+            }
 
             glm::vec3 leftKneePos, rightKneePos;
             glm::quat uRot, lRot;
@@ -769,12 +868,17 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             glm::vec3 chestForward(csy, 0.0f, ccy);
             glm::vec3 chestRight(ccy, 0.0f, -csy);
 
-            glm::vec3 chestPos = pelvisPos + glm::vec3(0.0f, 0.34f + coverChestElevation * 0.55f, 0.0f)
-                                 + chestForward * (leanZ * 0.35f)
+            // Procedural Spine Pitch Distribution (60% thoracic/lumbar bending)
+            float spineAimPitch = -m_aimPitch * 0.60f;
+            float spineCurveForward = std::sin(spineAimPitch) * 0.22f;
+            float spineCurveHeight = (1.0f - std::cos(spineAimPitch)) * 0.08f;
+
+            glm::vec3 chestPos = pelvisPos + glm::vec3(0.0f, (0.34f - spineCurveHeight) + coverChestElevation * 0.55f, 0.0f)
+                                 + chestForward * (leanZ * 0.35f + spineCurveForward)
                                  + chestRight * (m_coverLeanAngle * 0.20f)
                                  + glm::vec3(0.0f, m_isMoving ? std::sin(m_walkCycle) * 0.02f : 0.0f, 0.0f);
 
-            float chestPitchAngle = -m_aimPitch * 0.15f + (m_isSprinting ? 0.24f : 0.0f) + m_woundTorsoHunch * 0.25f + glm::radians(m_woundFlinchPitch);
+            float chestPitchAngle = spineAimPitch + (m_isSprinting ? 0.24f : 0.0f) + m_woundTorsoHunch * 0.25f + glm::radians(m_woundFlinchPitch);
             if (m_isVaulting) {
                 chestPitchAngle += 0.32f * std::sin(m_vaultProgress * 3.14159f);
             }
@@ -955,6 +1059,8 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             uprightPose.bonePositions[BONE_PELVIS] = pelvisPos;
             glm::mat4 rotY = glm::rotate(glm::mat4(1.0f), m_lowerBodyYaw + pelvisYawTwist, glm::vec3(0, 1, 0));
             rotY = glm::rotate(rotY, pelvisRoll, glm::vec3(0, 0, 1));
+            float pelvisPitchAngle = (m_aimPitch < 0.0f) ? (-m_aimPitch * 0.12f) : (-m_aimPitch * 0.08f);
+            rotY = glm::rotate(rotY, pelvisPitchAngle, glm::vec3(1, 0, 0));
             if (cCurve > 0.01f) rotY = glm::rotate(rotY, 0.22f * cCurve, glm::vec3(1, 0, 0));
             uprightPose.boneRotations[BONE_PELVIS] = glm::mat3(rotY);
 
@@ -962,9 +1068,9 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             uprightPose.boneRotations[BONE_SPINE_CHEST] = chestRot3;
 
             uprightPose.bonePositions[BONE_HEAD] = headCenter;
-            float headPitchAngle = -m_aimPitch * 0.45f;
+            float totalHeadPitch = -m_aimPitch;
             glm::mat4 headRot = glm::rotate(glm::mat4(1.0f), m_yaw, glm::vec3(0, 1, 0));
-            headRot = glm::rotate(headRot, headPitchAngle, glm::vec3(1, 0, 0));
+            headRot = glm::rotate(headRot, totalHeadPitch, glm::vec3(1, 0, 0));
             uprightPose.boneRotations[BONE_HEAD] = glm::mat3(headRot);
 
             glm::mat3 lowerRot = glm::mat3(glm::rotate(glm::mat4(1.0f), m_lowerBodyYaw, glm::vec3(0, 1, 0)));
