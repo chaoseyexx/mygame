@@ -959,9 +959,16 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
 
     bool leftClickFire = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) && !uiWantsMouse;
     bool isForwardMoving = inputDir.z < -0.1f;
-    bool wantsSprint = !m_isSliding && !captureKb && (window.isKeyPressed(inCfg.getKey(GameAction::Sprint)) || window.isKeyPressed(GLFW_KEY_LEFT_SHIFT)) && isMoving && isForwardMoving &&
-                       (m_stats.stance == PlayerStance::Standing) && (!m_stats.isExhausted && m_stats.stamina > 15.0f) && 
-                       !m_isAiming && !leftClickFire && m_body.canSprint();
+    bool sprintKey = !captureKb && (window.isKeyPressed(inCfg.getKey(GameAction::Sprint)) || window.isKeyPressed(GLFW_KEY_LEFT_SHIFT));
+    bool canPhysicallySprint = !m_isSliding && isMoving && isForwardMoving && (!m_stats.isExhausted && m_stats.stamina > 15.0f) && !m_isAiming && !leftClickFire && m_body.canSprint();
+
+    // Sprint-break from crouch or prone (AAA fluid responsive stance recovery)
+    if (sprintKey && canPhysicallySprint && m_stats.stance != PlayerStance::Standing) {
+        m_stats.stance = PlayerStance::Standing;
+        AudioEngine::get().playSound(SoundType::GearRustle, 0.40f, 1.10f);
+    }
+
+    bool wantsSprint = sprintKey && canPhysicallySprint && (m_stats.stance == PlayerStance::Standing);
 
     // Instant sprint-to-fire / sprint-out cancel when aiming or firing
     if (m_stats.isSprinting && (m_isAiming || leftClickFire)) {
