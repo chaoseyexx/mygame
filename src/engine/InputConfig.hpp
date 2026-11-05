@@ -30,6 +30,7 @@ enum class GameAction {
     VoiceSquad,
     TacticalMap,
     ShoulderSwap,
+    ToggleOptic,
     Count
 };
 
@@ -168,6 +169,7 @@ private:
             { GameAction::DropWeapon,     "Drop Current Weapon",      "Combat",   GLFW_KEY_G,          GLFW_KEY_G },
             { GameAction::HoldBreath,     "Hold Breath (Steady ADS)", "Combat",   GLFW_KEY_LEFT_ALT,   GLFW_KEY_LEFT_ALT },
             { GameAction::ShoulderSwap,   "Swap Camera Shoulder",     "Combat",   GLFW_KEY_T,          GLFW_KEY_T },
+            { GameAction::ToggleOptic,    "Toggle Optic Magnification", "Combat", GLFW_KEY_V,          GLFW_KEY_V },
             { GameAction::Interact,       "Interact / Mount Turret",  "Interaction", GLFW_KEY_F,       GLFW_KEY_F },
             { GameAction::FirstAid,       "Field Medical / Bandage",  "Medical",  GLFW_KEY_H,          GLFW_KEY_H },
             { GameAction::VoiceProximity, "Proximity Radio PTT",      "Comms",    GLFW_KEY_V,          GLFW_KEY_V },

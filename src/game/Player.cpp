@@ -694,6 +694,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
             m_isSwitchingWeapon = false;
             m_activeWeaponSlot = m_pendingSwitchSlot;
             auto& destWeapon = m_inventory.getEquipped(m_activeWeaponSlot);
+            m_adsZoomLevel = destWeapon.has_value() ? destWeapon->opticZoomLevel : 0;
             m_rig.setActiveWeaponName(destWeapon.has_value() ? destWeapon->name : "None");
             m_rig.triggerEquipAnim(0.35f);
 
@@ -709,28 +710,43 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         }
     }
 
-    // Foxhole / Tactical Aim Down Sights (ADS) Mode on Right-Click
+    // Dedicated Weapon Optic Assessment (Each weapon has its own specific optic profile)
+    auto& activeEquip = m_inventory.getEquipped(m_activeWeaponSlot);
+    int weaponOptic = 0;
+    bool canToggleOptic = false;
+    if (activeEquip.has_value() && activeEquip->category == ItemCategory::Weapon) {
+        weaponOptic = activeEquip->opticZoomLevel;
+        canToggleOptic = activeEquip->hasVariableOptic;
+    }
+
+    // Tactical Aim Down Sights (ADS) Mode on Right-Click
     bool aimInput = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT) && !uiWantsMouse;
     if (aimInput != m_isAiming) {
         m_isAiming = aimInput;
         if (m_isAiming) {
             AudioEngine::get().playSound(SoundType::AimDownSight, 0.45f, 1.0f);
+            m_adsZoomLevel = weaponOptic; // Automatically initialize to the weapon's dedicated optic!
         } else {
             AudioEngine::get().playSound(SoundType::AimDownSightOut, 0.35f, 1.05f);
             m_isHoldingBreath = false;
             m_breathHoldTimer = 0.0f;
-            m_adsZoomLevel = 0; // Reset to 1.0x Reflex on ADS exit
+            m_adsZoomLevel = weaponOptic;
         }
     }
 
-    // Z Key: Variable Optic ADS Zoom Level (1.0x CQB Reflex -> 2.5x Combat ACOG -> 4x/6x Precision Scope)
-    // Only cycle zoom when actively aiming down sights — prevents accidental silent zoom changes
-    bool zPressed = !captureKb && window.isKeyPressed(GLFW_KEY_Z);
-    if (zPressed && !m_zPressedLast && m_isAiming) {
-        m_adsZoomLevel = (m_adsZoomLevel + 1) % 3;
+    // Dedicated Optic Magnification Toggle (ONLY for weapons with variable optics, e.g. M4A1 1.0x CQB <-> 2.5x Combat ACOG)
+    // Completely decoupled from movement keys (NEVER triggers on W or Z on any keyboard layout)
+    int toggleOpticKey = inCfg.getKey(GameAction::ToggleOptic);
+    bool toggleOpticPressed = !captureKb && m_isAiming && canToggleOptic &&
+        ((toggleOpticKey != GLFW_KEY_UNKNOWN && window.isKeyPressed(toggleOpticKey)) ||
+         window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_MIDDLE));
+
+    if (toggleOpticPressed && !m_toggleOpticPressedLast) {
+        // Toggle magnification for variable optics (e.g. 1.0x CQB <-> 2.5x Combat ACOG)
+        m_adsZoomLevel = (m_adsZoomLevel == 1) ? 0 : 1;
         AudioEngine::get().playSound(SoundType::ItemEquip, 0.45f, 1.35f + static_cast<float>(m_adsZoomLevel) * 0.15f);
     }
-    m_zPressedLast = zPressed;
+    m_toggleOpticPressedLast = toggleOpticPressed;
 
     // Steady Aim / Hold Breath with Left Alt while aiming
     bool wantsHoldBreath = !captureKb && m_isAiming && (window.isKeyPressed(inCfg.getKey(GameAction::HoldBreath)) || window.isKeyPressed(GLFW_KEY_LEFT_ALT)) && (m_stats.stamina > 4.0f);

@@ -251,7 +251,7 @@ private:
     bool m_isHoldingBreath = false;
     float m_breathHoldTimer = 0.0f;
     bool m_hPressedLast = false;
-    bool m_zPressedLast = false;
+    bool m_toggleOpticPressedLast = false;
     bool m_cPressedLast = false;
     bool m_xPressedLast = false;
     bool m_rPressedLast = false;
