@@ -17,14 +17,14 @@ WeaponRigManager::WeaponRigManager() {
 void WeaponRigManager::resetToDefaults() {
     m_configs.clear();
 
-    // Default Assault Rifle (M4A1 SOPMOD) - calibrated tactical shoulder mount
+    // Default Assault Rifle (M4A1 SOPMOD) - calibrated tactical forward mount
     WeaponGripConfig m4;
-    m4.rootOffset = glm::vec3(0.13f, 0.05f, 0.14f);   // Tactical high-ready tucked into right shoulder pocket
-    m4.rootOffsetADS = glm::vec3(0.04f, 0.14f, 0.22f); // Optic aligned directly with sightline
+    m4.rootOffset = glm::vec3(0.12f, 0.06f, 0.35f);   // Buttstock rests in shoulder pocket; receiver/grip in front of chest
+    m4.rootOffsetADS = glm::vec3(0.04f, 0.14f, 0.28f); // Optic aligned directly with sightline
     m4.rightHandOffset = glm::vec3(0.00f, -0.065f, -0.080f); // Firm trigger grip on pistol grip
-    m4.leftHandOffset = glm::vec3(-0.015f, -0.045f, 0.240f); // Support hand cupping vertical foregrip
-    m4.leftHandOffsetADS = glm::vec3(-0.015f, -0.045f, 0.240f);
-    m4.lowReadyPitch = 0.24f; // Clean ~13.8 deg depressed muzzle in low-ready
+    m4.leftHandOffset = glm::vec3(-0.015f, -0.055f, 0.080f); // Support hand cupping magazine well / rear handguard
+    m4.leftHandOffsetADS = glm::vec3(-0.015f, -0.055f, 0.080f);
+    m4.lowReadyPitch = 0.22f; // Clean ~12.6 deg depressed muzzle in low-ready
     m4.rollTrim = 0.0f;
     m4.yawTrim = 0.0f;
     m4.groundClearance = 0.045f;
@@ -34,12 +34,12 @@ void WeaponRigManager::resetToDefaults() {
 
     // AK-74M
     WeaponGripConfig ak;
-    ak.rootOffset = glm::vec3(0.14f, 0.05f, 0.14f);
-    ak.rootOffsetADS = glm::vec3(0.04f, 0.14f, 0.22f);
+    ak.rootOffset = glm::vec3(0.12f, 0.06f, 0.35f);
+    ak.rootOffsetADS = glm::vec3(0.04f, 0.14f, 0.28f);
     ak.rightHandOffset = glm::vec3(0.00f, -0.065f, -0.060f);
-    ak.leftHandOffset = glm::vec3(-0.015f, -0.035f, 0.260f); // Support hand on lower polymer handguard
-    ak.leftHandOffsetADS = glm::vec3(-0.015f, -0.035f, 0.260f);
-    ak.lowReadyPitch = 0.24f;
+    ak.leftHandOffset = glm::vec3(-0.015f, -0.045f, 0.100f); // Support hand on lower polymer handguard
+    ak.leftHandOffsetADS = glm::vec3(-0.015f, -0.045f, 0.100f);
+    ak.lowReadyPitch = 0.22f;
     ak.rollTrim = 0.0f;
     ak.yawTrim = 0.0f;
     ak.groundClearance = 0.045f;
@@ -49,12 +49,12 @@ void WeaponRigManager::resetToDefaults() {
 
     // Mosin-Nagant Bolt-Action Sniper
     WeaponGripConfig mosin;
-    mosin.rootOffset = glm::vec3(0.14f, 0.05f, 0.12f);
-    mosin.rootOffsetADS = glm::vec3(0.04f, 0.14f, 0.20f); // PU 3.5x scope centered to eye
+    mosin.rootOffset = glm::vec3(0.12f, 0.06f, 0.36f);
+    mosin.rootOffsetADS = glm::vec3(0.04f, 0.14f, 0.26f); // PU 3.5x scope centered to eye
     mosin.rightHandOffset = glm::vec3(0.00f, -0.035f, -0.160f); // Classic semi-pistol grip wrist
-    mosin.leftHandOffset = glm::vec3(-0.015f, -0.025f, 0.320f); // Wooden fore-end forward support
-    mosin.leftHandOffsetADS = glm::vec3(-0.015f, -0.025f, 0.320f);
-    mosin.lowReadyPitch = 0.26f; // ~15 deg downward angle
+    mosin.leftHandOffset = glm::vec3(-0.015f, -0.035f, 0.120f); // Wooden fore-end forward support
+    mosin.leftHandOffsetADS = glm::vec3(-0.015f, -0.035f, 0.120f);
+    mosin.lowReadyPitch = 0.24f; // ~13.7 deg downward angle
     mosin.rollTrim = 0.0f;
     mosin.yawTrim = 0.0f;
     mosin.groundClearance = 0.045f;
@@ -64,12 +64,12 @@ void WeaponRigManager::resetToDefaults() {
 
     // Beretta M9 Handgun (Cupped two-handed grip)
     WeaponGripConfig m9;
-    m9.rootOffset = glm::vec3(0.10f, 0.02f, 0.22f);
+    m9.rootOffset = glm::vec3(0.08f, 0.02f, 0.32f);
     m9.rootOffsetADS = glm::vec3(0.03f, 0.15f, 0.36f); // Two-handed punched out Isosceles stance
     m9.rightHandOffset = glm::vec3(0.00f, -0.055f, -0.030f);
     m9.leftHandOffset = glm::vec3(-0.015f, -0.065f, -0.025f); // Support hand cupping bottom of grip
     m9.leftHandOffsetADS = glm::vec3(-0.015f, -0.065f, -0.025f);
-    m9.lowReadyPitch = 0.30f; // Compressed ready pointing downward
+    m9.lowReadyPitch = 0.28f; // Compressed ready pointing downward
     m9.rollTrim = 0.0f;
     m9.yawTrim = 0.0f;
     m9.groundClearance = 0.030f;
@@ -286,15 +286,24 @@ bool WeaponRigManager::loadFromFile(const std::string& path) {
             }
         }
         if (line.find('}') != std::string::npos && !currentWeapon.empty() && currentVecKey.empty()) {
-            // Sanitize weapon grip config: ensure left hand is not inverted or placed in mid-air
+            // Sanitize weapon grip config: ensure weapon does not penetrate torso and hands reach properly
             bool isPistol = (currentWeapon.find("M9") != std::string::npos || currentWeapon.find("Pistol") != std::string::npos || currentWeapon.find("Beretta") != std::string::npos);
             if (!isPistol) {
-                if (curCfg.leftHandOffset.x > 0.05f || curCfg.leftHandOffset.z < 0.05f) {
+                if (curCfg.rootOffset.z < 0.28f) {
+                    curCfg.rootOffset = (m_configs.count(currentWeapon) ? m_configs[currentWeapon].rootOffset : m_defaultConfig.rootOffset);
+                    curCfg.rootOffsetADS = (m_configs.count(currentWeapon) ? m_configs[currentWeapon].rootOffsetADS : m_defaultConfig.rootOffsetADS);
+                }
+                if (curCfg.leftHandOffset.x > 0.05f || curCfg.leftHandOffset.z < 0.04f || curCfg.leftHandOffset.z > 0.16f) {
                     curCfg.leftHandOffset = (m_configs.count(currentWeapon) ? m_configs[currentWeapon].leftHandOffset : m_defaultConfig.leftHandOffset);
                     curCfg.leftHandOffsetADS = (m_configs.count(currentWeapon) ? m_configs[currentWeapon].leftHandOffsetADS : m_defaultConfig.leftHandOffsetADS);
                 }
                 if (curCfg.rightHandOffset.z > -0.02f) {
                     curCfg.rightHandOffset = (m_configs.count(currentWeapon) ? m_configs[currentWeapon].rightHandOffset : m_defaultConfig.rightHandOffset);
+                }
+            } else {
+                if (curCfg.rootOffset.z < 0.22f) {
+                    curCfg.rootOffset = (m_configs.count(currentWeapon) ? m_configs[currentWeapon].rootOffset : m_defaultConfig.rootOffset);
+                    curCfg.rootOffsetADS = (m_configs.count(currentWeapon) ? m_configs[currentWeapon].rootOffsetADS : m_defaultConfig.rootOffsetADS);
                 }
             }
             m_configs[currentWeapon] = curCfg;

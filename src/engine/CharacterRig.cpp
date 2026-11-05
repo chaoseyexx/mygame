@@ -349,7 +349,7 @@ void CharacterRig::updateWeaponTransform() {
     if (m_stance == 2) {
         glm::vec3 chestPos = m_rootPos + glm::vec3(0.0f, 0.22f, 0.0f) + forwardDir * 0.15f;
         m_renderPitch = m_aimPitch;
-        m_rifleRoot = chestPos + rightDir * 0.08f + forwardDir * 0.24f - glm::vec3(0.0f, 0.02f, 0.0f);
+        m_rifleRoot = chestPos + rightDir * 0.08f + forwardDir * 0.35f - glm::vec3(0.0f, 0.02f, 0.0f);
     } else {
         float cCurve = glm::smoothstep(0.0f, 1.0f, m_crouchTransition);
         float sprintLean = (m_isSprinting && m_isMoving) ? 0.30f : ((m_isMoving) ? 0.11f : 0.0f);
@@ -1055,7 +1055,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
 
                     float sprintBobY = std::abs(std::sin(m_walkCycle)) * 0.040f;
                     float sprintBobX = std::sin(m_walkCycle) * 0.028f;
-                    uprightRifleRoot = chestPos + rightDir * 0.12f - glm::vec3(0.0f, 0.10f - sprintBobY, 0.0f) + aimForward * (0.16f + sprintBobX);
+                    uprightRifleRoot = chestPos + rightDir * 0.12f - glm::vec3(0.0f, 0.10f - sprintBobY, 0.0f) + aimForward * (0.32f + sprintBobX);
 
                     bool isPistol = (weaponToDraw.find("M9") != std::string::npos ||
                                      weaponToDraw.find("Beretta") != std::string::npos ||
@@ -1063,13 +1063,13 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     if (isPistol) {
                         rightHandTarget = uprightRifleRoot - aimForward * 0.02f - rifleUp * 0.05f;
                         leftHandTarget  = uprightRifleRoot - aimForward * 0.00f - rifleUp * 0.055f - rightDir * 0.03f;
-                        rightElbowPole = rightShoulder + rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.08f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.08f;
+                        rightElbowPole = rightShoulder + rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.10f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.10f;
                     } else {
                         rightHandTarget = uprightRifleRoot - aimForward * 0.08f - rifleUp * 0.065f;
-                        leftHandTarget  = uprightRifleRoot + aimForward * 0.24f - rifleUp * 0.045f - rightDir * 0.015f;
-                        rightElbowPole = rightShoulder + rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.08f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.16f - rifleUp * 0.20f + aimForward * 0.14f;
+                        leftHandTarget  = uprightRifleRoot + aimForward * 0.10f - rifleUp * 0.050f - rightDir * 0.015f;
+                        rightElbowPole = rightShoulder + rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.12f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.18f - rifleUp * 0.20f + aimForward * 0.16f;
                     }
 
                 } else {
@@ -1101,11 +1101,11 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     leftHandTarget = uprightRifleRoot + rightDir * lHandOffset.x + rifleUp * lHandOffset.y + aimForward * lHandOffset.z;
 
                     if (m_shoulderRight) {
-                        rightElbowPole = rightShoulder + rightDir * 0.22f - rifleUp * 0.24f + aimForward * 0.06f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.16f - rifleUp * 0.22f + aimForward * 0.14f;
+                        rightElbowPole = rightShoulder + rightDir * 0.24f - rifleUp * 0.22f + aimForward * 0.12f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.18f - rifleUp * 0.20f + aimForward * 0.16f;
                     } else {
-                        rightElbowPole = rightShoulder + rightDir * 0.16f - rifleUp * 0.22f + aimForward * 0.14f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.22f - rifleUp * 0.24f + aimForward * 0.06f;
+                        rightElbowPole = rightShoulder + rightDir * 0.18f - rifleUp * 0.20f + aimForward * 0.16f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.24f - rifleUp * 0.22f + aimForward * 0.12f;
                     }
                 }
             } else {
