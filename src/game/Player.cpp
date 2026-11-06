@@ -680,8 +680,8 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     bool aimInput = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT) && !uiWantsMouse;
     bool leftClickFire = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) && !uiWantsMouse;
 
-    // 1. Calculate Body Heading Yaw (Hugs wall in cover unless aiming)
-    if (m_inCover && !m_isAiming) {
+    // 1. Calculate Body Heading Yaw (Hugs wall in cover unless aiming or firing)
+    if (m_inCover && !m_isAiming && !aimInput && !leftClickFire) {
         float targetYaw = std::atan2(m_coverNormal.x, m_coverNormal.z);
         if (glm::length(m_velocity) > 0.2f) {
             float wallMoveDot = glm::dot(m_velocity, m_coverWallDir);
@@ -698,11 +698,12 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         float camLookYaw = std::atan2(camFwd.x, camFwd.z);
 
         if (m_isAiming || aimInput || leftClickFire) {
-            // Actively aiming or shooting: operator squares up directly with camera crosshair
+            // Actively aiming or shooting: operator squares up directly with camera crosshair (instant snap in cover)
             float deltaYaw = camLookYaw - m_yaw;
             while (deltaYaw > 3.14159265f) deltaYaw -= 2.0f * 3.14159265f;
             while (deltaYaw < -3.14159265f) deltaYaw += 2.0f * 3.14159265f;
-            m_yaw += deltaYaw * std::clamp(dt * 26.0f, 0.0f, 1.0f);
+            float snapRate = m_inCover ? 36.0f : 26.0f;
+            m_yaw += deltaYaw * std::clamp(dt * snapRate, 0.0f, 1.0f);
         } else if (isMoving) {
             // Moving / traversing: body faces velocity if sprinting, or camera forward
             float targetYaw = (m_stats.isSprinting && glm::length(m_velocity) > 2.5f)

@@ -146,15 +146,6 @@ void Camera::update(float dt, const glm::vec3& targetPos, const glm::vec2& mouse
         targetDist += 0.35f;
     }
 
-    // Tactical Cover-Aware Camera Framing
-    if (inCover) {
-        targetDist = isAiming ? 1.45f : 1.90f; // Closer over-the-shoulder tactical view
-        targetShoulderY += 0.04f;             // Slightly higher to survey over barriers
-        if (std::abs(coverLean) > 0.001f) {
-            targetShoulderX += coverLean * 0.42f; // Shift shoulder outward toward exposed corner
-        }
-    }
-
     if (eyeHeight < 0.50f) {
         // Organic prone stance camera framing
         targetDist += 0.35f;
@@ -180,6 +171,24 @@ void Camera::update(float dt, const glm::vec3& targetPos, const glm::vec2& mouse
             targetDist = 1.45f;
             targetShoulderX *= 0.80f;
             targetShoulderY += 0.02f;
+        }
+    }
+
+    // Tactical Cover-Aware Camera Framing (Priority override: guarantees 100% clean line-of-sight over barriers)
+    if (inCover) {
+        if (isAiming) {
+            // Over-the-shoulder peeking: pulls back to 2.10m and shifts rightward to 0.65m
+            // Completely clears operator cranium/helmet from center of screen!
+            targetDist = (adsZoomLevel == 2) ? 1.40f : ((adsZoomLevel == 1) ? 1.75f : 2.10f);
+            targetShoulderX = m_shoulderRight ? 0.65f : -0.65f;
+            targetShoulderY = 0.24f; // Elevated survey height over barrier rim
+        } else {
+            targetDist = 2.25f;
+            targetShoulderX = m_shoulderRight ? 0.52f : -0.52f;
+            targetShoulderY = 0.16f;
+        }
+        if (std::abs(coverLean) > 0.001f) {
+            targetShoulderX += coverLean * 0.42f; // Shift shoulder outward toward exposed corner
         }
     }
 

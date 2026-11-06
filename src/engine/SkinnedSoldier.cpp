@@ -1720,6 +1720,34 @@ void SkinnedSoldier::buildPlateCarrierAndGear() {
 
     }
 
+    // --- REAR TACTICAL MOLLE & RESCUE DRAG HANDLE ---
+    // Horizontal MOLLE webbing straps and reinforced Cordura drag handle
+    glm::vec4 molleWebbing(0.18f, 0.17f, 0.15f, 0.85f);
+    for (int row = 0; row < 3; ++row) {
+        float rowY = -0.08f + static_cast<float>(row) * 0.065f;
+        uint32_t mBase = static_cast<uint32_t>(m_bindVertices.size());
+        glm::vec3 mQuad[4] = {
+            chest + glm::vec3(-0.135f, rowY, -0.146f),
+            chest + glm::vec3( 0.135f, rowY, -0.146f),
+            chest + glm::vec3( 0.135f, rowY + 0.022f, -0.146f),
+            chest + glm::vec3(-0.135f, rowY + 0.022f, -0.146f)
+        };
+        for (int k = 0; k < 4; ++k) {
+            SkinnedVertex msv;
+            msv.bindPos = mQuad[k];
+            msv.bindNormal = glm::vec3(0, 0, -1.0f);
+            msv.uv = glm::vec2(0.85f, 0.15f);
+            msv.color = molleWebbing;
+            msv.bone0 = BONE_SPINE_CHEST;
+            msv.bone1 = BONE_SPINE_CHEST;
+            msv.weight0 = 1.0f;
+            msv.part = PART_VEST;
+            m_bindVertices.push_back(msv);
+        }
+        m_indices.push_back(mBase + 0); m_indices.push_back(mBase + 1); m_indices.push_back(mBase + 2);
+        m_indices.push_back(mBase + 0); m_indices.push_back(mBase + 2); m_indices.push_back(mBase + 3);
+    }
+
     // --- PADDED ERGONOMIC SHOULDER STRAPS (Left & Right) ---
 
     for (int s = 0; s < 2; ++s) {
@@ -2790,30 +2818,31 @@ void SkinnedSoldier::buildArmbands() {
         float sX = (side == 0) ? -1.0f : 1.0f;
         uint8_t upperBone = (side == 0) ? BONE_L_UPPER_ARM : BONE_R_UPPER_ARM;
 
-        // Positioned cleanly on bicep between Ring 3 (Y=1.225) and Ring 4 (Y=1.165)
-        // 100% upperBone with exact concentric alignment
-        float yTop = 1.220f;
-        float yMid = 1.195f;
-        float yBot = 1.170f;
+        // Positioned cleanly on bicep between Ring 3 (Y=1.215) and Ring 4 (Y=1.155)
+        // 100% upperBone with exact concentric arm sleeve alignment
+        float yTop = 1.210f;
+        float yMid = 1.185f;
+        float yBot = 1.160f;
         std::vector<float> yLevels = { yTop, yMid, yBot };
 
         std::vector<glm::vec3> bandCenters;
         std::vector<glm::vec2> outerRadii;
         std::vector<glm::vec2> innerRadii;
 
-        glm::vec3 c3(sX * 0.280f, 1.225f, -0.005f);
-        glm::vec3 c4(sX * 0.298f, 1.165f, -0.008f);
+        // Concentric sleeve centers matching arm bone deltoid insertion/bicep
+        glm::vec3 c3(sX * 0.245f, 1.215f, -0.005f);
+        glm::vec3 c4(sX * 0.258f, 1.155f, -0.008f);
         glm::vec2 r3(0.056f, 0.054f);
         glm::vec2 r4(0.054f, 0.052f);
 
         for (float y : yLevels) {
-            float t = (1.225f - y) / (1.225f - 1.165f);
+            float t = (1.215f - y) / (1.215f - 1.155f);
             glm::vec3 c = glm::mix(c3, c4, t);
             glm::vec2 r = glm::mix(r3, r4, t);
             bandCenters.push_back(c);
-            // Generous radial clearance (+7.8mm outer, +5.4mm inner) sits 100% above any sleeve cloth wrinkles
-            outerRadii.push_back(r + glm::vec2(0.0105f, 0.0105f));
-            innerRadii.push_back(r + glm::vec2(0.0035f, 0.0035f));
+            // Form-fitting radial clearance (+2.2mm outer, +0.6mm inner) wraps uniform sleeve snugly with 0% gap/halo
+            outerRadii.push_back(r + glm::vec2(0.0022f, 0.0022f));
+            innerRadii.push_back(r + glm::vec2(0.0006f, 0.0006f));
         }
 
         std::vector<float> bandWeights = { 1.0f, 1.0f, 1.0f };
@@ -3037,7 +3066,7 @@ void SkinnedSoldier::deform(const SkeletonPose& pose,
 
             case PART_ARMBAND:
 
-                keep = (custom.armbandId < 5);
+                keep = (custom.armbandId < 4); // 0: Blue, 1: Red, 2: Yellow, 3: White, 4: None
 
                 break;
 
@@ -3156,13 +3185,13 @@ void SkinnedSoldier::deform(const SkeletonPose& pose,
 
             glm::vec4 armbandColors[5] = {
 
-                glm::vec4(0.12f, 0.52f, 0.95f, 1.0f), // 0: Mercenary Blue
+                glm::vec4(0.14f, 0.44f, 0.88f, 1.0f), // 0: Tactical Mercenary Blue (subdued military IFF, 0% neon halo)
 
-                glm::vec4(0.92f, 0.18f, 0.18f, 1.0f), // 1: Crimson Red
+                glm::vec4(0.88f, 0.18f, 0.18f, 1.0f), // 1: Crimson Red
 
-                glm::vec4(0.95f, 0.85f, 0.12f, 1.0f), // 2: Yellow
+                glm::vec4(0.92f, 0.82f, 0.14f, 1.0f), // 2: Yellow IFF
 
-                glm::vec4(0.95f, 0.95f, 0.95f, 1.0f), // 3: White
+                glm::vec4(0.92f, 0.92f, 0.92f, 1.0f), // 3: White IFF
 
                 glm::vec4(0.40f, 0.40f, 0.30f, 1.0f)
 

@@ -205,10 +205,10 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         while (diff > glm::pi<float>()) diff -= 2.0f * glm::pi<float>();
         while (diff < -glm::pi<float>()) diff += 2.0f * glm::pi<float>();
 
-        // Tactical Combat Aim Stance: When actively aiming or hip-firing, upper body and hips orient smoothly with the aim crosshair
-        if (m_aimWeight > 0.05f) {
+        // Tactical Combat Aim Stance: When actively aiming, firing, or aiming in cover, upper body and hips orient smoothly with the aim crosshair
+        if (m_aimWeight > 0.05f || (m_inCover && m_coverAimWeight > 0.001f) || isFiring) {
             m_stepTurnPhase = StepTurnPhase::Idle;
-            m_lowerBodyYaw += diff * std::clamp(dt * 24.0f, 0.0f, 1.0f);
+            m_lowerBodyYaw += diff * std::clamp(dt * 36.0f, 0.0f, 1.0f);
             m_leftFootPlantedYaw = m_lowerBodyYaw;
             m_rightFootPlantedYaw = m_lowerBodyYaw;
         } else if (std::abs(diff) > glm::radians(105.0f)) {
@@ -970,7 +970,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             while (deltaYaw < -glm::pi<float>()) deltaYaw += 2.0f * glm::pi<float>();
 
             float chestYaw = m_yaw;
-            if (!m_isMoving) {
+            if (!m_isMoving && !(m_inCover && (m_coverAimWeight > 0.001f || m_aimWeight > 0.001f))) {
                 float idleChestYaw = m_lowerBodyYaw;
                 float absDelta = std::abs(deltaYaw);
                 float sign = (deltaYaw > 0.0f) ? 1.0f : -1.0f;

@@ -978,7 +978,7 @@ std::shared_ptr<Mesh> ProceduralMesh::createPineTree() {
     // 3. Realistic Tapered Trunk (height 7.5m)
     appendSmoothCapsule(vertices, indices, {0.0f, 0.1f, 0.0f}, {0.0f, 7.2f, 0.0f}, 0.32f, 0.08f, barkHighlight, 0.0f, 10);
 
-    // 4. Multi-Tier Branched Foliage Canopy (7 tiers from Y=1.8m to Y=7.2m)
+    // 4. Multi-Tier Branched Foliage Canopy (Dense organic pine foliage with sphericalized soft normals)
     struct PineTier {
         float y;
         float radius;
@@ -987,19 +987,19 @@ std::shared_ptr<Mesh> ProceduralMesh::createPineTree() {
     };
 
     PineTier tiers[7] = {
-        { 1.8f, 2.6f, 8, -0.22f },
-        { 2.6f, 2.3f, 8, -0.18f },
-        { 3.5f, 2.0f, 7, -0.15f },
-        { 4.4f, 1.6f, 6, -0.12f },
-        { 5.2f, 1.3f, 6, -0.09f },
-        { 6.0f, 0.95f, 5, -0.06f },
-        { 6.7f, 0.60f, 4, -0.02f }
+        { 1.8f, 2.5f, 10, -0.16f },
+        { 2.6f, 2.2f, 10, -0.14f },
+        { 3.5f, 1.9f, 9,  -0.12f },
+        { 4.4f, 1.55f, 8, -0.10f },
+        { 5.2f, 1.25f, 8, -0.07f },
+        { 6.0f, 0.90f, 6, -0.05f },
+        { 6.7f, 0.55f, 6, -0.02f }
     };
 
     for (int t = 0; t < 7; ++t) {
         const auto& tier = tiers[t];
         float angleStep = 6.2831853f / (float)tier.branchCount;
-        float tierOffset = (float)t * 0.45f;
+        float tierOffset = (float)t * 0.52f;
 
         for (int b = 0; b < tier.branchCount; ++b) {
             float angle = (float)b * angleStep + tierOffset;
@@ -1010,31 +1010,33 @@ std::shared_ptr<Mesh> ProceduralMesh::createPineTree() {
             // Wood branch armature
             glm::vec3 bStart(0.0f, tier.y, 0.0f);
             glm::vec3 bEnd = bStart + branchDir * (tier.radius * 0.85f);
-            appendCylinder(vertices, indices, (bStart + bEnd) * 0.5f, 0.06f - (float)t * 0.006f, glm::length(bEnd - bStart), barkBrown, 5);
+            appendCylinder(vertices, indices, (bStart + bEnd) * 0.5f, 0.055f - (float)t * 0.005f, glm::length(bEnd - bStart), barkBrown, 5);
 
             // Dense foliage needle planes (matType = 5.0f for wind sway & leaf transmission!)
             glm::vec3 sideDir(-sinA, 0.0f, cosA);
-            float w = tier.radius * 0.45f;
+            float w = tier.radius * 0.40f;
             float len = tier.radius;
 
             uint32_t baseIdx = static_cast<uint32_t>(vertices.size());
-            glm::vec3 v0 = bStart - sideDir * (w * 0.2f);
-            glm::vec3 v1 = bStart + sideDir * (w * 0.2f);
-            glm::vec3 v2 = bEnd + sideDir * (w * 0.65f);
-            glm::vec3 v3 = bEnd - sideDir * (w * 0.65f);
+            glm::vec3 v0 = bStart - sideDir * (w * 0.25f);
+            glm::vec3 v1 = bStart + sideDir * (w * 0.25f);
+            glm::vec3 v2 = bEnd + sideDir * (w * 0.55f);
+            glm::vec3 v3 = bEnd - sideDir * (w * 0.55f);
             glm::vec3 tip = bStart + branchDir * len;
 
-            glm::vec3 fn = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+            // Sphericalized soft canopy normal: blends horizontal radial direction with sky upward vector
+            // Eliminates harsh faceted triangular glints at long distances
+            glm::vec3 softN = glm::normalize(glm::vec3(cosA * 0.45f, 0.78f, sinA * 0.45f));
 
             glm::vec4 cBase = (b % 2 == 0) ? needleDark : needleMid;
-            glm::vec4 cTip = needleTip;
+            glm::vec4 cTip = glm::mix(needleMid, needleTip, 0.65f);
 
-            // Two-sided foliage quads
-            vertices.push_back({ v0, fn, {5.0f, 0.0f}, cBase });
-            vertices.push_back({ v1, fn, {5.0f, 0.0f}, cBase });
-            vertices.push_back({ v2, fn, {5.0f, 1.0f}, cTip });
-            vertices.push_back({ v3, fn, {5.0f, 1.0f}, cTip });
-            vertices.push_back({ tip, fn, {5.0f, 1.0f}, cTip });
+            // Two-sided foliage quads with soft normals
+            vertices.push_back({ v0, softN, {5.0f, 0.0f}, cBase });
+            vertices.push_back({ v1, softN, {5.0f, 0.0f}, cBase });
+            vertices.push_back({ v2, softN, {5.0f, 1.0f}, cTip });
+            vertices.push_back({ v3, softN, {5.0f, 1.0f}, cTip });
+            vertices.push_back({ tip, softN, {5.0f, 1.0f}, cTip });
 
             // Triangle 1
             indices.push_back(baseIdx + 0); indices.push_back(baseIdx + 1); indices.push_back(baseIdx + 2);
@@ -1048,8 +1050,8 @@ std::shared_ptr<Mesh> ProceduralMesh::createPineTree() {
         }
     }
 
-    // Top crown pyramid (matType = 5.0f foliage)
-    appendPyramid(vertices, indices, {0.0f, 7.1f, 0.0f}, 0.75f, 0.95f, needleTip, 5.0f);
+    // Top crown rounded cone (matType = 5.0f foliage)
+    appendSmoothCapsule(vertices, indices, {0.0f, 6.8f, 0.0f}, {0.0f, 7.35f, 0.0f}, 0.45f, 0.12f, needleMid, 5.0f, 8);
 
     return std::make_shared<Mesh>(vertices, indices);
 }
