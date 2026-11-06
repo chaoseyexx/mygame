@@ -179,6 +179,11 @@ public:
         m_hasDirectAimPitch = true;
     }
 
+    void setLookYaw(float yawRad) {
+        m_lookYaw = yawRad;
+        m_hasLookYaw = true;
+    }
+
     float getAimPitch() const { return m_aimPitch; }
 
     bool isAiming() const { return m_isAiming; }
@@ -451,6 +456,10 @@ private:
 
     float m_directAimPitch = 0.0f;
     bool m_hasDirectAimPitch = false;
+
+    float m_lookYaw = 0.0f;
+    bool m_hasLookYaw = false;
+    float m_currentChestYaw = 0.0f;
 
     float m_renderPitch = 0.0f;
     float m_weaponLagYaw = 0.0f;

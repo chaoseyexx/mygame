@@ -715,15 +715,15 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
             m_yaw += deltaYaw * std::clamp(dt * 22.0f, 0.0f, 1.0f);
         } else {
             // Standing idle in Low-Ready: Weapon & body stay steady!
-            // Free-look camera: operator only steps/turns if camera rotates beyond 68 degrees deadzone
+            // Free-look camera: operator steps/turns feet when camera rotates beyond 45 degrees
             float diffCam = camLookYaw - m_yaw;
             while (diffCam > 3.14159265f) diffCam -= 2.0f * 3.14159265f;
             while (diffCam < -3.14159265f) diffCam += 2.0f * 3.14159265f;
-            constexpr float IDLE_DEADZONE = 1.1868f; // 68 degrees
+            constexpr float IDLE_DEADZONE = 0.7854f; // 45 degrees
             if (std::abs(diffCam) > IDLE_DEADZONE) {
                 float sign = (diffCam > 0.0f) ? 1.0f : -1.0f;
                 float excess = diffCam - sign * IDLE_DEADZONE;
-                m_yaw += excess * std::clamp(dt * 10.0f, 0.0f, 1.0f);
+                m_yaw += excess * std::clamp(dt * 14.0f, 0.0f, 1.0f);
             }
         }
     }
@@ -1203,6 +1203,9 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         // camera->getPitch(): positive = looking down, negative = looking up
         // CharacterRig sign convention: negative = looking down, positive = looking up
         m_rig.setDirectAimPitch(glm::radians(-camera->getPitch()));
+        float cRad = glm::radians(camera->getYaw());
+        glm::vec3 camFwd(-std::sin(cRad), 0.0f, -std::cos(cRad));
+        m_rig.setLookYaw(std::atan2(camFwd.x, camFwd.z));
     }
 
     // Update character rig IK & frame-accurate weapon matrix before raycasting and weapon firing

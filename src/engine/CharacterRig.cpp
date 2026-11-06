@@ -201,7 +201,8 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         m_prevWalkPhase = m_walkCycle / (2.0f * glm::pi<float>());
 
         // Stationary Turn-in-Place & Progressive Stepping (4 Tiers)
-        float diff = yaw - m_lowerBodyYaw;
+        float effectiveLookYaw = m_hasLookYaw ? m_lookYaw : yaw;
+        float diff = effectiveLookYaw - m_lowerBodyYaw;
         while (diff > glm::pi<float>()) diff -= 2.0f * glm::pi<float>();
         while (diff < -glm::pi<float>()) diff += 2.0f * glm::pi<float>();
 
@@ -416,7 +417,9 @@ void CharacterRig::updateWeaponTransform() {
         float curYaw = glm::mix(idleYaw, 0.0f, m_aimWeight);
         float curRoll = glm::mix(idleRoll, 0.0f, m_aimWeight);
 
-        glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), m_yaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+        float effectiveLookYaw = m_hasLookYaw ? m_lookYaw : m_yaw;
+        float baseWeaponYaw = (m_isMoving || m_aimWeight > 0.1f) ? m_yaw : m_currentChestYaw;
+        glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), baseWeaponYaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
         float finalPitch = m_renderPitch + m_sprintCarryAngle;
         if (std::abs(finalPitch) > 0.001f) {
             wRot = glm::rotate(wRot, finalPitch, glm::vec3(1.0f, 0.0f, 0.0f));
@@ -965,7 +968,8 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             // Tier 2 (24 - 38 deg): Thoracic spine twist. Pelvis and boots remain 100% grounded.
             // Tier 3 (38 - 70 deg): Single-leg step out. Support foot remains 100% grounded.
             // Tier 4 (> 70 deg): Two-beat step turn with lead and trailing foot lifts.
-            float deltaYaw = m_yaw - m_lowerBodyYaw;
+            float effectiveLookYaw = m_hasLookYaw ? m_lookYaw : m_yaw;
+            float deltaYaw = effectiveLookYaw - m_lowerBodyYaw;
             while (deltaYaw > glm::pi<float>()) deltaYaw -= 2.0f * glm::pi<float>();
             while (deltaYaw < -glm::pi<float>()) deltaYaw += 2.0f * glm::pi<float>();
 
@@ -974,21 +978,22 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 float idleChestYaw = m_lowerBodyYaw;
                 float absDelta = std::abs(deltaYaw);
                 float sign = (deltaYaw > 0.0f) ? 1.0f : -1.0f;
-                if (absDelta <= glm::radians(24.0f)) {
-                    // Tier 1: Micro-glance (< 24 deg) - Chest stays locked with hips/lower body
+                if (absDelta <= glm::radians(20.0f)) {
+                    // Tier 1: Micro-glance (< 20 deg) - Head turns freely, chest stays locked with hips
                     idleChestYaw = m_lowerBodyYaw;
-                } else if (absDelta <= glm::radians(38.0f)) {
-                    // Tier 2: Torso twists smoothly with view (24 to 38 deg)
-                    float excess = absDelta - glm::radians(24.0f);
-                    idleChestYaw = m_lowerBodyYaw + sign * (excess * 0.70f);
+                } else if (absDelta <= glm::radians(45.0f)) {
+                    // Tier 2: Torso twists smoothly with view (20 to 45 deg)
+                    float excess = absDelta - glm::radians(20.0f);
+                    idleChestYaw = m_lowerBodyYaw + sign * (excess * 0.65f);
                 } else {
                     // Tier 3 & 4: Upper body tracks view smoothly while stepping
-                    float excess = absDelta - glm::radians(24.0f);
-                    idleChestYaw = m_lowerBodyYaw + sign * std::min(excess * 0.70f, glm::radians(32.0f));
+                    float excess = absDelta - glm::radians(20.0f);
+                    idleChestYaw = m_lowerBodyYaw + sign * std::min(excess * 0.65f, glm::radians(28.0f));
                 }
                 // When aiming, upper body smoothly squares up with the weapon line of sight
-                chestYaw = glm::mix(idleChestYaw, m_yaw, m_aimWeight);
+                chestYaw = glm::mix(idleChestYaw, effectiveLookYaw, m_aimWeight);
             }
+            m_currentChestYaw = chestYaw;
 
             float ccy = std::cos(chestYaw);
             float csy = std::sin(chestYaw);
@@ -1109,7 +1114,9 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     float curYaw = isPistol ? (m_shoulderRight ? -0.10f : 0.10f) : (m_shoulderRight ? -0.32f : 0.32f);
                     float curRoll = isPistol ? 0.0f : (m_shoulderRight ? -0.12f : 0.12f);
 
-                    glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), m_yaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+                    float effectiveLookYaw = m_hasLookYaw ? m_lookYaw : m_yaw;
+        float baseWeaponYaw = (m_isMoving || m_aimWeight > 0.1f) ? m_yaw : m_currentChestYaw;
+        glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), baseWeaponYaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
                     wRot = glm::rotate(wRot, uprightRenderPitch, glm::vec3(1.0f, 0.0f, 0.0f));
                     if (std::abs(curRoll) > 0.001f) {
                         wRot = glm::rotate(wRot, curRoll, glm::vec3(0.0f, 0.0f, 1.0f));
@@ -1154,7 +1161,9 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     float curYaw = glm::mix(idleYaw, 0.0f, m_aimWeight);
                     float curRoll = glm::mix(idleRoll, 0.0f, m_aimWeight);
 
-                    glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), m_yaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+                    float effectiveLookYaw = m_hasLookYaw ? m_lookYaw : m_yaw;
+        float baseWeaponYaw = (m_isMoving || m_aimWeight > 0.1f) ? m_yaw : m_currentChestYaw;
+        glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), baseWeaponYaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
                     wRot = glm::rotate(wRot, uprightRenderPitch, glm::vec3(1.0f, 0.0f, 0.0f));
                     if (std::abs(curRoll) > 0.001f) {
                         wRot = glm::rotate(wRot, curRoll, glm::vec3(0.0f, 0.0f, 1.0f));
@@ -1229,7 +1238,14 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
 
             uprightPose.bonePositions[BONE_HEAD] = headCenter;
             float totalHeadPitch = -m_aimPitch;
-            glm::mat4 headRot = glm::rotate(glm::mat4(1.0f), m_yaw, glm::vec3(0, 1, 0));
+            float headDelta = effectiveLookYaw - chestYaw;
+            while (headDelta > glm::pi<float>()) headDelta -= 2.0f * glm::pi<float>();
+            while (headDelta < -glm::pi<float>()) headDelta += 2.0f * glm::pi<float>();
+            // Natural human cervical spine range: +/- 78 degrees relative to chest
+            float clampedHeadDelta = std::clamp(headDelta, -1.36f, 1.36f);
+            float finalHeadYaw = chestYaw + clampedHeadDelta;
+
+            glm::mat4 headRot = glm::rotate(glm::mat4(1.0f), finalHeadYaw, glm::vec3(0, 1, 0));
             headRot = glm::rotate(headRot, totalHeadPitch, glm::vec3(1, 0, 0));
             uprightPose.boneRotations[BONE_HEAD] = glm::mat3(headRot);
 
@@ -1586,8 +1602,9 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         float curYaw = glm::mix(idleYaw, 0.0f, m_aimWeight);
         float curRoll = glm::mix(idleRoll, 0.0f, m_aimWeight);
 
+        float baseWeaponYaw = (m_isMoving || m_aimWeight > 0.1f) ? m_yaw : m_currentChestYaw;
         glm::mat4 wModel = glm::translate(glm::mat4(1.0f), rifleRoot);
-        wModel = glm::rotate(wModel, m_yaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+        wModel = glm::rotate(wModel, baseWeaponYaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
         if (std::abs(renderPitch) > 0.001f) {
             wModel = glm::rotate(wModel, renderPitch, glm::vec3(1.0f, 0.0f, 0.0f));
         }
