@@ -384,11 +384,9 @@ void CharacterRig::updateWeaponTransform() {
         chestPos.y += coverChestElevation;
 
         const auto& gripCfg = WeaponRigManager::get().getConfig(weaponToDraw);
-        // Tactical Point-Shooting / Combat-Ready Hip Stance:
-        // When not ADS aiming, weapon smoothly tracks camera elevation with a subtle compressed hip depression (0.05 rad),
-        // keeping the barrel pointed forward along the combat line of sight rather than locked down in the dirt!
-        float hipPitchOffset = glm::mix(0.05f, 0.0f, m_aimWeight);
-        m_renderPitch = -m_aimPitch + hipPitchOffset - m_recoilKick * 2.8f;
+        // Relaxed Tactical Low-Ready Idle: When not aiming (m_aimWeight == 0), weapon rests steadily in idle carry.
+        // When aiming (m_aimWeight -> 1), operator brings weapon up to eye line to track aim elevation.
+        m_renderPitch = glm::mix(gripCfg.lowReadyPitch, -m_aimPitch, m_aimWeight) - m_recoilKick * 2.8f;
 
         // Mount weapon directly on cover rim when aiming in low cover
         if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
@@ -1091,8 +1089,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
 
                 } else {
                     const auto& gripCfg = WeaponRigManager::get().getConfig(weaponToDraw);
-                    float hipPitchOffset = glm::mix(0.05f, 0.0f, m_aimWeight);
-                    uprightRenderPitch = -m_aimPitch + hipPitchOffset - m_recoilKick * 2.8f;
+                    uprightRenderPitch = glm::mix(gripCfg.lowReadyPitch, -m_aimPitch, m_aimWeight) - m_recoilKick * 2.8f;
                     if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
                         uprightRenderPitch = glm::mix(uprightRenderPitch, -m_aimPitch * 0.85f, m_coverAimWeight);
                     }

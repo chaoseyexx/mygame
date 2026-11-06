@@ -439,17 +439,11 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     float camRad = glm::radians(cameraYaw);
     glm::vec3 camHorizFwd(-std::sin(camRad), 0.0f, -std::cos(camRad));
 
-    if (aimInfo && aimInfo->hasTarget && glm::dot(aimInfo->worldPos - m_position, camHorizFwd) >= 0.5f) {
-        m_hasTargetLock = true;
-        m_isHeadshotAim = aimInfo->isHeadshot;
-        m_aimTargetInfo = *aimInfo;
-        m_aimTarget = aimInfo->worldPos;
-    } else {
-        m_hasTargetLock = false;
-        m_isHeadshotAim = false;
-        m_aimTargetInfo = AimTargetInfo{};
-        m_aimTarget = mouseWorldPos;
-    }
+    // 100% Manual Tactical Aiming: Zero Aim Assist / No Magnetic Target Snapping
+    m_hasTargetLock = false;
+    m_isHeadshotAim = false;
+    m_aimTargetInfo = AimTargetInfo{};
+    m_aimTarget = mouseWorldPos;
 
     // GTA 5 / Ghost Recon Tactical Cover Assessment
     CoverCandidate cand = findBestCover(m_position, world);
@@ -1698,7 +1692,8 @@ void Player::render(Renderer& renderer, const CharacterCustomization& custom, bo
         auto& weaponOpt = m_inventory.getEquipped(m_activeWeaponSlot);
         if (weaponOpt.has_value()) {
             bool isSprintingFast = m_stats.isSprinting && (glm::length(m_velocity) > 2.5f);
-            if (!isSprintingFast) {
+            bool isActivelyAiming = m_isAiming || (m_rig.getAimWeight() > 0.05f) || (m_fireCooldown > 0.0f);
+            if (isActivelyAiming && !isSprintingFast) {
                 glm::vec3 muzzle = (glm::length(m_rig.getMuzzlePosition()) > 0.1f)
                     ? m_rig.getMuzzlePosition()
                     : (m_position + glm::vec3(0.0f, 1.25f, 0.0f) + glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw)) * 0.75f);
