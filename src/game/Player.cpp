@@ -274,8 +274,9 @@ static SoundType getSurfaceFootstepSound(GroundSurface surface) {
 
 void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldPos, World& world, BallisticsSystem& ballistics, float cameraYaw, Camera* camera, const AimTargetInfo* aimInfo, const std::vector<FrontlineBot>* bots) {
     bool isChatOpen = ChatSystem::get().isChatOpen();
-    bool captureKb = isChatOpen || (ImGui::GetCurrentContext() && (ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantTextInput));
-    bool uiWantsMouse = isChatOpen || (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse);
+    // Only capture keyboard if chat is active, text input is active, or cursor is free (not in-game aim mode)
+    bool captureKb = isChatOpen || (ImGui::GetCurrentContext() && (ImGui::GetIO().WantTextInput || (ImGui::GetIO().WantCaptureKeyboard && !window.isCursorCaptured())));
+    bool uiWantsMouse = isChatOpen || (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse && !window.isCursorCaptured());
     InputConfig& inCfg = InputConfig::get();
     if (m_playerVoiceBarkTimer > 0.0f) m_playerVoiceBarkTimer -= dt;
     updateSpawnProtection(dt);

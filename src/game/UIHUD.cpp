@@ -2435,10 +2435,33 @@ void UIManager::renderAcousticDebugVisualizer(const Player& player, const Camera
     // =========================================================================
     // 3. F3 TACTICAL ACOUSTIC TELEMETRY & CONTROLS WINDOW (ImGui)
     // =========================================================================
+    // On-screen notification when Cursor is manually freed with U
+    if (m_cursorFreed) {
+        float bW = 280.0f;
+        float bH = 26.0f;
+        float bX = (screenW - bW) * 0.5f;
+        float bY = 52.0f;
+        dl->AddRectFilled(ImVec2(bX, bY), ImVec2(bX + bW, bY + bH), IM_COL32(14, 18, 26, 225), 4.0f);
+        dl->AddRect(ImVec2(bX, bY), ImVec2(bX + bW, bY + bH), IM_COL32(255, 205, 45, 240), 4.0f, 0, 1.4f);
+        dl->AddText(ImVec2(bX + 16.0f, bY + 5.0f), IM_COL32(255, 225, 75, 255), "CURSOR FREED [U] - Press U to Lock Aim");
+    }
+
     ImGui::SetNextWindowPos(ImVec2(24.0f, 100.0f), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(340.0f, 320.0f), ImGuiCond_FirstUseEver);
 
-    if (ImGui::Begin("Tactical Acoustic Telemetry [F3]", &m_audioDebugVisualizerEnabled, ImGuiWindowFlags_NoCollapse)) {
+    // Prevent F3 window from stealing keyboard focus from movement unless cursor is freed
+    ImGuiWindowFlags f3Flags = ImGuiWindowFlags_NoCollapse;
+    if (!m_cursorFreed) {
+        f3Flags |= ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavInputs;
+    }
+
+    if (ImGui::Begin("Tactical Acoustic Telemetry [F3]", &m_audioDebugVisualizerEnabled, f3Flags)) {
+        if (!m_cursorFreed) {
+            ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.25f, 1.0f), "[Press 'U' to Unlock Cursor for UI]");
+        } else {
+            ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.5f, 1.0f), "[CURSOR UNLOCKED - Press 'U' to Lock Aim]");
+        }
+        ImGui::Separator();
         ImGui::TextColored(ImVec4(0.2f, 0.9f, 1.0f, 1.0f), "MERCENARY ACOUSTIC SUBSYSTEM");
         ImGui::Separator();
 

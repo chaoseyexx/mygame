@@ -734,10 +734,8 @@ void GameApp::run() {
         // Enter Key: Toggle Tactical Text Chat
         static bool enterPressedLast = false;
         static bool yPressedLast = false;
-        static bool uPressedLast = false;
         bool enterPressed = window.isKeyPressed(GLFW_KEY_ENTER);
         bool yPressed = window.isKeyPressed(GLFW_KEY_Y);
-        bool uPressed = window.isKeyPressed(GLFW_KEY_U);
         bool chatAlreadyOpen = ChatSystem::get().isChatOpen();
         if (!altEnter && ui.getGameState() == GameState::InGame && !ui.isOptionsOpen() && !ui.isEscapeMenuOpen() && !ui.isInventoryOpen()) {
             if (!chatAlreadyOpen) {
@@ -746,14 +744,21 @@ void GameApp::run() {
                 } else if (yPressed && !yPressedLast) {
                     ChatSystem::get().setActiveChannel(ChatChannel::Global);
                     ChatSystem::get().openChat();
-                } else if (uPressed && !uPressedLast) {
-                    ChatSystem::get().setActiveChannel(ChatChannel::Team);
-                    ChatSystem::get().openChat();
                 }
             }
         }
         enterPressedLast = enterPressed;
         yPressedLast = yPressed;
+
+        // U Key: Dedicated Toggle for Free Cursor (UI Interaction vs Aim Lock)
+        static bool s_manualCursorFree = false;
+        static bool uPressedLast = false;
+        bool uPressed = window.isKeyPressed(GLFW_KEY_U);
+        if (uPressed && !uPressedLast && !chatAlreadyOpen && ui.getGameState() == GameState::InGame) {
+            s_manualCursorFree = !s_manualCursorFree;
+            ui.setCursorFreed(s_manualCursorFree);
+            AudioEngine::get().playSound(SoundType::TacticalClick);
+        }
         uPressedLast = uPressed;
 
 
@@ -918,7 +923,8 @@ void GameApp::run() {
                           ui.isMapOpen() || ui.isWeaponWheelOpen() || ChatSystem::get().isChatOpen() ||
                           (ui.getGameState() != GameState::InGame);
 
-            if (inMenu || ui.isAlertWheelOpen() || ui.isWeaponWheelOpen()) {
+            // Free cursor if in menu, or if manually toggled with 'U'
+            if (inMenu || ui.isAlertWheelOpen() || ui.isWeaponWheelOpen() || s_manualCursorFree) {
                 window.setCursorCaptured(false);
             } else {
                 window.setCursorCaptured(true);

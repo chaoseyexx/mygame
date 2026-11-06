@@ -117,6 +117,9 @@ public:
     bool m_audioDebugVisualizerEnabled = false;
     void toggleAudioDebugVisualizer() { m_audioDebugVisualizerEnabled = !m_audioDebugVisualizerEnabled; }
     bool isAudioDebugVisualizerEnabled() const { return m_audioDebugVisualizerEnabled; }
+    bool m_cursorFreed = false;
+    void setCursorFreed(bool freed) { m_cursorFreed = freed; }
+    bool isCursorFreed() const { return m_cursorFreed; }
     void setAudioDebugVisualizerEnabled(bool val) { m_audioDebugVisualizerEnabled = val; }
     void renderAcousticDebugVisualizer(const Player& player, const Camera& camera, float aspectRatio, float screenW, float screenH);
     void clearTacticalPings() { m_tacticalPings.clear(); }
