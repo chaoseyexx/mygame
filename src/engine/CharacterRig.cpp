@@ -154,15 +154,16 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
             // - Combat Jog (3.8 m/s): 1.40m per cycle (cadence ~160 steps/min)
             // - Crouch (2.0 m/s): 0.95m per cycle
             // - Walk / ADS (1.8 m/s): 0.95m per cycle (cadence ~115 steps/min)
+            // Universal Anatomical Law: stanceFraction * strideLength == 0.38m (Max Leg Reach)
             float strideLength;
             if (isSprinting) {
-                strideLength = 1.75f;
+                strideLength = 1.58f;
             } else if (m_stance == 1) {
-                strideLength = 0.85f;
+                strideLength = 0.72f;
             } else if (speed > 2.2f) {
-                strideLength = 1.25f;
+                strideLength = 1.15f;
             } else {
-                strideLength = 0.85f;
+                strideLength = 0.72f;
             }
             strideLength *= (1.0f - 0.20f * cCurve - 0.45f * pCurve);
 
@@ -749,7 +750,16 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             // In AAA games, planted feet are frozen in world space (0.000mm slip).
             // During stance, footPos = plantWorldPos; during swing, foot traverses to forward target.
             bool isSprintGait = m_isSprinting;
-            float stanceFraction = isSprintGait ? 0.34f : 0.58f;
+            float stanceFraction;
+            if (isSprintGait) {
+                stanceFraction = 0.24f;
+            } else if (m_stance == 1) {
+                stanceFraction = 0.52f;
+            } else if (glm::length(m_velocity) > 2.2f) {
+                stanceFraction = 0.33f;
+            } else {
+                stanceFraction = 0.52f;
+            }
             float footBaseX = 0.13f + 0.05f * cCurve;
             float leftLift = 0.0f, rightLift = 0.0f;
 
@@ -799,7 +809,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 float uL = std::fmod(phaseNorm, 1.0f); if (uL < 0.0f) uL += 1.0f;
                 float uR = std::fmod(phaseNorm + 0.5f, 1.0f); if (uR < 0.0f) uR += 1.0f;
 
-                float stepForwardReach = isSprintGait ? 0.22f : 0.17f;
+                float stepForwardReach = 0.185f;
                 stepForwardReach *= (1.0f - 0.20f * cCurve - 0.40f * pCurve);
 
                 // Predictive world-space touchdown targets ahead of player in lower-body frame
