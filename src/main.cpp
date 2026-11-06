@@ -5,6 +5,12 @@
 #include <cassert>
 #ifdef _WIN32
 #include <windows.h>
+// Request high-performance discrete GPU on hybrid / dual-GPU laptops (NVIDIA Optimus & AMD PowerXpress).
+// Fixes OpenGL black screen when capturing via Discord Game Share, OBS Game Capture, or virtual camera.
+extern "C" {
+    __declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
+    __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
 #endif
 
 static int runCollisionTests() {

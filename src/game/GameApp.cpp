@@ -176,7 +176,7 @@ bool GameApp::init(int argc, char* argv[]) {
     config.title = "Mercenary: Frontline Operations [PvPvE Faction Warfare]";
     config.vsync = cfgVsync;
     config.displayMode = isCaptureOrWindowedTest ? WindowDisplayMode::Windowed : 
-                         (cfgFullscreen ? WindowDisplayMode::ExclusiveFullscreen : WindowDisplayMode::FullscreenWindowed);
+                         (cfgFullscreen ? WindowDisplayMode::FullscreenWindowed : WindowDisplayMode::Windowed);
 
     if (!window.init(config)) {
         std::cerr << "Engine fatal: Window init failed.\n";

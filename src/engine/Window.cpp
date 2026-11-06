@@ -87,15 +87,22 @@ bool Window::init(const WindowConfig& config) {
 #ifdef _WIN32
     HWND nativeHwnd = glfwGetWin32Window(m_window);
     if (nativeHwnd) {
+        // Ensure WS_EX_APPWINDOW is set so Discord, OBS, Windows Graphics Capture (WGC),
+        // and the Windows taskbar/DWM recognize the game as a top-level streamable application.
+        LONG_PTR exStyle = GetWindowLongPtr(nativeHwnd, GWL_EXSTYLE);
+        exStyle &= ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
+        exStyle |= WS_EX_APPWINDOW;
+        SetWindowLongPtr(nativeHwnd, GWL_EXSTYLE, exStyle);
+
         if (m_displayMode == WindowDisplayMode::FullscreenWindowed) {
+            // Retain WS_SYSMENU and WS_MINIMIZEBOX so Discord application enumeration
+            // and OBS window capture recognize this as a valid application window rather than a popup tooltip.
             LONG_PTR style = GetWindowLongPtr(nativeHwnd, GWL_STYLE);
-            style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
-            style |= WS_POPUP | WS_VISIBLE;
+            style &= ~(WS_CAPTION | WS_THICKFRAME);
+            style |= WS_POPUP | WS_VISIBLE | WS_SYSMENU | WS_MINIMIZEBOX;
             SetWindowLongPtr(nativeHwnd, GWL_STYLE, style);
             SetWindowPos(nativeHwnd, HWND_TOP, 0, 0, monW, monH, SWP_SHOWWINDOW | SWP_FRAMECHANGED | SWP_NOACTIVATE);
         }
-        BOOL disableTransitions = TRUE;
-        DwmSetWindowAttribute(nativeHwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &disableTransitions, sizeof(disableTransitions));
     }
 #endif
 
@@ -208,9 +215,13 @@ void Window::setDisplayMode(WindowDisplayMode mode) {
 #ifdef _WIN32
         HWND curHwnd = glfwGetWin32Window(m_window);
         if (curHwnd) {
+            LONG_PTR exStyle = GetWindowLongPtr(curHwnd, GWL_EXSTYLE);
+            exStyle |= WS_EX_APPWINDOW;
+            SetWindowLongPtr(curHwnd, GWL_EXSTYLE, exStyle);
+
             LONG_PTR style = GetWindowLongPtr(curHwnd, GWL_STYLE);
-            style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
-            style |= WS_POPUP | WS_VISIBLE;
+            style &= ~(WS_CAPTION | WS_THICKFRAME);
+            style |= WS_POPUP | WS_VISIBLE | WS_SYSMENU | WS_MINIMIZEBOX;
             SetWindowLongPtr(curHwnd, GWL_STYLE, style);
             SetWindowPos(curHwnd, HWND_TOP, 0, 0, monW, monH, SWP_SHOWWINDOW | SWP_FRAMECHANGED | SWP_NOACTIVATE);
         }
@@ -242,12 +253,12 @@ void Window::setDisplayMode(WindowDisplayMode mode) {
 }
 
 void Window::setFullscreen(bool fullscreen) {
-    setDisplayMode(fullscreen ? WindowDisplayMode::ExclusiveFullscreen : WindowDisplayMode::FullscreenWindowed);
+    setDisplayMode(fullscreen ? WindowDisplayMode::FullscreenWindowed : WindowDisplayMode::Windowed);
 }
 
 void Window::toggleFullscreen() {
-    if (m_displayMode == WindowDisplayMode::FullscreenWindowed) {
-        setDisplayMode(WindowDisplayMode::ExclusiveFullscreen);
+    if (m_displayMode == WindowDisplayMode::FullscreenWindowed || m_displayMode == WindowDisplayMode::ExclusiveFullscreen) {
+        setDisplayMode(WindowDisplayMode::Windowed);
     } else {
         setDisplayMode(WindowDisplayMode::FullscreenWindowed);
     }
