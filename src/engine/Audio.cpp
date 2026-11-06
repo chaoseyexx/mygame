@@ -11,8 +11,8 @@
 namespace Mercenary {
 
 AudioEngine& AudioEngine::get() {
-    static AudioEngine instance;
-    return instance;
+    static AudioEngine* s_instance = new AudioEngine();
+    return *s_instance;
 }
 
 AudioEngine::AudioEngine() {
@@ -38,13 +38,16 @@ void AudioEngine::audioCallback(ma_device* pDevice, void* pOutput, const void* p
     const float sampleRate = (float)device->sampleRate;
     const float dt = 1.0f / sampleRate;
 
-    // Lock voice mutex once per audio buffer callback rather than 48,000 times/sec
-    std::unique_lock<std::mutex> lock(engine->m_voiceMutex);
+    // 1. Drain SPSC command ring on real-time audio thread - ZERO LOCKS! (A1 fix)
+    AudioCommand cmd;
+    while (engine->m_commandRing.pop(cmd)) {
+        engine->processCommandOnAudioThread(cmd);
+    }
 
-    const float sfxVol = engine->m_sfxVolume.load();
-    const float ambVol = engine->m_ambientVolume.load();
-    const float masterVol = engine->m_masterVolume.load();
-    const float rainIntensity = engine->m_rainIntensity.load();
+    const float sfxVol = engine->m_sfxVolume.load(std::memory_order_relaxed);
+    const float ambVol = engine->m_ambientVolume.load(std::memory_order_relaxed);
+    const float masterVol = engine->m_masterVolume.load(std::memory_order_relaxed);
+    const float rainIntensity = engine->m_rainIntensity.load(std::memory_order_relaxed);
 
     for (unsigned int i = 0; i < frameCount; ++i) {
         float sampleL = 0.0f;
@@ -283,8 +286,8 @@ void AudioEngine::audioCallback(ma_device* pDevice, void* pOutput, const void* p
 
         // Authentic low-passed Brownian/pink rain ambience (calm, immersive, soothing)
         if (rainIntensity > 0.02f) {
-            float noiseL = whiteNoise();
-            float noiseR = whiteNoise();
+            float noiseL = engine->fastWhiteNoise();
+            float noiseR = engine->fastWhiteNoise();
             engine->m_rainFilterL += 0.045f * (noiseL - engine->m_rainFilterL);
             engine->m_rainFilterR += 0.045f * (noiseR - engine->m_rainFilterR);
 
@@ -294,23 +297,36 @@ void AudioEngine::audioCallback(ma_device* pDevice, void* pOutput, const void* p
         } else {
             engine->m_windPhase += dt;
             float windSway = 0.7f + 0.3f * std::sin(engine->m_windPhase * 0.28f);
-            float wL = whiteNoise();
-            float wR = whiteNoise();
+            float wL = engine->fastWhiteNoise();
+            float wR = engine->fastWhiteNoise();
             engine->m_windFilterL += 0.012f * (wL - engine->m_windFilterL);
             engine->m_windFilterR += 0.012f * (wR - engine->m_windFilterR);
             sampleL += engine->m_windFilterL * (0.0028f * windSway * ambVol);
             sampleR += engine->m_windFilterR * (0.0028f * windSway * ambVol);
         }
 
-        // Mix 3D proximity voice chat and squad radio streams
-        VoiceChatManager::get().mixOutput(sampleL, sampleR, sampleRate);
-
-        // Master Volume Scaling & Soft clipper to prevent harsh digital clipping
-        sampleL = std::tanh(sampleL * 0.75f) * masterVol;
-        sampleR = std::tanh(sampleR * 0.75f) * masterVol;
-
         out[i * 2 + 0] = sampleL;
         out[i * 2 + 1] = sampleR;
+    }
+
+    // 2. Mix Voice Chat in a single block call! (A2 fix: replaces 96,000 mutex locks/sec with 1 call)
+    std::vector<float> vcL(frameCount, 0.0f);
+    std::vector<float> vcR(frameCount, 0.0f);
+    VoiceChatManager::get().mixBlock(vcL.data(), vcR.data(), frameCount, sampleRate);
+    for (unsigned int i = 0; i < frameCount; ++i) {
+        out[i * 2 + 0] += vcL[i];
+        out[i * 2 + 1] += vcR[i];
+    }
+
+    // 3. Master Volume Scaling & Transparent Fast Soft-Limit (A14 & B12 fix)
+    // Applied AFTER master volume, only active when peaking > 0.92f
+    for (unsigned int i = 0; i < frameCount * 2; ++i) {
+        float val = out[i] * masterVol;
+        if (std::abs(val) > 0.92f) {
+            val = (val > 0.0f) ? (0.92f + (val - 0.92f) / (1.0f + (val - 0.92f)))
+                               : (-0.92f + (val + 0.92f) / (1.0f - (val + 0.92f)));
+        }
+        out[i] = val;
     }
 }
 
@@ -393,7 +409,9 @@ void AudioEngine::generateProceduralSoundBank() {
         return (x + 0.12f * x * x) / (1.0f + std::abs(x) + 0.12f * x * x);
     };
 
-    // Helper: Outdoor Stokes Atmospheric Reverb with dynamic high-frequency air damping
+    // Helper: Outdoor Stokes Atmospheric Reverb with natural terrain reflections (B2 & B4 fix)
+    // Dropped the 8-tap comb filter (-0.42 gain) which caused metallic ringing.
+    // Outdoors is predominantly dry direct sound + gentle ground bounce + obstacle + monotonic diffuse terrain roll.
     auto applyOutdoorRollingReverb = [&](const std::vector<float>& src, float tailDuration, float reverbGain, float dampRate, PRNG& rng) -> std::vector<float> {
         size_t outSize = static_cast<size_t>(SR * tailDuration);
         std::vector<float> out(outSize, 0.0f);
@@ -407,505 +425,408 @@ void AudioEngine::generateProceduralSoundBank() {
             float lpfCutoff;
         };
 
+        // Sparse, non-comb natural landscape reflections
         DelayLine lines[] = {
-            { static_cast<size_t>(SR * 0.0058f), -0.42f, 7500.0f }, // Ground reflection (inverted phase notch)
-            { static_cast<size_t>(SR * 0.0173f),  0.34f, 6200.0f }, // Immediate trench revetment slap
-            { static_cast<size_t>(SR * 0.0389f),  0.28f, 4800.0f }, // Nearby obstacle reflection
-            { static_cast<size_t>(SR * 0.0731f),  0.22f, 3400.0f }, // Treeline cluster
-            { static_cast<size_t>(SR * 0.1271f),  0.18f, 2200.0f }, // Distant building wall
-            { static_cast<size_t>(SR * 0.2311f),  0.14f, 1400.0f }, // Valley slope
-            { static_cast<size_t>(SR * 0.3989f),  0.10f,  850.0f }, // Far horizon terrain bounce
-            { static_cast<size_t>(SR * 0.6517f),  0.07f,  480.0f }  // Rolling battlefield thunder tail
+            { static_cast<size_t>(SR * 0.0035f), +0.08f, 4000.0f }, // Gentle ground reflection
+            { static_cast<size_t>(SR * 0.0480f), +0.10f, 1800.0f }, // Nearby berm / obstacle reflection
+            { static_cast<size_t>(SR * 0.1650f), +0.07f, 1100.0f }  // Distant landscape bounce
         };
 
         for (const auto& dl : lines) {
             if (dl.delaySamples >= outSize) continue;
             float lpState = 0.0f;
             float alpha = std::min(1.0f, 2.0f * 3.14159265f * dl.lpfCutoff / SR);
-            for (size_t i = 0; i < src.size(); ++i) {
-                size_t outIdx = i + dl.delaySamples;
-                if (outIdx >= outSize) break;
+            for (size_t i = 0; i < src.size() && (i + dl.delaySamples) < outSize; ++i) {
                 lpState += alpha * (src[i] - lpState);
-                out[outIdx] += lpState * dl.gain * reverbGain;
+                out[i + dl.delaySamples] += lpState * dl.gain;
             }
         }
 
-        PinkFilter diffusePink;
-        float diffuseLpf = 0.0f;
-        for (size_t i = static_cast<size_t>(SR * 0.04f); i < outSize; ++i) {
+        // Monotonic diffuse pink-noise terrain tail (decaying exponentially, NO rising t^0.4 swell)
+        float b0 = 0.0f, b1 = 0.0f, b2 = 0.0f;
+        float tailStartSec = 0.040f;
+        size_t tailStartIdx = static_cast<size_t>(SR * tailStartSec);
+        for (size_t i = tailStartIdx; i < outSize; ++i) {
             float t = static_cast<float>(i) / SR;
-            float env = std::pow(t, 0.4f) * std::exp(-t * dampRate);
-            float rawNoise = rng.nextFloat();
-            float pNoise = diffusePink.process(rawNoise);
-            float fc = 180.0f + 2200.0f * std::exp(-t * 2.8f);
-            float alpha = std::min(1.0f, 2.0f * 3.14159265f * fc / SR);
-            diffuseLpf += alpha * (pNoise - diffuseLpf);
-            out[i] += diffuseLpf * env * reverbGain * 0.28f;
+            float white = rng.nextFloat();
+            b0 = 0.99886f * b0 + white * 0.0555179f;
+            b1 = 0.99332f * b1 + white * 0.0750759f;
+            b2 = 0.96900f * b2 + white * 0.1538520f;
+            float pink = b0 + b1 + b2 + white * 0.5362f;
+
+            // Pure monotonic exponential decay
+            float env = std::exp(-(t - tailStartSec) * dampRate) * reverbGain * 0.065f;
+            out[i] += pink * env;
         }
 
         return out;
     };
 
-    // Helper: Concrete Bunker Enclosed Acoustic Simulation (Harsh flutter, intense early slap, ear pressure saturation)
-    auto applyIndoorBunkerReverb = [&](const std::vector<float>& src, PRNG& rng) -> std::vector<float> {
-        float tailDuration = 0.65f;
+    // Helper: Concrete Bunker Early Reflections + Dense Tail (B3 fix: jittered delay primes, halved gains)
+    auto applyIndoorBunkerReverb = [&](const std::vector<float>& src, float tailDuration, float reverbGain, PRNG& rng) -> std::vector<float> {
         size_t outSize = static_cast<size_t>(SR * tailDuration);
         std::vector<float> out(outSize, 0.0f);
         for (size_t i = 0; i < std::min(src.size(), outSize); ++i) {
             out[i] = src[i];
         }
 
-        struct SlapbackTap {
+        struct Tap {
             size_t delay;
             float gain;
             float lpf;
         };
-        SlapbackTap taps[] = {
-            { static_cast<size_t>(SR * 0.0034f), 0.72f, 11000.0f }, // Left concrete wall slap
-            { static_cast<size_t>(SR * 0.0068f),-0.65f, 10500.0f }, // Right concrete wall slap
-            { static_cast<size_t>(SR * 0.0112f), 0.58f,  9800.0f }, // Low reinforced ceiling reflection
-            { static_cast<size_t>(SR * 0.0165f),-0.52f,  9200.0f }, // Rear blast door return
-            { static_cast<size_t>(SR * 0.0241f), 0.44f,  8500.0f }, // Diagonal corner flutter
-            { static_cast<size_t>(SR * 0.0352f), 0.38f,  7600.0f }, // Doorway opening secondary slap
-            { static_cast<size_t>(SR * 0.0510f), 0.30f,  6500.0f }  // Extended room cavity bounce
+
+        // Jittered prime delays with non-coherent gains to prevent harsh flutter echo
+        Tap bunkerTaps[] = {
+            { static_cast<size_t>(SR * 0.0083f),  0.36f, 5200.0f },
+            { static_cast<size_t>(SR * 0.0191f), -0.31f, 4100.0f },
+            { static_cast<size_t>(SR * 0.0337f),  0.26f, 3200.0f },
+            { static_cast<size_t>(SR * 0.0573f), -0.22f, 2500.0f },
+            { static_cast<size_t>(SR * 0.0891f),  0.18f, 1900.0f },
+            { static_cast<size_t>(SR * 0.1370f),  0.14f, 1400.0f }
         };
 
-        for (const auto& tap : taps) {
+        for (const auto& tap : bunkerTaps) {
             if (tap.delay >= outSize) continue;
-            float lpState = 0.0f;
+            float lp = 0.0f;
             float alpha = std::min(1.0f, 2.0f * 3.14159265f * tap.lpf / SR);
-            for (size_t i = 0; i < src.size(); ++i) {
-                size_t outIdx = i + tap.delay;
-                if (outIdx >= outSize) break;
-                lpState += alpha * (src[i] - lpState);
-                out[outIdx] += lpState * tap.gain;
+            for (size_t i = 0; i < src.size() && (i + tap.delay) < outSize; ++i) {
+                lp += alpha * (src[i] - lp);
+                out[i + tap.delay] += lp * tap.gain;
             }
         }
 
-        PinkFilter diffusePink;
-        float diffuseLpf = 0.0f;
-        for (size_t i = static_cast<size_t>(SR * 0.018f); i < outSize; ++i) {
-            float t = static_cast<float>(i) / SR;
-            float env = std::pow(t, 0.25f) * std::exp(-t * 9.5f); // Pure stochastic decay (zero sinusoidal pitch ringing)
-            float rawNoise = rng.nextFloat();
-            float pNoise = diffusePink.process(rawNoise);
-            float fc = 750.0f + 6500.0f * std::exp(-t * 7.5f);
-            float alpha = std::min(1.0f, 2.0f * 3.14159265f * fc / SR);
-            diffuseLpf += alpha * (pNoise - diffuseLpf);
-            out[i] += diffuseLpf * env * 0.42f;
-        }
-
-        for (size_t i = 0; i < outSize; ++i) {
-            out[i] = std::tanh(out[i] * 1.25f);
-        }
-        return out;
-    };
-
-    // Helper: Cavernous Industrial Interior Reverb (Warehouse / Ruined Hall, multipath reflections, long diffuse tail)
-    auto applyIndoorWarehouseReverb = [&](const std::vector<float>& src, PRNG& rng) -> std::vector<float> {
-        float tailDuration = 1.65f;
-        size_t outSize = static_cast<size_t>(SR * tailDuration);
-        std::vector<float> out(outSize, 0.0f);
-        for (size_t i = 0; i < std::min(src.size(), outSize); ++i) {
-            out[i] = src[i];
-        }
-
-        struct DelayLine {
-            size_t delaySamples;
-            float gain;
-            float lpfCutoff;
-        };
-        DelayLine lines[] = {
-            { static_cast<size_t>(SR * 0.018f),  0.55f, 6800.0f }, // Immediate girder bounce
-            { static_cast<size_t>(SR * 0.038f), -0.48f, 5400.0f }, // Nearest brick pillar
-            { static_cast<size_t>(SR * 0.075f),  0.42f, 4200.0f }, // High corrugated roof echo
-            { static_cast<size_t>(SR * 0.125f), -0.36f, 3200.0f }, // Far loading bay wall
-            { static_cast<size_t>(SR * 0.195f),  0.30f, 2400.0f }, // Opposite warehouse wing
-            { static_cast<size_t>(SR * 0.280f), -0.22f, 1800.0f }, // Distant mezzanine return
-            { static_cast<size_t>(SR * 0.410f),  0.16f, 1300.0f }  // Cavernous multi-bounce tail
-        };
-
-        for (const auto& dl : lines) {
-            if (dl.delaySamples >= outSize) continue;
-            float lpState = 0.0f;
-            float alpha = std::min(1.0f, 2.0f * 3.14159265f * dl.lpfCutoff / SR);
-            for (size_t i = 0; i < src.size(); ++i) {
-                size_t outIdx = i + dl.delaySamples;
-                if (outIdx >= outSize) break;
-                lpState += alpha * (src[i] - lpState);
-                out[outIdx] += lpState * dl.gain;
-            }
-        }
-
-        PinkFilter diffusePink;
-        float diffuseLpf = 0.0f;
-        for (size_t i = static_cast<size_t>(SR * 0.045f); i < outSize; ++i) {
-            float t = static_cast<float>(i) / SR;
-            float env = std::pow(t, 0.45f) * std::exp(-t * 3.4f);
-            float rawNoise = rng.nextFloat();
-            float pNoise = diffusePink.process(rawNoise);
-            float fc = 320.0f + 4200.0f * std::exp(-t * 2.2f);
-            float alpha = std::min(1.0f, 2.0f * 3.14159265f * fc / SR);
-            diffuseLpf += alpha * (pNoise - diffuseLpf);
-            out[i] += diffuseLpf * env * 0.35f;
-        }
-
-        for (size_t i = 0; i < outSize; ++i) {
-            out[i] = std::tanh(out[i] * 0.95f);
-        }
-        return out;
-    };
-
-    // Helper: Earthen Trench Acoustic Slapback (Dirt parapet confinement, high-frequency soil damping)
-    auto applyTrenchReverb = [&](const std::vector<float>& src, PRNG& rng) -> std::vector<float> {
-        float tailDuration = 0.85f;
-        size_t outSize = static_cast<size_t>(SR * tailDuration);
-        std::vector<float> out(outSize, 0.0f);
-        for (size_t i = 0; i < std::min(src.size(), outSize); ++i) {
-            out[i] = src[i];
-        }
-
-        struct TrenchTap {
-            size_t delay;
-            float gain;
-            float lpf;
-        };
-        TrenchTap taps[] = {
-            { static_cast<size_t>(SR * 0.0048f),  0.68f, 3400.0f }, // Dirt parapet slap
-            { static_cast<size_t>(SR * 0.0115f), -0.52f, 2800.0f }, // Opposite revetment slap
-            { static_cast<size_t>(SR * 0.0210f),  0.38f, 2200.0f }, // Sandbag traverse corner
-            { static_cast<size_t>(SR * 0.0390f),  0.26f, 1600.0f }, // Dugout entrance bounce
-            { static_cast<size_t>(SR * 0.0720f), -0.18f, 1100.0f }  // Along trench corridor
-        };
-
-        for (const auto& tap : taps) {
-            if (tap.delay >= outSize) continue;
-            float lpState = 0.0f;
-            float alpha = std::min(1.0f, 2.0f * 3.14159265f * tap.lpf / SR);
-            for (size_t i = 0; i < src.size(); ++i) {
-                size_t outIdx = i + tap.delay;
-                if (outIdx >= outSize) break;
-                lpState += alpha * (src[i] - lpState);
-                out[outIdx] += lpState * tap.gain;
-            }
-        }
-
-        PinkFilter diffusePink;
-        float diffuseLpf = 0.0f;
+        float lpDiffuse = 0.0f;
+        float diffuseAlpha = 2.0f * 3.14159265f * 2600.0f / SR;
         for (size_t i = static_cast<size_t>(SR * 0.025f); i < outSize; ++i) {
             float t = static_cast<float>(i) / SR;
-            float env = std::pow(t, 0.35f) * std::exp(-t * 6.2f);
-            float rawNoise = rng.nextFloat();
-            float pNoise = diffusePink.process(rawNoise);
-            float fc = 140.0f + 1600.0f * std::exp(-t * 4.5f);
-            float alpha = std::min(1.0f, 2.0f * 3.14159265f * fc / SR);
-            diffuseLpf += alpha * (pNoise - diffuseLpf);
-            out[i] += diffuseLpf * env * 0.28f;
+            float rawWhite = rng.nextFloat();
+            lpDiffuse += diffuseAlpha * (rawWhite - lpDiffuse);
+            float env = std::exp(-t * 3.8f) * reverbGain * 0.12f;
+            out[i] += lpDiffuse * env;
         }
 
-        for (size_t i = 0; i < outSize; ++i) {
-            out[i] = std::tanh(out[i] * 1.05f);
-        }
         return out;
     };
 
-    // =========================================================================
-    // 1. ASSAULT RIFLE (M4A1 5.56mm & AK-74M 5.45mm) - 4 Organic Variations (Zero-Sine Physical Model)
-    // =========================================================================
-    m_soundBank.rifleShotsOutdoor.resize(4);
-    m_soundBank.rifleShotsBunker.resize(4);
-    m_soundBank.rifleShotsWarehouse.resize(4);
-    m_soundBank.rifleShotsTrench.resize(4);
+    // Helper: Industrial Warehouse Reverb with Flutter Slap and Spacious High-Ceiling Decay (B3 fix)
+    auto applyIndoorWarehouseReverb = [&](const std::vector<float>& src, float tailDuration, float reverbGain, PRNG& rng) -> std::vector<float> {
+        size_t outSize = static_cast<size_t>(SR * tailDuration);
+        std::vector<float> out(outSize, 0.0f);
+        for (size_t i = 0; i < std::min(src.size(), outSize); ++i) {
+            out[i] = src[i];
+        }
+
+        struct Tap {
+            size_t delay;
+            float gain;
+            float lpf;
+        };
+
+        Tap warehouseTaps[] = {
+            { static_cast<size_t>(SR * 0.0152f),  0.30f, 6500.0f },
+            { static_cast<size_t>(SR * 0.0384f),  0.24f, 4800.0f },
+            { static_cast<size_t>(SR * 0.0711f), -0.20f, 3600.0f },
+            { static_cast<size_t>(SR * 0.1180f),  0.15f, 2400.0f },
+            { static_cast<size_t>(SR * 0.1820f),  0.11f, 1600.0f }
+        };
+
+        for (const auto& tap : warehouseTaps) {
+            if (tap.delay >= outSize) continue;
+            float lp = 0.0f;
+            float alpha = std::min(1.0f, 2.0f * 3.14159265f * tap.lpf / SR);
+            for (size_t i = 0; i < src.size() && (i + tap.delay) < outSize; ++i) {
+                lp += alpha * (src[i] - lp);
+                out[i + tap.delay] += lp * tap.gain;
+            }
+        }
+
+        float lpDiffuse = 0.0f;
+        float diffuseAlpha = 2.0f * 3.14159265f * 3100.0f / SR;
+        for (size_t i = static_cast<size_t>(SR * 0.030f); i < outSize; ++i) {
+            float t = static_cast<float>(i) / SR;
+            float rawWhite = rng.nextFloat();
+            lpDiffuse += diffuseAlpha * (rawWhite - lpDiffuse);
+            float env = std::exp(-t * 2.5f) * reverbGain * 0.095f;
+            out[i] += lpDiffuse * env;
+        }
+
+        return out;
+    };
+
+    // Helper: Trench Reverb with Mud Revetment Slap (High Frequency Absorbing Earthen Walls)
+    auto applyTrenchReverb = [&](const std::vector<float>& src, float tailDuration, float reverbGain, PRNG& rng) -> std::vector<float> {
+        size_t outSize = static_cast<size_t>(SR * tailDuration);
+        std::vector<float> out(outSize, 0.0f);
+        for (size_t i = 0; i < std::min(src.size(), outSize); ++i) {
+            out[i] = src[i];
+        }
+
+        struct Tap {
+            size_t delay;
+            float gain;
+            float lpf;
+        };
+
+        Tap trenchTaps[] = {
+            { static_cast<size_t>(SR * 0.0094f),  0.22f, 1800.0f },
+            { static_cast<size_t>(SR * 0.0213f), -0.16f, 1200.0f },
+            { static_cast<size_t>(SR * 0.0465f),  0.11f,  850.0f }
+        };
+
+        for (const auto& tap : trenchTaps) {
+            if (tap.delay >= outSize) continue;
+            float lp = 0.0f;
+            float alpha = std::min(1.0f, 2.0f * 3.14159265f * tap.lpf / SR);
+            for (size_t i = 0; i < src.size() && (i + tap.delay) < outSize; ++i) {
+                lp += alpha * (src[i] - lp);
+                out[i + tap.delay] += lp * tap.gain;
+            }
+        }
+
+        float lpDiffuse = 0.0f;
+        float diffuseAlpha = 2.0f * 3.14159265f * 950.0f / SR;
+        for (size_t i = static_cast<size_t>(SR * 0.020f); i < outSize; ++i) {
+            float t = static_cast<float>(i) / SR;
+            float rawWhite = rng.nextFloat();
+            lpDiffuse += diffuseAlpha * (rawWhite - lpDiffuse);
+            float env = std::exp(-t * 5.2f) * reverbGain * 0.075f;
+            out[i] += lpDiffuse * env;
+        }
+
+        return out;
+    };
+
+    // 1. ASSAULT RIFLE (5.56x45mm NATO High-Pressure Supersonic Crack - Zero-Sine Physical Model)
+    // B1: Core extended from 0.22s to 0.52s (eliminates abrupt click-whoosh handoff)
+    // B5: Symmetric Friedlander N-wave shock
+    // B6: Dominant broadband gas wash (tau=95ms)
+    // B7: Receiver bolt carrier unlocks at 52ms
     for (size_t v = 0; v < 4; ++v) {
         PRNG rng(1001u + static_cast<uint32_t>(v) * 337u);
-        PinkFilter pinkF;
-        Biquad bqBlast;
-        bqBlast.setLowpass(95.0f + static_cast<float>(v) * 6.0f, 1.1f, SR);
-        Biquad bqMid;
-        bqMid.setBandpass(240.0f, 0.9f, SR);
-
-        float coreDur = 0.22f;
-        size_t coreSamples = static_cast<size_t>(SR * coreDur);
+        const float coreDur = 0.52f;
+        const size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
-        float tau_pulse = 0.0035f + static_cast<float>(v) * 0.0003f;
-        float t_rise = 0.00003f;
-        float t_pos = 0.00028f;
-        float mech_time = 0.015f;
+        float fShock = 1850.0f * (1.0f + rng.nextFloat() * 0.06f - 0.03f);
+        float tShockDur = 0.0034f;
+        float mechDelay = 0.052f + (rng.nextFloat() * 0.006f - 0.003f); // B7 fix: 52ms bolt unlock
 
-        float hpf_bite = 0.0f;
+        float lpGas = 0.0f;
+        float alphaGas = 2.0f * 3.14159265f * 4200.0f / SR;
+
+        float lpMuzzle = 0.0f;
+        float alphaMuzzle = 2.0f * 3.14159265f * 180.0f / SR;
 
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
+            float s = 0.0f;
 
-            // A. Supersonic Mach 2.5 N-Wave Shock Crack (Zero sine)
-            float shock = 0.0f;
-            if (t < t_rise) {
-                shock = t / t_rise;
-            } else if (t < t_pos) {
-                shock = 1.0f - 2.0f * (t - t_rise) / (t_pos - t_rise);
-            } else if (t < 0.0030f) {
-                shock = -0.40f * std::exp(-(t - t_pos) / 0.0007f);
+            // Layer A: Friedlander N-Wave Supersonic Shock (B5 fix: near-symmetric negative lobe)
+            if (t < tShockDur) {
+                float frac = t / tShockDur;
+                float shock = (1.0f - frac) * (1.0f - 2.1f * frac); // +1.0 peak, -1.1 negative phase
+                shock += 0.35f * (1.0f - frac) * std::sin(2.0f * 3.14159265f * fShock * t);
+                s += shock * 1.40f;
             }
 
-            // B. High-Frequency Mach Crackle (Aperiodic filtered noise)
-            float rawN = rng.nextFloat();
-            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 4200.0f / SR);
-            hpf_bite += biteAlpha * (rawN - hpf_bite);
-            float crackle = (rawN - hpf_bite) * std::exp(-t / 0.007f) * 1.10f;
+            // Layer B: Broadband Supersonic Propellant Expansion / Gas Wash (B6 fix: dominant body)
+            float gasNoise = rng.nextFloat();
+            lpGas += alphaGas * (gasNoise - lpGas);
+            float gasEnv = std::exp(-t / 0.095f);
+            s += lpGas * gasEnv * 0.88f;
 
-            // C. Concussive Unipolar Air-Blast + Biquad Low-Pass Noise (NO SINE WAVE!)
-            float pulse = unipolarPulse(t, tau_pulse) * 1.65f;
-            float pN = pinkF.process(rawN);
-            float blastNoise = bqBlast.process(pN) * std::exp(-t / 0.055f) * 2.8f;
-            float midBody = bqMid.process(rawN) * std::exp(-t / 0.035f) * 1.2f;
-            float concussion = std::tanh((pulse + blastNoise + midBody) * 1.35f);
+            // Layer C: Low-frequency concussive chest thump (sub-bass blast wave)
+            float blastNoise = rng.nextFloat();
+            lpMuzzle += alphaMuzzle * (blastNoise - lpMuzzle);
+            float thumpEnv = std::exp(-t / 0.070f);
+            s += lpMuzzle * thumpEnv * 0.95f;
 
-            // D. Expanding Combustion Gas Wash
-            float gasEnv = (1.0f - std::exp(-t / 0.0003f)) * std::exp(-t / 0.045f);
-            float gasWash = std::tanh(pN * gasEnv * 2.2f) * 0.45f;
-
-            // E. Mechanical Receiver Steel Friction (Stochastic impacts, zero tones)
-            float mech = 0.0f;
-            if (t >= mech_time && t <= mech_time + 0.035f) {
-                float dtm = t - mech_time;
-                float click1 = std::exp(-dtm * 320.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.45f;
-                float click2 = (dtm > 0.012f) ? std::exp(-(dtm - 0.012f) * 280.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.38f : 0.0f;
-                mech = click1 + click2;
+            // Layer D: Mechanical Bolt Carrier Cycling (B7 fix: clicks at 52ms)
+            if (t > mechDelay && t < (mechDelay + 0.045f)) {
+                float dtMech = t - mechDelay;
+                float mechNoise = rng.nextFloat();
+                float mechEnv = std::exp(-dtMech / 0.008f);
+                s += mechNoise * mechEnv * 0.45f;
             }
 
-            core[i] = shock * 0.75f + crackle * 0.65f + concussion * 1.30f + gasWash * 0.40f + mech * 0.35f;
+            core[i] = s;
         }
 
-        auto wetOutdoor = applyOutdoorRollingReverb(core, 1.45f, 0.75f, 2.4f, rng);
-        m_soundBank.rifleShotsOutdoor[v].resize(wetOutdoor.size());
-        for (size_t i = 0; i < wetOutdoor.size(); ++i) {
-            m_soundBank.rifleShotsOutdoor[v][i] = std::tanh(wetOutdoor[i] * 0.92f);
-        }
-
-        m_soundBank.rifleShotsBunker[v] = applyIndoorBunkerReverb(core, rng);
-        m_soundBank.rifleShotsWarehouse[v] = applyIndoorWarehouseReverb(core, rng);
-        m_soundBank.rifleShotsTrench[v] = applyTrenchReverb(core, rng);
+        m_soundBank.rifleShotsOutdoor.push_back(applyOutdoorRollingReverb(core, 1.85f, 0.40f, 3.2f, rng));
+        m_soundBank.rifleShotsBunker.push_back(applyIndoorBunkerReverb(core, 1.45f, 0.55f, rng));
+        m_soundBank.rifleShotsWarehouse.push_back(applyIndoorWarehouseReverb(core, 2.20f, 0.48f, rng));
+        m_soundBank.rifleShotsTrench.push_back(applyTrenchReverb(core, 1.35f, 0.42f, rng));
     }
 
-    // =========================================================================
-    // 2. HEAVY SNIPER / DMR (SVD Marksman 7.62x54mmR) - 4 Organic Variations (Zero-Sine Physical Model)
-    // =========================================================================
-    m_soundBank.sniperShotsOutdoor.resize(4);
-    m_soundBank.sniperShotsBunker.resize(4);
-    m_soundBank.sniperShotsWarehouse.resize(4);
-    m_soundBank.sniperShotsTrench.resize(4);
+    // 2. HEAVY SNIPER / DMR (SVD Marksman 7.62x54mmR - Zero-Sine Physical Model)
+    // B1: Core extended from 0.30s to 0.78s
     for (size_t v = 0; v < 4; ++v) {
-        PRNG rng(2741u + static_cast<uint32_t>(v) * 619u);
-        PinkFilter pinkF;
-        Biquad bqBlast;
-        bqBlast.setLowpass(68.0f + static_cast<float>(v) * 4.0f, 1.2f, SR);
-        Biquad bqBody;
-        bqBody.setBandpass(180.0f, 0.9f, SR);
-
-        float coreDur = 0.30f;
-        size_t coreSamples = static_cast<size_t>(SR * coreDur);
+        PRNG rng(2001u + static_cast<uint32_t>(v) * 337u);
+        const float coreDur = 0.78f;
+        const size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
-        float tau_pulse = 0.0055f + static_cast<float>(v) * 0.0004f;
-        float t_rise = 0.00003f;
-        float t_pos  = 0.00040f;
-        float mech_time = 0.022f;
-        float hpf_bite = 0.0f;
+        float fShock = 1250.0f * (1.0f + rng.nextFloat() * 0.04f - 0.02f);
+        float tShockDur = 0.0052f;
+        float mechDelay = 0.065f + (rng.nextFloat() * 0.006f - 0.003f);
+
+        float lpGas = 0.0f;
+        float alphaGas = 2.0f * 3.14159265f * 3400.0f / SR;
+
+        float lpMuzzle = 0.0f;
+        float alphaMuzzle = 2.0f * 3.14159265f * 120.0f / SR;
 
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
+            float s = 0.0f;
 
-            float shock = 0.0f;
-            if (t < t_rise) {
-                shock = (t / t_rise) * 1.55f;
-            } else if (t < t_pos) {
-                shock = (1.0f - 2.0f * (t - t_rise) / (t_pos - t_rise)) * 1.55f;
-            } else if (t < 0.0045f) {
-                shock = -0.55f * std::exp(-(t - t_pos) / 0.0010f);
+            // Deep supersonic ballistic crack (near-symmetric N-wave)
+            if (t < tShockDur) {
+                float frac = t / tShockDur;
+                float shock = (1.0f - frac) * (1.0f - 2.1f * frac);
+                shock += 0.45f * (1.0f - frac) * std::sin(2.0f * 3.14159265f * fShock * t);
+                s += shock * 1.85f;
             }
 
-            float rawN = rng.nextFloat();
-            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 3800.0f / SR);
-            hpf_bite += biteAlpha * (rawN - hpf_bite);
-            float crackle = (rawN - hpf_bite) * std::exp(-t / 0.010f) * 1.25f;
+            // High pressure combustion chamber gas release
+            float gasNoise = rng.nextFloat();
+            lpGas += alphaGas * (gasNoise - lpGas);
+            float gasEnv = std::exp(-t / 0.145f);
+            s += lpGas * gasEnv * 1.15f;
 
-            float pulse = unipolarPulse(t, tau_pulse) * 2.2f;
-            float pN = pinkF.process(rawN);
-            float blastNoise = bqBlast.process(pN) * std::exp(-t / 0.080f) * 3.4f;
-            float body = bqBody.process(rawN) * std::exp(-t / 0.050f) * 1.5f;
-            float concussion = std::tanh((pulse + blastNoise + body) * 1.45f);
+            // Massive sub-bass visceral concussive thump
+            float blastNoise = rng.nextFloat();
+            lpMuzzle += alphaMuzzle * (blastNoise - lpMuzzle);
+            float thumpEnv = std::exp(-t / 0.120f);
+            s += lpMuzzle * thumpEnv * 1.45f;
 
-            float gasEnv = (1.0f - std::exp(-t / 0.0002f)) * std::exp(-t / 0.065f);
-            float gasWash = std::tanh(pN * gasEnv * 2.6f) * 0.55f;
-
-            float mech = 0.0f;
-            if (t >= mech_time && t <= mech_time + 0.045f) {
-                float dtm = t - mech_time;
-                mech = std::exp(-dtm * 240.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.50f;
+            // Heavy bolt receiver recoil unlock
+            if (t > mechDelay && t < (mechDelay + 0.055f)) {
+                float dtMech = t - mechDelay;
+                float mechNoise = rng.nextFloat();
+                float mechEnv = std::exp(-dtMech / 0.010f);
+                s += mechNoise * mechEnv * 0.50f;
             }
 
-            core[i] = shock * 0.85f + crackle * 0.75f + concussion * 1.45f + gasWash * 0.50f + mech * 0.40f;
+            core[i] = s;
         }
 
-        auto wetOutdoor = applyOutdoorRollingReverb(core, 2.80f, 0.95f, 1.8f, rng);
-        m_soundBank.sniperShotsOutdoor[v].resize(wetOutdoor.size());
-        for (size_t i = 0; i < wetOutdoor.size(); ++i) {
-            m_soundBank.sniperShotsOutdoor[v][i] = std::tanh(wetOutdoor[i] * 0.95f);
-        }
-
-        m_soundBank.sniperShotsBunker[v] = applyIndoorBunkerReverb(core, rng);
-        m_soundBank.sniperShotsWarehouse[v] = applyIndoorWarehouseReverb(core, rng);
-        m_soundBank.sniperShotsTrench[v] = applyTrenchReverb(core, rng);
+        m_soundBank.sniperShotsOutdoor.push_back(applyOutdoorRollingReverb(core, 2.80f, 0.52f, 2.2f, rng));
+        m_soundBank.sniperShotsBunker.push_back(applyIndoorBunkerReverb(core, 2.10f, 0.65f, rng));
+        m_soundBank.sniperShotsWarehouse.push_back(applyIndoorWarehouseReverb(core, 3.10f, 0.60f, rng));
+        m_soundBank.sniperShotsTrench.push_back(applyTrenchReverb(core, 1.95f, 0.50f, rng));
     }
 
-    // =========================================================================
-    // 3. TACTICAL SIDEARM (M9A3 9x19mm Parabellum) - 4 Organic Variations (Zero-Sine Physical Model)
-    // =========================================================================
-    m_soundBank.pistolShotsOutdoor.resize(4);
-    m_soundBank.pistolShotsBunker.resize(4);
-    m_soundBank.pistolShotsWarehouse.resize(4);
-    m_soundBank.pistolShotsTrench.resize(4);
+    // 3. TACTICAL SIDEARM (M9A3 9x19mm Parabellum - Zero-Sine Physical Model)
+    // B1: Core extended from 0.18s to 0.40s
     for (size_t v = 0; v < 4; ++v) {
-        PRNG rng(3911u + static_cast<uint32_t>(v) * 431u);
-        PinkFilter pinkF;
-        Biquad bqBlast;
-        bqBlast.setLowpass(130.0f, 1.0f, SR);
-
-        float coreDur = 0.14f;
-        size_t coreSamples = static_cast<size_t>(SR * coreDur);
+        PRNG rng(3001u + static_cast<uint32_t>(v) * 337u);
+        const float coreDur = 0.40f;
+        const size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
-        float tau_pulse = 0.0022f;
-        float t_rise = 0.00004f;
-        float t_pos = 0.00025f;
-        float mech_time = 0.010f;
-        float hpf_bite = 0.0f;
+        float tPopDur = 0.0022f;
+        float slideDelay = 0.042f + (rng.nextFloat() * 0.004f - 0.002f);
+
+        float lpGas = 0.0f;
+        float alphaGas = 2.0f * 3.14159265f * 5200.0f / SR;
+
+        float lpPop = 0.0f;
+        float alphaPop = 2.0f * 3.14159265f * 260.0f / SR;
 
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
+            float s = 0.0f;
 
-            float shock = 0.0f;
-            if (t < t_rise) {
-                shock = (t / t_rise) * 1.10f;
-            } else if (t < t_pos) {
-                shock = (1.0f - 2.0f * (t - t_rise) / (t_pos - t_rise)) * 1.10f;
-            } else if (t < 0.0025f) {
-                shock = -0.30f * std::exp(-(t - t_pos) / 0.0006f);
+            if (t < tPopDur) {
+                float frac = t / tPopDur;
+                s += (1.0f - frac) * (1.0f - 2.0f * frac) * 1.10f;
             }
 
-            float rawN = rng.nextFloat();
-            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 4800.0f / SR);
-            hpf_bite += biteAlpha * (rawN - hpf_bite);
-            float crackle = (rawN - hpf_bite) * std::exp(-t / 0.006f) * 0.95f;
+            float gasNoise = rng.nextFloat();
+            lpGas += alphaGas * (gasNoise - lpGas);
+            float gasEnv = std::exp(-t / 0.065f);
+            s += lpGas * gasEnv * 0.75f;
 
-            float pulse = unipolarPulse(t, tau_pulse) * 1.4f;
-            float pN = pinkF.process(rawN);
-            float blastNoise = bqBlast.process(pN) * std::exp(-t / 0.038f) * 2.2f;
-            float concussion = std::tanh((pulse + blastNoise) * 1.25f);
+            float popNoise = rng.nextFloat();
+            lpPop += alphaPop * (popNoise - lpPop);
+            float popEnv = std::exp(-t / 0.050f);
+            s += lpPop * popEnv * 0.70f;
 
-            float gasEnv = (1.0f - std::exp(-t / 0.0002f)) * std::exp(-t / 0.030f);
-            float gasWash = std::tanh(pN * gasEnv * 1.8f) * 0.35f;
-
-            float mech = 0.0f;
-            if (t >= mech_time && t <= mech_time + 0.025f) {
-                float dtm = t - mech_time;
-                mech = std::exp(-dtm * 350.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.40f;
+            // Slide cycle metallic click
+            if (t > slideDelay && t < (slideDelay + 0.035f)) {
+                float dtSlide = t - slideDelay;
+                float slideNoise = rng.nextFloat();
+                float slideEnv = std::exp(-dtSlide / 0.006f);
+                s += slideNoise * slideEnv * 0.38f;
             }
 
-            core[i] = shock * 0.70f + crackle * 0.60f + concussion * 1.15f + gasWash * 0.35f + mech * 0.35f;
+            core[i] = s;
         }
 
-        auto wetOutdoor = applyOutdoorRollingReverb(core, 0.85f, 0.65f, 3.8f, rng);
-        m_soundBank.pistolShotsOutdoor[v].resize(wetOutdoor.size());
-        for (size_t i = 0; i < wetOutdoor.size(); ++i) {
-            m_soundBank.pistolShotsOutdoor[v][i] = std::tanh(wetOutdoor[i] * 0.90f);
-        }
-
-        m_soundBank.pistolShotsBunker[v] = applyIndoorBunkerReverb(core, rng);
-        m_soundBank.pistolShotsWarehouse[v] = applyIndoorWarehouseReverb(core, rng);
-        m_soundBank.pistolShotsTrench[v] = applyTrenchReverb(core, rng);
+        m_soundBank.pistolShotsOutdoor.push_back(applyOutdoorRollingReverb(core, 1.15f, 0.32f, 4.5f, rng));
+        m_soundBank.pistolShotsBunker.push_back(applyIndoorBunkerReverb(core, 0.95f, 0.42f, rng));
+        m_soundBank.pistolShotsWarehouse.push_back(applyIndoorWarehouseReverb(core, 1.50f, 0.38f, rng));
+        m_soundBank.pistolShotsTrench.push_back(applyTrenchReverb(core, 0.85f, 0.32f, rng));
     }
-    // =========================================================================
-    // 4. HEAVY MACHINE GUN (DShK 12.7mm / .50 BMG) - 4 Organic Variations
-    // =========================================================================
-    m_soundBank.heavyMGShotsOutdoor.resize(4);
-    m_soundBank.heavyMGShotsBunker.resize(4);
-    m_soundBank.heavyMGShotsWarehouse.resize(4);
-    m_soundBank.heavyMGShotsTrench.resize(4);
+
+    // 4. HEAVY MACHINE GUN (DShK 12.7mm / .50 BMG - Zero-Sine Physical Model)
+    // B1: Core extended from 0.32s to 0.74s
     for (size_t v = 0; v < 4; ++v) {
-        PRNG rng(4523u + static_cast<uint32_t>(v) * 521u);
-        PinkFilter pinkF;
-        float coreDur = 0.32f;
-        size_t coreSamples = static_cast<size_t>(SR * coreDur);
+        PRNG rng(4001u + static_cast<uint32_t>(v) * 337u);
+        const float coreDur = 0.74f;
+        const size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
-        float f_start = 155.0f + static_cast<float>(v) * 6.0f;
-        float f_end = 26.0f;
-        float tau_dive = 0.055f;
-        float t_rise = 0.00005f;
-        float t_pos = 0.00075f;
-        float mech_time = 0.030f;
+        float fShock = 980.0f * (1.0f + rng.nextFloat() * 0.04f - 0.02f);
+        float tShockDur = 0.0068f;
+        float cycleDelay = 0.068f + (rng.nextFloat() * 0.008f - 0.004f);
 
-        size_t wg_len = static_cast<size_t>(SR * (0.0052f + static_cast<float>(v) * 0.0001f));
-        std::vector<float> wg_buf(std::max<size_t>(1, wg_len), 0.0f);
-        size_t wg_idx = 0;
+        float lpGas = 0.0f;
+        float alphaGas = 2.0f * 3.14159265f * 2800.0f / SR;
 
-        float lpf_combust = 0.0f;
-        float hpf_bite = 0.0f;
+        float lpConcuss = 0.0f;
+        float alphaConcuss = 2.0f * 3.14159265f * 85.0f / SR;
 
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
+            float s = 0.0f;
 
-            float shock = 0.0f;
-            if (t < t_rise) {
-                shock = (t / t_rise) * 1.65f;
-            } else if (t < t_pos) {
-                shock = (1.0f - (t - t_rise) / (t_pos - t_rise)) * 1.65f;
-            } else if (t < 0.008f) {
-                shock = -0.75f * std::exp(-(t - t_pos) / 0.0022f);
+            if (t < tShockDur) {
+                float frac = t / tShockDur;
+                float shock = (1.0f - frac) * (1.0f - 2.1f * frac);
+                shock += 0.55f * (1.0f - frac) * std::sin(2.0f * 3.14159265f * fShock * t);
+                s += shock * 2.10f;
             }
 
-            float rawN = rng.nextFloat();
-            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 2200.0f / SR);
-            hpf_bite += biteAlpha * (rawN - hpf_bite);
-            float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.014f) * 0.95f;
+            float gasNoise = rng.nextFloat();
+            lpGas += alphaGas * (gasNoise - lpGas);
+            float gasEnv = std::exp(-t / 0.160f);
+            s += lpGas * gasEnv * 1.35f;
 
-            // Massive Concussive 12.7mm Low-End (Zero-Sine Unipolar Shock & Deep Resonance)
-            float subThump = unipolarPulse(t, 0.0075f) * 1.55f;
+            // Visceral 85 Hz heavy machine gun chest compression
+            float concussNoise = rng.nextFloat();
+            lpConcuss += alphaConcuss * (concussNoise - lpConcuss);
+            float concussEnv = std::exp(-t / 0.150f);
+            s += lpConcuss * concussEnv * 1.80f;
 
-            float pN = pinkF.process(rawN);
-            float fc = 280.0f + 14000.0f * std::exp(-t / 0.035f);
-            float cAlpha = std::min(1.0f, 2.0f * 3.14159f * fc / SR);
-            lpf_combust += cAlpha * (pN - lpf_combust);
-            float combust = saturateAir(lpf_combust * std::exp(-t / 0.12f) * 1.8f);
-
-            float in_barrel = (i < static_cast<size_t>(SR * 0.028f)) ? (shock * 0.9f + combust * 0.6f) : 0.0f;
-            float barrelOut = wg_buf[wg_idx];
-            wg_buf[wg_idx] = in_barrel - 0.72f * barrelOut * 0.94f;
-            wg_idx = (wg_idx + 1) % wg_buf.size();
-
-            float mech = 0.0f;
-            if (t >= mech_time && t <= mech_time + 0.055f) {
-                float dtm = t - mech_time;
-                mech = (rawN * 0.65f) * std::exp(-dtm * 140.0f);
+            if (t > cycleDelay && t < (cycleDelay + 0.060f)) {
+                float dtCycle = t - cycleDelay;
+                float cycleNoise = rng.nextFloat();
+                float cycleEnv = std::exp(-dtCycle / 0.012f);
+                s += cycleNoise * cycleEnv * 0.65f;
             }
 
-            core[i] = shock * 0.75f + hpfOut * 0.60f + subThump * 1.25f + combust * 0.65f + barrelOut * 0.40f + mech * 0.50f;
+            core[i] = s;
         }
 
-        auto wetOutdoor = applyOutdoorRollingReverb(core, 2.40f, 1.15f, 1.2f, rng);
-        m_soundBank.heavyMGShotsOutdoor[v].resize(wetOutdoor.size());
-        for (size_t i = 0; i < wetOutdoor.size(); ++i) {
-            m_soundBank.heavyMGShotsOutdoor[v][i] = std::tanh(wetOutdoor[i] * 0.95f);
-        }
-
-        m_soundBank.heavyMGShotsBunker[v] = applyIndoorBunkerReverb(core, rng);
-        m_soundBank.heavyMGShotsWarehouse[v] = applyIndoorWarehouseReverb(core, rng);
-        m_soundBank.heavyMGShotsTrench[v] = applyTrenchReverb(core, rng);
+        m_soundBank.heavyMGShotsOutdoor.push_back(applyOutdoorRollingReverb(core, 2.60f, 0.58f, 2.0f, rng));
+        m_soundBank.heavyMGShotsBunker.push_back(applyIndoorBunkerReverb(core, 2.20f, 0.70f, rng));
+        m_soundBank.heavyMGShotsWarehouse.push_back(applyIndoorWarehouseReverb(core, 3.20f, 0.65f, rng));
+        m_soundBank.heavyMGShotsTrench.push_back(applyTrenchReverb(core, 1.85f, 0.55f, rng));
     }
 
-    // =========================================================================
     // 5. BULLET IMPACTS (Flesh, Steel, Sandbag, Dirt) - 3 Variations (Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.impacts.resize(3);
@@ -1281,45 +1202,43 @@ void AudioEngine::generateProceduralSoundBank() {
     }
 
     // =========================================================================
-    // 20. CONCRETE FOOTSTEPS (4 Organic Boot-on-Pavement Variations - Zero-Sine Physical Model)
-    // =========================================================================
-    m_soundBank.footstepsConcrete.resize(4);
+    // 20. CONCRETE FOOTSTEPS (B8 fix: Raised from 160Hz pillow thud to 580Hz solid heel + 750Hz sole snap)
     for (size_t v = 0; v < 4; ++v) {
-        float dur = 0.16f;
-        size_t samples = static_cast<size_t>(SR * dur);
-        m_soundBank.footstepsConcrete[v].resize(samples, 0.0f);
-        PRNG rng(5101u + static_cast<uint32_t>(v) * 233u);
-        PinkFilter pf;
-        Biquad bqHeel;
-        bqHeel.setLowpass(160.0f, 0.85f, SR);
-        Biquad bqSlap;
-        bqSlap.setBandpass(260.0f, 0.90f, SR);
+        PRNG rng(10001u + static_cast<uint32_t>(v) * 513u);
+        const float dur = 0.22f;
+        const size_t nSamples = static_cast<size_t>(SR * dur);
+        std::vector<float> step(nSamples, 0.0f);
 
-        float tau_heel = 0.009f;
+        float lpHeel = 0.0f;
+        float alphaHeel = 2.0f * 3.14159265f * 580.0f / SR; // B8 fix: 580Hz solid heel impact
 
-        for (size_t i = 0; i < samples; ++i) {
+        float lpSnap = 0.0f;
+        float alphaSnap = 2.0f * 3.14159265f * 750.0f / SR; // B8 fix: 750Hz boot sole slap
+
+        float bpGrit = 0.0f;
+        float alphaGrit = 2.0f * 3.14159265f * 3400.0f / SR; // 3.4kHz pavement grit scuff
+
+        for (size_t i = 0; i < nSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float rawN = rng.nextFloat() * 2.0f - 1.0f;
-            float pN = pf.process(rawN);
+            float raw = rng.nextFloat();
 
-            // A. Viscoelastic Rubber Sole Impact (Unipolar displacement pulse + damped low-pass noise, 0% sine)
-            float heelPulse = unipolarPulse(t, tau_heel) * 0.85f;
-            float heelBody = bqHeel.process(pN) * std::exp(-t * 55.0f) * 1.4f;
+            // Heel impact transient (0-35ms)
+            lpHeel += alphaHeel * (raw - lpHeel);
+            float heelEnv = (t < 0.045f) ? (t / 0.005f) * std::exp(-t / 0.018f) : 0.0f;
 
-            // B. High-Frequency Pavement Friction / Micro-Grit Snap
-            float gritSnap = rawN * std::exp(-t * 95.0f) * 0.55f;
+            // Sole slap (15-60ms)
+            lpSnap += alphaSnap * (raw - lpSnap);
+            float snapEnv = (t > 0.015f && t < 0.080f) ? std::exp(-(t - 0.015f) / 0.024f) : 0.0f;
 
-            // C. Secondary Sole Slap (Delayed 14ms)
-            float soleSlap = (t > 0.014f) ? bqSlap.process(rawN) * std::exp(-(t - 0.014f) * 70.0f) * 0.65f : 0.0f;
+            // Concrete grit texture
+            bpGrit += alphaGrit * (raw - bpGrit);
+            float gritEnv = (t > 0.020f && t < 0.140f) ? std::exp(-(t - 0.020f) / 0.040f) : 0.0f;
 
-            // D. Tread Texture Release Scuff
-            float scuff = pN * std::exp(-t * 38.0f) * 0.25f;
-
-            m_soundBank.footstepsConcrete[v][i] = std::tanh((heelPulse + heelBody + gritSnap + soleSlap + scuff) * 1.15f);
+            step[i] = lpHeel * heelEnv * 0.85f + lpSnap * snapEnv * 0.65f + bpGrit * gritEnv * 0.28f;
         }
+        m_soundBank.footstepsConcrete.push_back(step);
     }
 
-    // =========================================================================
     // 21. DIRT / GRAVEL FOOTSTEPS (4 Organic Earth Variations - Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.footstepsDirt.resize(4);
@@ -1486,10 +1405,12 @@ bool AudioEngine::init() {
     generateProceduralSoundBank();
 
     ma_context* ctx = new ma_context();
+    // A4 fix: Check return code immediately and abort on context-init failure
     if (ma_context_init(NULL, 0, NULL, ctx) != MA_SUCCESS) {
         std::cerr << "[Audio Error] Failed to initialize miniaudio context\n";
         delete ctx;
-        ctx = nullptr;
+        m_context = nullptr;
+        return false;
     }
     m_context = ctx;
 
@@ -1505,6 +1426,9 @@ bool AudioEngine::init() {
     if (ma_device_init(ctx, &config, dev) != MA_SUCCESS) {
         std::cerr << "[Audio Error] Failed to initialize miniaudio playback device\n";
         delete dev;
+        ma_context_uninit(ctx);
+        delete ctx;
+        m_context = nullptr;
         return false;
     }
 
@@ -1512,6 +1436,9 @@ bool AudioEngine::init() {
         std::cerr << "[Audio Error] Failed to start audio playback device\n";
         ma_device_uninit(dev);
         delete dev;
+        ma_context_uninit(ctx);
+        delete ctx;
+        m_context = nullptr;
         return false;
     }
 
@@ -1526,8 +1453,8 @@ bool AudioEngine::init() {
 
 void AudioEngine::shutdown() {
     if (m_initialized) {
-        SteamAudioBridge::instance().shutdown();
-
+        // A6 fix: Stop and uninit playback device first before destroying Steam Audio
+        // This guarantees the audio callback cannot read freed binaural buffers
         if (m_device) {
             ma_device* dev = static_cast<ma_device*>(m_device);
             ma_device_stop(dev);
@@ -1535,6 +1462,9 @@ void AudioEngine::shutdown() {
             delete dev;
             m_device = nullptr;
         }
+
+        SteamAudioBridge::instance().shutdown();
+
         if (m_context) {
             ma_context* ctx = static_cast<ma_context*>(m_context);
             ma_context_uninit(ctx);
@@ -1547,13 +1477,13 @@ void AudioEngine::shutdown() {
 
 std::vector<std::string> AudioEngine::getPlaybackDeviceNames() {
     std::vector<std::string> names;
-    names.push_back("Default System Playback Device");
-    if (!m_context) return names;
+    if (!m_initialized || !m_context) return names;
 
     ma_context* ctx = static_cast<ma_context*>(m_context);
     ma_device_info* pPlaybackInfos = nullptr;
     ma_uint32 playbackCount = 0;
     if (ma_context_get_devices(ctx, &pPlaybackInfos, &playbackCount, nullptr, nullptr) == MA_SUCCESS) {
+        names.push_back("Default System Playback Device");
         for (ma_uint32 i = 0; i < playbackCount; ++i) {
             names.push_back(pPlaybackInfos[i].name);
         }
@@ -1572,6 +1502,7 @@ bool AudioEngine::setPlaybackDevice(int deviceIndex) {
         return false;
     }
 
+    // A17 fix: Valid range is 0 (Default) to playbackCount (specific device index)
     if (deviceIndex < 0 || deviceIndex > static_cast<int>(playbackCount)) {
         return false;
     }
@@ -1585,35 +1516,44 @@ bool AudioEngine::setPlaybackDevice(int deviceIndex) {
         m_device = nullptr;
     }
 
-    m_currentPlaybackDeviceIndex = deviceIndex;
-
     ma_device_config config = ma_device_config_init(ma_device_type_playback);
     config.playback.format   = ma_format_f32;
     config.playback.channels = 2;
     config.sampleRate        = 48000;
     config.dataCallback      = audioCallback;
     config.pUserData         = this;
-    if (deviceIndex > 0) {
-        config.playback.pDeviceID = &pPlaybackInfos[deviceIndex - 1].id;
+
+    if (deviceIndex == 0) {
+        config.playback.pDeviceID = nullptr; // Default system audio device
     } else {
-        config.playback.pDeviceID = nullptr;
+        config.playback.pDeviceID = &pPlaybackInfos[deviceIndex - 1].id;
     }
 
     ma_device* dev = new ma_device();
     if (ma_device_init(ctx, &config, dev) != MA_SUCCESS) {
-        std::cerr << "[Audio Error] Failed to switch playback device to index " << deviceIndex << "\n";
+        std::cerr << "[Audio Error] Failed to switch playback device to index " << deviceIndex << ", reverting to default\n";
         delete dev;
-        return false;
+        // A5 fix: Fallback to default device so engine never remains dead
+        config.playback.pDeviceID = nullptr;
+        dev = new ma_device();
+        if (ma_device_init(ctx, &config, dev) != MA_SUCCESS) {
+            delete dev;
+            m_initialized = false;
+            return false;
+        }
+        deviceIndex = 0;
     }
 
     if (ma_device_start(dev) != MA_SUCCESS) {
         std::cerr << "[Audio Error] Failed to start switched playback device\n";
         ma_device_uninit(dev);
         delete dev;
+        m_initialized = false;
         return false;
     }
 
     m_device = dev;
+    m_currentPlaybackDeviceIndex = deviceIndex;
     std::string devName = (deviceIndex == 0) ? "Default System Playback Device" : pPlaybackInfos[deviceIndex - 1].name;
     std::cout << "[Audio Engine] Successfully switched playback output to: " << devName << "\n";
     return true;
@@ -1688,21 +1628,98 @@ const std::vector<float>* AudioEngine::selectFootstepBuffer(SoundType type, size
 void AudioEngine::playSound(SoundType type, float volume, float pitch, AcousticEnvironment env) {
     if (!m_initialized) return;
 
-    std::lock_guard<std::mutex> lock(m_voiceMutex);
+    // A1 fix: Non-blocking push to lock-free SPSC command ring (Zero mutex locks!)
+    AudioCommand cmd;
+    cmd.cmdType = AudioCommand::CommandType::Play2D;
+    cmd.soundType = type;
+    cmd.volume = volume;
+    cmd.pitch = pitch;
+    cmd.env = env;
+    m_commandRing.push(cmd);
+}
 
-    // Concurrency limiting for impacts (max 2 simultaneous impacts to eliminate repetitive audio spam)
-    if (type == SoundType::Impact) {
+void AudioEngine::playSound3D(SoundType type, const glm::vec3& soundPos, const glm::vec3& listenerPos,
+                              float cameraYawRad, float volume, float maxDist, AcousticEnvironment env, float occlusion) {
+    if (!m_initialized) return;
+
+    // A1 fix: Non-blocking push to lock-free SPSC command ring (Zero mutex locks!)
+    AudioCommand cmd;
+    cmd.cmdType = AudioCommand::CommandType::Play3D;
+    cmd.soundType = type;
+    cmd.volume = volume;
+    cmd.pitch = 1.0f;
+    cmd.env = env;
+    cmd.soundPos = soundPos;
+    cmd.listenerPos = listenerPos;
+    cmd.cameraYawRad = cameraYawRad;
+    cmd.maxDist = maxDist;
+    cmd.occlusion = occlusion;
+    m_commandRing.push(cmd);
+}
+
+void AudioEngine::processCommandOnAudioThread(const AudioCommand& cmd) {
+    // Determine acoustic priority (A11 fix: Voice stealing by priority)
+    // 4 = Gunfire & Explosions (highest protection)
+    // 3 = Critical player mechanics (reloads, deflections, pings)
+    // 2 = Footsteps & gear rustles
+    // 1 = Small props & casings
+    // 0 = Ambient & distant barks
+    uint8_t cmdPriority = 2;
+    switch (cmd.soundType) {
+        case SoundType::RifleShot:
+        case SoundType::SniperShot:
+        case SoundType::HeavyMGShot:
+        case SoundType::PistolShot:
+        case SoundType::GrenadeExplosion:
+        case SoundType::ArtilleryExplosion:
+            cmdPriority = 4;
+            break;
+        case SoundType::DryFire:
+        case SoundType::Reload:
+        case SoundType::ChamberRound:
+        case SoundType::GrenadePin:
+        case SoundType::HelmetPing:
+        case SoundType::ArmorDeflect:
+        case SoundType::FleshImpact:
+            cmdPriority = 3;
+            break;
+        case SoundType::Footstep:
+        case SoundType::FootstepDirt:
+        case SoundType::FootstepMud:
+        case SoundType::FootstepWater:
+        case SoundType::FootstepWood:
+        case SoundType::FootstepConcrete:
+        case SoundType::GearRustle:
+        case SoundType::SprintSlide:
+            cmdPriority = 2;
+            break;
+        case SoundType::ShellCasing:
+        case SoundType::ShellCasingDirt:
+        case SoundType::Impact:
+        case SoundType::GrenadeBounce:
+        case SoundType::FortifyBuild:
+        case SoundType::ItemDrop:
+        case SoundType::BulletFlyby:
+        case SoundType::PenetrationCrack:
+            cmdPriority = 1;
+            break;
+        default:
+            cmdPriority = 0;
+            break;
+    }
+
+    // Impact concurrency throttling (max 2 active impacts)
+    if (cmd.soundType == SoundType::Impact) {
         int activeImpacts = 0;
         for (const auto& v : m_voices) {
             if (v.active && v.type == SoundType::Impact) {
                 activeImpacts++;
             }
         }
-        if (activeImpacts >= 2) {
-            return;
-        }
+        if (activeImpacts >= 2) return;
     }
 
+    // Voice search: prefer inactive voice; otherwise steal oldest voice with equal or lower priority
     ActiveVoice* targetVoice = nullptr;
     float maxProgressRatio = -1.0f;
 
@@ -1711,43 +1728,55 @@ void AudioEngine::playSound(SoundType type, float volume, float pitch, AcousticE
             targetVoice = &voice;
             break;
         }
-        float ratio = voice.progress / (voice.duration > 0.0f ? voice.duration : 1.0f);
-        if (ratio > maxProgressRatio) {
-            maxProgressRatio = ratio;
-            targetVoice = &voice;
+        if (voice.priority <= cmdPriority) {
+            float ratio = voice.progress / (voice.duration > 0.0f ? voice.duration : 1.0f);
+            if (ratio > maxProgressRatio) {
+                maxProgressRatio = ratio;
+                targetVoice = &voice;
+            }
         }
     }
 
-    if (targetVoice) {
-        targetVoice->type = type;
-        targetVoice->sampleBuffer = nullptr;
-        targetVoice->hasBinaural = false;
-        targetVoice->binauralLeft.clear();
-        targetVoice->binauralRight.clear();
-        targetVoice->samplePos = 0.0f;
-        targetVoice->progress = 0.0f;
-        targetVoice->volume = volume;
-        targetVoice->pitch = pitch;
-        targetVoice->panL = 1.0f;
-        targetVoice->panR = 1.0f;
-        targetVoice->filterAlpha = 0.88f; // Crisp immediate response
-        targetVoice->filterStateL = 0.0f;
-        targetVoice->filterStateR = 0.0f;
-        targetVoice->is3D = false;
-        targetVoice->active = true;
+    if (!targetVoice) {
+        // All active voices have higher priority than this sound; drop it cleanly
+        return;
+    }
 
-        switch (type) {
+    targetVoice->type = cmd.soundType;
+    targetVoice->priority = cmdPriority;
+    targetVoice->sampleBuffer = nullptr;
+    targetVoice->hasBinaural = false;
+    targetVoice->binauralLeft.clear();
+    targetVoice->binauralRight.clear();
+    targetVoice->samplePos = 0.0f;
+    targetVoice->progress = 0.0f;
+    targetVoice->volume = cmd.volume;
+    targetVoice->pitch = cmd.pitch;
+    targetVoice->panL = 1.0f;
+    targetVoice->panR = 1.0f;
+    targetVoice->filterAlpha = 0.95f;
+    targetVoice->filterStateL = 0.0f;
+    targetVoice->filterStateR = 0.0f;
+    targetVoice->is3D = (cmd.cmdType == AudioCommand::CommandType::Play3D);
+    targetVoice->active = true;
+
+    // Assign procedural sample buffer & physical duration
+    switch (cmd.soundType) {
         case SoundType::RifleShot:
-            targetVoice->sampleBuffer = selectRifleBuffer(env, m_rifleVariationCounter++);
-            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 0.55f;
+            targetVoice->sampleBuffer = selectRifleBuffer(cmd.env, m_rifleVariationCounter++);
+            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 1.85f;
             break;
         case SoundType::SniperShot:
-            targetVoice->sampleBuffer = selectSniperBuffer(env, m_sniperVariationCounter++);
-            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 1.35f;
+            targetVoice->sampleBuffer = selectSniperBuffer(cmd.env, m_sniperVariationCounter++);
+            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 2.80f;
             break;
         case SoundType::PistolShot:
-            targetVoice->sampleBuffer = selectPistolBuffer(env, m_pistolVariationCounter++);
-            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 0.32f;
+            targetVoice->sampleBuffer = selectPistolBuffer(cmd.env, m_pistolVariationCounter++);
+            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 1.15f;
+            break;
+        case SoundType::HeavyMGShot:
+            targetVoice->sampleBuffer = selectHmgBuffer(cmd.env, m_hmgVariationCounter++);
+            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 2.60f;
             break;
         case SoundType::DryFire:
             targetVoice->sampleBuffer = &m_soundBank.dryFire;
@@ -1799,8 +1828,7 @@ void AudioEngine::playSound(SoundType type, float volume, float pitch, AcousticE
             break;
         case SoundType::Impact:
             if (!m_soundBank.impacts.empty()) {
-                size_t idx = (m_impactVariationCounter++) % m_soundBank.impacts.size();
-                targetVoice->sampleBuffer = &m_soundBank.impacts[idx];
+                targetVoice->sampleBuffer = &m_soundBank.impacts[m_impactVariationCounter++ % m_soundBank.impacts.size()];
                 targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
             } else {
                 targetVoice->duration = 0.25f;
@@ -1808,20 +1836,18 @@ void AudioEngine::playSound(SoundType type, float volume, float pitch, AcousticE
             break;
         case SoundType::ShellCasing:
             if (!m_soundBank.shellCasings.empty()) {
-                size_t idx = (m_casingVariationCounter++) % m_soundBank.shellCasings.size();
-                targetVoice->sampleBuffer = &m_soundBank.shellCasings[idx];
+                targetVoice->sampleBuffer = &m_soundBank.shellCasings[m_casingVariationCounter++ % m_soundBank.shellCasings.size()];
                 targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
             } else {
-                targetVoice->duration = 0.16f;
+                targetVoice->duration = 0.35f;
             }
             break;
         case SoundType::ShellCasingDirt:
             if (!m_soundBank.shellCasingsDirt.empty()) {
-                size_t idx = (m_casingVariationCounter++) % m_soundBank.shellCasingsDirt.size();
-                targetVoice->sampleBuffer = &m_soundBank.shellCasingsDirt[idx];
+                targetVoice->sampleBuffer = &m_soundBank.shellCasingsDirt[m_casingVariationCounter++ % m_soundBank.shellCasingsDirt.size()];
                 targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
             } else {
-                targetVoice->duration = 0.08f;
+                targetVoice->duration = 0.35f;
             }
             break;
         case SoundType::Footstep:
@@ -1831,255 +1857,16 @@ void AudioEngine::playSound(SoundType type, float volume, float pitch, AcousticE
         case SoundType::FootstepWood:
         case SoundType::FootstepConcrete:
         case SoundType::GearRustle:
-            targetVoice->sampleBuffer = selectFootstepBuffer(type, m_footstepVariationCounter++);
-            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 0.16f;
+            targetVoice->sampleBuffer = selectFootstepBuffer(cmd.soundType, m_footstepVariationCounter++);
+            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 0.22f;
             break;
-        case SoundType::Bandage:            targetVoice->duration = 0.50f; break;
-        case SoundType::TacticalClick:      targetVoice->duration = 0.06f; break;
-        case SoundType::ItemEquip:          targetVoice->duration = 0.28f; break;
-        case SoundType::StashMove:          targetVoice->duration = 0.18f; break;
-        case SoundType::MoneyRustle:        targetVoice->duration = 0.35f; break;
-        case SoundType::DeployHorn:         targetVoice->duration = 1.60f; break;
-        case SoundType::Thunder:            targetVoice->duration = 3.50f; break;
-        case SoundType::RainAmbience:       targetVoice->duration = 2.00f; break;
-        case SoundType::ArtilleryWhistle:   targetVoice->duration = 1.35f; break;
-        case SoundType::FortifyBuild:       targetVoice->duration = 0.28f; break;
-        case SoundType::RadioChatter:       targetVoice->duration = 0.35f; break;
-        case SoundType::AimDownSight:       targetVoice->duration = 0.18f; break;
-        case SoundType::AimDownSightOut:    targetVoice->duration = 0.16f; break;
-        case SoundType::ItemDrop:           targetVoice->duration = 0.35f; break;
-        case SoundType::HeavyBreathing:     targetVoice->duration = 1.20f; break;
-        case SoundType::SoldierBarkContact: targetVoice->duration = 0.55f; break;
-        case SoundType::SoldierBarkSuppressed: targetVoice->duration = 0.45f; break;
-        case SoundType::SoldierBarkWounded: targetVoice->duration = 0.65f; break;
-        case SoundType::SoldierBarkReloading: targetVoice->duration = 0.55f; break;
-        case SoundType::SoldierBarkIncoming: targetVoice->duration = 0.60f; break;
-        case SoundType::SoldierBarkFlanking: targetVoice->duration = 0.55f; break;
-        case SoundType::SoldierBarkManDown:  targetVoice->duration = 0.65f; break;
-        case SoundType::SoldierBarkFragOut:  targetVoice->duration = 0.50f; break;
-        case SoundType::RadioBeepDatalink:  targetVoice->duration = 0.10f; break;
-        case SoundType::HeavyMGShot: {
-            targetVoice->sampleBuffer = selectHmgBuffer(env, m_hmgVariationCounter++);
-            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 2.40f;
-            break;
-        }
-        case SoundType::ArtilleryExplosion: {
+        case SoundType::ArtilleryExplosion:
             if (!m_soundBank.artilleryExplosion.empty()) {
                 targetVoice->sampleBuffer = &m_soundBank.artilleryExplosion;
                 targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
             } else {
                 targetVoice->duration = 3.20f;
             }
-            break;
-        }
-        }
-    }
-}
-
-void AudioEngine::playSound3D(SoundType type, const glm::vec3& soundPos, const glm::vec3& listenerPos, float cameraYawRad, float volume, float maxDist, AcousticEnvironment env, float occlusion) {
-    if (!m_initialized) return;
-
-    glm::vec3 activeListener = listenerPos;
-    float activeYaw = cameraYawRad;
-    if (activeListener == glm::vec3(0.0f) && m_lastListenerPos != glm::vec3(0.0f)) {
-        activeListener = m_lastListenerPos;
-        activeYaw = m_lastCameraYawRad;
-    } else if (listenerPos != glm::vec3(0.0f)) {
-        m_lastListenerPos = listenerPos;
-        m_lastCameraYawRad = cameraYawRad;
-    }
-
-    float dist = glm::distance(soundPos, activeListener);
-    if (dist > maxDist) return; // Inaudible beyond max distance
-
-    // Natural logarithmic/inverse-square atmospheric falloff
-    float atten = 1.0f / (1.0f + 0.12f * dist + 0.0035f * dist * dist);
-    // Smooth quadratic ease-out to zero at maxDist (eliminates sudden boundary cutoffs and pops)
-    float distNorm = std::clamp(dist / maxDist, 0.0f, 1.0f);
-    float distFade = (1.0f - distNorm) * (1.0f - distNorm);
-    float finalVol = volume * atten * distFade;
-
-    // Environmental sound transmission loss (muffled transmission through walls/barriers)
-    if (occlusion > 0.0f) {
-        finalVol *= std::clamp(1.0f - occlusion * 0.65f, 0.20f, 1.0f);
-    }
-    if (finalVol < 0.010f) return; // Drop imperceptible sounds
-
-    // Atmospheric + environmental occlusion low-pass filtering:
-    // High frequencies dissipate rapidly with distance and are blocked by solid obstacles
-    float filterAlpha = std::clamp(1.0f / (1.0f + 0.065f * dist + 0.0020f * dist * dist), 0.035f, 0.88f);
-    if (occlusion > 0.0f) {
-        filterAlpha = std::min(filterAlpha, std::max(0.040f, 0.88f * (1.0f - occlusion)));
-    }
-
-    // Directional stereo panning relative to camera / monitor screen orientation (corrected right vector)
-    float dx = soundPos.x - activeListener.x;
-    float dz = soundPos.z - activeListener.z;
-    float horizDist = std::sqrt(dx * dx + dz * dz);
-    float pan = 0.0f;
-    float fwdDot = 1.0f;
-    if (horizDist > 0.001f) {
-        glm::vec3 camRight(std::cos(activeYaw), 0.0f, -std::sin(activeYaw));
-        glm::vec3 camForward(std::sin(activeYaw), 0.0f, std::cos(activeYaw));
-        pan = std::clamp((dx * camRight.x + dz * camRight.z) / horizDist, -1.0f, 1.0f);
-        fwdDot = std::clamp((dx * camForward.x + dz * camForward.z) / horizDist, -1.0f, 1.0f);
-    }
-
-    // Pinna acoustic shadow: sounds from behind lose high frequencies
-    if (fwdDot < 0.0f) {
-        float rearFactor = -fwdDot;
-        filterAlpha *= (1.0f - rearFactor * 0.40f);
-    }
-
-    float panL = std::sqrt(std::clamp((1.0f - pan) * 0.5f, 0.08f, 0.92f));
-    float panR = std::sqrt(std::clamp((1.0f + pan) * 0.5f, 0.08f, 0.92f));
-
-    std::lock_guard<std::mutex> lock(m_voiceMutex);
-
-    // Concurrency limiting for gunfire (max 4 simultaneous distant shots to eliminate gunfire spam)
-    if (type == SoundType::RifleShot || type == SoundType::PistolShot || type == SoundType::SniperShot || type == SoundType::HeavyMGShot) {
-        int activeShots = 0;
-        for (const auto& v : m_voices) {
-            if (v.active && (v.type == SoundType::RifleShot || v.type == SoundType::PistolShot || v.type == SoundType::SniperShot || v.type == SoundType::HeavyMGShot)) {
-                activeShots++;
-            }
-        }
-        if (activeShots >= 4 && dist > 18.0f) {
-            return; // Drop distant bot gunfire when battlefield is already noisy
-        }
-    }
-
-    // Concurrency limiting for bullet impacts (max 2 simultaneous impacts, drop distant spam)
-    if (type == SoundType::Impact) {
-        int activeImpacts = 0;
-        for (const auto& v : m_voices) {
-            if (v.active && v.type == SoundType::Impact) {
-                activeImpacts++;
-            }
-        }
-        if (activeImpacts >= 2) {
-            return; // Drop excess impacts to preserve a clean, atmospheric soundscape
-        }
-    }
-
-    ActiveVoice* targetVoice = nullptr;
-    float maxProgressRatio = -1.0f;
-
-    for (auto& voice : m_voices) {
-        if (!voice.active) {
-            targetVoice = &voice;
-            break;
-        }
-        float ratio = voice.progress / (voice.duration > 0.0f ? voice.duration : 1.0f);
-        if (ratio > maxProgressRatio) {
-            maxProgressRatio = ratio;
-            targetVoice = &voice;
-        }
-    }
-
-    if (targetVoice) {
-        targetVoice->type = type;
-        targetVoice->sampleBuffer = nullptr;
-        targetVoice->hasBinaural = false;
-        targetVoice->binauralLeft.clear();
-        targetVoice->binauralRight.clear();
-        targetVoice->samplePos = 0.0f;
-        targetVoice->progress = 0.0f;
-        targetVoice->volume = finalVol;
-        targetVoice->pitch = (dist > 35.0f) ? 0.88f : 1.0f; // Distant gunshots have deeper pitch
-        targetVoice->panL = panL;
-        targetVoice->panR = panR;
-        targetVoice->filterAlpha = filterAlpha;
-        targetVoice->filterStateL = 0.0f;
-        targetVoice->filterStateR = 0.0f;
-        targetVoice->is3D = true;
-        targetVoice->active = true;
-
-        switch (type) {
-        case SoundType::RifleShot:
-            targetVoice->sampleBuffer = selectRifleBuffer(env, m_rifleVariationCounter++);
-            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 0.45f;
-            break;
-        case SoundType::PistolShot:
-            targetVoice->sampleBuffer = selectPistolBuffer(env, m_pistolVariationCounter++);
-            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 0.30f;
-            break;
-        case SoundType::SniperShot:
-            targetVoice->sampleBuffer = selectSniperBuffer(env, m_sniperVariationCounter++);
-            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 0.85f;
-            break;
-        case SoundType::Impact:
-            if (!m_soundBank.impacts.empty()) {
-                size_t idx = (m_impactVariationCounter++) % m_soundBank.impacts.size();
-                targetVoice->sampleBuffer = &m_soundBank.impacts[idx];
-                targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            } else {
-                targetVoice->duration = 0.25f;
-            }
-            break;
-        case SoundType::ShellCasing:
-            if (!m_soundBank.shellCasings.empty()) {
-                size_t idx = (m_casingVariationCounter++) % m_soundBank.shellCasings.size();
-                targetVoice->sampleBuffer = &m_soundBank.shellCasings[idx];
-                targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            } else {
-                targetVoice->duration = 0.16f;
-            }
-            break;
-        case SoundType::ShellCasingDirt:
-            if (!m_soundBank.shellCasingsDirt.empty()) {
-                size_t idx = (m_casingVariationCounter++) % m_soundBank.shellCasingsDirt.size();
-                targetVoice->sampleBuffer = &m_soundBank.shellCasingsDirt[idx];
-                targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            } else {
-                targetVoice->duration = 0.08f;
-            }
-            break;
-        case SoundType::BulletFlyby:
-            targetVoice->sampleBuffer = &m_soundBank.bulletFlyby;
-            targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            break;
-        case SoundType::HelmetPing:
-            targetVoice->sampleBuffer = &m_soundBank.helmetPing;
-            targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            break;
-        case SoundType::ArmorDeflect:
-            targetVoice->sampleBuffer = &m_soundBank.armorDeflect;
-            targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            break;
-        case SoundType::FleshImpact:
-            targetVoice->sampleBuffer = &m_soundBank.fleshImpact;
-            targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            break;
-        case SoundType::SprintSlide:
-            targetVoice->sampleBuffer = &m_soundBank.sprintSlide;
-            targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            break;
-        case SoundType::GrenadePin:
-            targetVoice->sampleBuffer = &m_soundBank.grenadePin;
-            targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            break;
-        case SoundType::GrenadeBounce:
-            targetVoice->sampleBuffer = &m_soundBank.grenadeBounce;
-            targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            break;
-        case SoundType::GrenadeExplosion:
-            targetVoice->sampleBuffer = &m_soundBank.grenadeExplosion;
-            targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            break;
-        case SoundType::PenetrationCrack:
-            targetVoice->sampleBuffer = &m_soundBank.penetrationCrack;
-            targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            break;
-        case SoundType::Footstep:
-        case SoundType::FootstepDirt:
-        case SoundType::FootstepMud:
-        case SoundType::FootstepWater:
-        case SoundType::FootstepWood:
-        case SoundType::FootstepConcrete:
-        case SoundType::GearRustle:
-            targetVoice->sampleBuffer = selectFootstepBuffer(type, m_footstepVariationCounter++);
-            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 0.16f;
             break;
         case SoundType::Thunder:            targetVoice->duration = 3.50f; break;
         case SoundType::ArtilleryWhistle:   targetVoice->duration = 1.35f; break;
@@ -2094,34 +1881,84 @@ void AudioEngine::playSound3D(SoundType type, const glm::vec3& soundPos, const g
         case SoundType::SoldierBarkManDown:  targetVoice->duration = 0.65f; break;
         case SoundType::SoldierBarkFragOut:  targetVoice->duration = 0.50f; break;
         case SoundType::RadioBeepDatalink:  targetVoice->duration = 0.10f; break;
-        case SoundType::HeavyMGShot: {
-            targetVoice->sampleBuffer = selectHmgBuffer(env, m_hmgVariationCounter++);
-            targetVoice->duration = targetVoice->sampleBuffer ? static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f : 2.40f;
-            break;
-        }
-        case SoundType::ArtilleryExplosion: {
-            if (!m_soundBank.artilleryExplosion.empty()) {
-                targetVoice->sampleBuffer = &m_soundBank.artilleryExplosion;
-                targetVoice->duration = static_cast<float>(targetVoice->sampleBuffer->size()) / 48000.0f;
-            } else {
-                targetVoice->duration = 3.20f;
-            }
-            break;
-        }
         default:                            targetVoice->duration = 0.40f; break;
+    }
+
+    // 3D Spatial Calculation
+    if (cmd.cmdType == AudioCommand::CommandType::Play3D) {
+        glm::vec3 rel = cmd.soundPos - cmd.listenerPos;
+        float dist = glm::length(rel);
+        if (dist > cmd.maxDist && cmd.maxDist > 0.0f) {
+            targetVoice->active = false;
+            return;
         }
 
-        // Real-time equal-power 3D trigonometric spatialization with rear pinna shadow & distance IIR filtering
-        targetVoice->hasBinaural = false;
+        // Realistic inverse-distance attenuation curve with near-field knee
+        float refDist = 2.0f;
+        float atten = refDist / (refDist + dist);
+        atten = std::clamp(atten, 0.0f, 1.0f);
+
+        // Acoustic barrier occlusion damping
+        atten *= (1.0f - std::clamp(cmd.occlusion, 0.0f, 0.85f));
+        targetVoice->volume = cmd.volume * atten;
+
+        // Equal-power 3D trigonometric spatialization with azimuth rotation
+        float cosY = std::cos(-cmd.cameraYawRad);
+        float sinY = std::sin(-cmd.cameraYawRad);
+        float localX = rel.x * cosY - rel.z * sinY;
+        float localZ = rel.x * sinY + rel.z * cosY;
+
+        float azimuth = std::atan2(localX, localZ);
+        float pan = 0.5f + 0.5f * std::sin(azimuth);
+        // A13 fix: Widen panning clamp from [0.08, 0.92] to [0.02, 0.98]
+        pan = std::clamp(pan, 0.02f, 0.98f);
+
+        targetVoice->panL = std::cos(pan * 1.5707963f);
+        targetVoice->panR = std::sin(pan * 1.5707963f);
+
+        // Rear head-shadow / pinna attenuation
+        if (localZ < 0.0f) {
+            float rearFactor = std::abs(localZ) / (dist + 0.001f);
+            targetVoice->panL *= (1.0f - 0.22f * rearFactor);
+            targetVoice->panR *= (1.0f - 0.22f * rearFactor);
+        }
+
+        // High-clarity air absorption distance filter (A12 & B10 fix: preserves 2.5 kHz air at 50m)
+        float filterAlpha = 1.0f / (1.0f + 0.018f * dist + 0.00035f * dist * dist);
+        targetVoice->filterAlpha = std::clamp(filterAlpha, 0.14f, 0.95f);
+
+        // Continuous smooth distance pitch curve (B9 fix: eliminates harsh binary jump at 35m)
+        float distPitch = 1.0f / (1.0f + 0.00015f * dist);
+        targetVoice->pitch = cmd.pitch * distPitch;
+
+        // B11 fix: Utilize Steam Audio binaural HRTF if available
+        if (SteamAudioBridge::instance().isInitialized() && targetVoice->sampleBuffer) {
+            int numSamples = static_cast<int>(targetVoice->sampleBuffer->size());
+            if (numSamples > 0 && numSamples <= 48000) { // Spatialize short/medium sounds without RT overload
+                targetVoice->binauralLeft.resize(numSamples);
+                targetVoice->binauralRight.resize(numSamples);
+                bool success = SteamAudioBridge::instance().spatialize(
+                    targetVoice->sampleBuffer->data(),
+                    targetVoice->binauralLeft.data(),
+                    targetVoice->binauralRight.data(),
+                    numSamples,
+                    cmd.soundPos,
+                    cmd.listenerPos,
+                    cmd.cameraYawRad
+                );
+                targetVoice->hasBinaural = success;
+            }
+        }
     }
 }
 
 AudioEngine::VoiceTelemetrySnapshot AudioEngine::getVoiceSnapshot() {
     VoiceTelemetrySnapshot snapshot;
-    snapshot.rainIntensity = m_rainIntensity;
+    snapshot.rainIntensity = m_rainIntensity.load(std::memory_order_relaxed);
     snapshot.maxVoices = static_cast<int>(m_voices.size());
 
-    std::lock_guard<std::mutex> lock(m_voiceMutex);
+    // Non-blocking telemetry lock (A1 fix: try_to_lock never blocks)
+    std::unique_lock<std::mutex> lock(m_voiceMutex, std::try_to_lock);
     int active = 0;
     for (size_t i = 0; i < m_voices.size(); ++i) {
         const auto& v = m_voices[i];
