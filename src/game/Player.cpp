@@ -1246,13 +1246,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         m_aimHitNormal = hitNormal;
     }
     glm::vec3 targetHit = m_aimBlocked ? hitPoint : rayTarget;
-    if (glm::length(m_aimHitPoint) < 0.001f) {
-        m_aimHitPoint = targetHit;
-    } else {
-        // Direct physical barrel tracking with snappy responsive interpolation
-        float aimHitSpeed = m_isAiming ? 80.0f : 55.0f;
-        m_aimHitPoint = glm::mix(m_aimHitPoint, targetHit, std::clamp(dt * aimHitSpeed, 0.0f, 1.0f));
-    }
+    m_aimHitPoint = targetHit;
 
     // 6. Reload Handling (With Slot & Weapon Identity Validation)
     if (m_isReloading) {
@@ -1413,20 +1407,9 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
 
                 // Frame-accurate muzzle spawn position directly from 3D weapon barrel matrix
                 glm::vec3 muzzlePos = m_rig.getMuzzlePosition();
+                glm::vec3 muzzleFwd = m_rig.getMuzzleForward();
 
-                glm::vec3 targetPoint = unifiedTarget;
-                glm::vec3 playerFwd(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
-                float fwdDist = glm::dot(targetPoint - muzzlePos, playerFwd);
-                if (fwdDist < 0.20f) {
-                    targetPoint += playerFwd * (0.20f - fwdDist);
-                }
-
-                glm::vec3 aimDir = targetPoint - muzzlePos;
-                if (glm::length(aimDir) > 0.001f) {
-                    aimDir = glm::normalize(aimDir);
-                } else {
-                    aimDir = playerFwd;
-                }
+                glm::vec3 aimDir = (glm::length(muzzleFwd) > 0.1f) ? muzzleFwd : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
 
                 glm::vec3 upRef = (std::abs(aimDir.y) > 0.95f) ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
                 glm::vec3 rightDir = glm::normalize(glm::cross(aimDir, upRef));
@@ -1567,12 +1550,15 @@ void Player::render(Renderer& renderer, const CharacterCustomization& custom, bo
     if (isInGame && !m_isMounted) {
         auto& weaponOpt = m_inventory.getEquipped(m_activeWeaponSlot);
         if (weaponOpt.has_value()) {
-            glm::vec3 muzzle = (glm::length(m_rig.getMuzzlePosition()) > 0.1f)
-                ? m_rig.getMuzzlePosition()
-                : (m_position + glm::vec3(0.0f, 1.25f, 0.0f) + glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw)) * 0.75f);
-            float spread = m_currentBloom;
-            float maxRange = weaponOpt->aimRange > 10.0f ? weaponOpt->aimRange : 85.0f;
-            renderer.drawAimingRay(muzzle, m_aimHitPoint, m_aimHitNormal, m_aimHitSurface, maxRange, spread, m_rapidFireHeat);
+            bool isSprintingFast = m_stats.isSprinting && (glm::length(m_velocity) > 2.5f);
+            if (!isSprintingFast) {
+                glm::vec3 muzzle = (glm::length(m_rig.getMuzzlePosition()) > 0.1f)
+                    ? m_rig.getMuzzlePosition()
+                    : (m_position + glm::vec3(0.0f, 1.25f, 0.0f) + glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw)) * 0.75f);
+                float spread = m_currentBloom;
+                float maxRange = weaponOpt->aimRange > 10.0f ? weaponOpt->aimRange : 85.0f;
+                renderer.drawAimingRay(muzzle, m_aimHitPoint, m_aimHitNormal, m_aimHitSurface, maxRange, spread, m_rapidFireHeat);
+            }
         }
     }
 }

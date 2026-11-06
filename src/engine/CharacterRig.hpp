@@ -453,8 +453,10 @@ private:
     float m_weaponLagPitch = 0.0f;
     float m_sprintCarryAngle = 0.0f;
 
+    glm::vec3 m_aimTarget{0.0f};
     glm::vec3 m_muzzlePos{0.0f};
     glm::vec3 m_muzzleForward{0.0f, 0.0f, 1.0f};
+    glm::mat4 m_weaponWorldMatrix{1.0f};
     float m_dynamicRecoilPitch = 0.0f;
 
     glm::vec3 m_casingPos{0.0f};
