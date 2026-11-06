@@ -1692,7 +1692,7 @@ void Player::render(Renderer& renderer, const CharacterCustomization& custom, bo
         auto& weaponOpt = m_inventory.getEquipped(m_activeWeaponSlot);
         if (weaponOpt.has_value()) {
             bool isSprintingFast = m_stats.isSprinting && (glm::length(m_velocity) > 2.5f);
-            bool isActivelyAiming = m_isAiming || (m_rig.getAimWeight() > 0.05f) || (m_fireCooldown > 0.0f);
+            bool isActivelyAiming = m_isAiming && (m_rig.getAimWeight() > 0.35f);
             if (isActivelyAiming && !isSprintingFast) {
                 glm::vec3 muzzle = (glm::length(m_rig.getMuzzlePosition()) > 0.1f)
                     ? m_rig.getMuzzlePosition()

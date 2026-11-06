@@ -196,7 +196,13 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         while (diff > glm::pi<float>()) diff -= 2.0f * glm::pi<float>();
         while (diff < -glm::pi<float>()) diff += 2.0f * glm::pi<float>();
 
-        if (std::abs(diff) > glm::radians(105.0f)) {
+        // Tactical Combat Aim Stance: When actively aiming or hip-firing, upper body and hips orient smoothly with the aim crosshair
+        if (m_aimWeight > 0.05f) {
+            m_stepTurnPhase = StepTurnPhase::Idle;
+            m_lowerBodyYaw += diff * std::clamp(dt * 24.0f, 0.0f, 1.0f);
+            m_leftFootPlantedYaw = m_lowerBodyYaw;
+            m_rightFootPlantedYaw = m_lowerBodyYaw;
+        } else if (std::abs(diff) > glm::radians(105.0f)) {
             // Instant realignment on extreme 180 flick turns
             m_stepTurnPhase = StepTurnPhase::Idle;
             m_lowerBodyYaw += diff * std::clamp(dt * 30.0f, 0.0f, 1.0f);
@@ -401,8 +407,8 @@ void CharacterRig::updateWeaponTransform() {
         float curYaw = glm::mix(idleYaw, 0.0f, m_aimWeight);
         float curRoll = glm::mix(idleRoll, 0.0f, m_aimWeight);
 
-        glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), m_yaw + curYaw + m_weaponLagYaw, glm::vec3(0.0f, 1.0f, 0.0f));
-        float finalPitch = m_renderPitch + m_weaponLagPitch + m_sprintCarryAngle;
+        glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), m_yaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+        float finalPitch = m_renderPitch + m_sprintCarryAngle;
         if (std::abs(finalPitch) > 0.001f) {
             wRot = glm::rotate(wRot, finalPitch, glm::vec3(1.0f, 0.0f, 0.0f));
         }
@@ -936,20 +942,23 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
 
             float chestYaw = m_yaw;
             if (!m_isMoving) {
+                float idleChestYaw = m_lowerBodyYaw;
                 float absDelta = std::abs(deltaYaw);
                 float sign = (deltaYaw > 0.0f) ? 1.0f : -1.0f;
                 if (absDelta <= glm::radians(24.0f)) {
                     // Tier 1: Micro-glance (< 24 deg) - Chest stays locked with hips/lower body
-                    chestYaw = m_lowerBodyYaw;
+                    idleChestYaw = m_lowerBodyYaw;
                 } else if (absDelta <= glm::radians(38.0f)) {
                     // Tier 2: Torso twists smoothly with view (24 to 38 deg)
                     float excess = absDelta - glm::radians(24.0f);
-                    chestYaw = m_lowerBodyYaw + sign * (excess * 0.70f);
+                    idleChestYaw = m_lowerBodyYaw + sign * (excess * 0.70f);
                 } else {
                     // Tier 3 & 4: Upper body tracks view smoothly while stepping
                     float excess = absDelta - glm::radians(24.0f);
-                    chestYaw = m_lowerBodyYaw + sign * std::min(excess * 0.70f, glm::radians(32.0f));
+                    idleChestYaw = m_lowerBodyYaw + sign * std::min(excess * 0.70f, glm::radians(32.0f));
                 }
+                // When aiming, upper body smoothly squares up with the weapon line of sight
+                chestYaw = glm::mix(idleChestYaw, m_yaw, m_aimWeight);
             }
 
             float ccy = std::cos(chestYaw);

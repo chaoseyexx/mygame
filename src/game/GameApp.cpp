@@ -1309,57 +1309,54 @@ void GameApp::run() {
                 }
             }
 
-            if (aimInfo.hasTarget) {
-                mouseWorldPos = aimInfo.worldPos;
-            } else {
-                // Raycast against physical world obstacles down the EXACT reticle line-of-sight
-                glm::vec3 hitPoint, hitNormal;
-                WorldObstacle* hitObs = nullptr;
-                float tPlayer = std::max(0.0f, glm::dot(player.getPosition() - rayOrigin, rayDir));
-                glm::vec3 crosshairRayStart = rayOrigin + rayDir * std::max(0.5f, tPlayer - 0.5f);
-                glm::vec3 crosshairRayEnd   = rayOrigin + rayDir * 200.0f;
-                bool hitObstacle = world.raycast(crosshairRayStart, crosshairRayEnd, hitPoint, hitNormal, hitObs);
+            // 100% Manual Tactical Aiming: Zero Magnetic Target Snapping
+            // Raycast against physical world obstacles down the EXACT reticle line-of-sight
+            glm::vec3 hitPoint, hitNormal;
+            WorldObstacle* hitObs = nullptr;
+            float tPlayer = std::max(0.0f, glm::dot(player.getPosition() - rayOrigin, rayDir));
+            glm::vec3 crosshairRayStart = rayOrigin + rayDir * std::max(0.5f, tPlayer - 0.5f);
+            glm::vec3 crosshairRayEnd   = rayOrigin + rayDir * 200.0f;
+            bool hitObstacle = world.raycast(crosshairRayStart, crosshairRayEnd, hitPoint, hitNormal, hitObs);
 
-                // Precision terrain heightfield ray intersection along exact crosshair ray
-                bool hitGround = false;
-                glm::vec3 groundHitPos = rayOrigin;
-                if (rayDir.y < -0.01f) {
-                    for (float t = 1.0f; t <= 220.0f; t += 0.8f) {
-                        glm::vec3 testP = rayOrigin + rayDir * t;
-                        float terrH = World::sampleTerrainHeight(testP.x, testP.z);
-                        if (testP.y <= terrH) {
-                            float t0 = t - 0.8f, t1 = t;
-                            for (int b = 0; b < 4; ++b) {
-                                float tm = (t0 + t1) * 0.5f;
-                                glm::vec3 pm = rayOrigin + rayDir * tm;
-                                if (pm.y <= World::sampleTerrainHeight(pm.x, pm.z)) t1 = tm;
-                                else t0 = tm;
-                            }
-                            groundHitPos = rayOrigin + rayDir * ((t0 + t1) * 0.5f);
-                            hitGround = true;
-                            break;
+            // Precision terrain heightfield ray intersection along exact crosshair ray
+            bool hitGround = false;
+            glm::vec3 groundHitPos = rayOrigin;
+            if (rayDir.y < -0.01f) {
+                for (float t = 1.0f; t <= 220.0f; t += 0.8f) {
+                    glm::vec3 testP = rayOrigin + rayDir * t;
+                    float terrH = World::sampleTerrainHeight(testP.x, testP.z);
+                    if (testP.y <= terrH) {
+                        float t0 = t - 0.8f, t1 = t;
+                        for (int b = 0; b < 4; ++b) {
+                            float tm = (t0 + t1) * 0.5f;
+                            glm::vec3 pm = rayOrigin + rayDir * tm;
+                            if (pm.y <= World::sampleTerrainHeight(pm.x, pm.z)) t1 = tm;
+                            else t0 = tm;
                         }
+                        groundHitPos = rayOrigin + rayDir * ((t0 + t1) * 0.5f);
+                        hitGround = true;
+                        break;
                     }
                 }
+            }
 
-                bool hitValidObstacle = hitObstacle && (glm::dot(hitPoint - rayOrigin, rayDir) > tPlayer - 0.2f);
-                bool hitValidGround = hitGround && (glm::dot(groundHitPos - rayOrigin, rayDir) > 0.5f);
+            bool hitValidObstacle = hitObstacle && (glm::dot(hitPoint - rayOrigin, rayDir) > tPlayer - 0.2f);
+            bool hitValidGround = hitGround && (glm::dot(groundHitPos - rayOrigin, rayDir) > 0.5f);
 
-                if (hitValidObstacle && hitValidGround) {
-                    if (glm::distance(rayOrigin, groundHitPos) < glm::distance(rayOrigin, hitPoint)) {
-                        mouseWorldPos = groundHitPos;
-                    } else {
-                        mouseWorldPos = hitPoint;
-                    }
-                } else if (hitValidObstacle) {
-                    mouseWorldPos = hitPoint;
-                } else if (hitValidGround) {
+            if (hitValidObstacle && hitValidGround) {
+                if (glm::distance(rayOrigin, groundHitPos) < glm::distance(rayOrigin, hitPoint)) {
                     mouseWorldPos = groundHitPos;
                 } else {
-                    // Open sky fallback: project into distance ahead of player
-                    float tFar = std::max(120.0f, tPlayer + 60.0f);
-                    mouseWorldPos = rayOrigin + rayDir * tFar;
+                    mouseWorldPos = hitPoint;
                 }
+            } else if (hitValidObstacle) {
+                mouseWorldPos = hitPoint;
+            } else if (hitValidGround) {
+                mouseWorldPos = groundHitPos;
+            } else {
+                // Open sky fallback: project into distance ahead of player
+                float tFar = std::max(120.0f, tPlayer + 60.0f);
+                mouseWorldPos = rayOrigin + rayDir * tFar;
             }
 
             // Safety guarantee: Ensure aim target is in front of the camera
