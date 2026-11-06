@@ -2044,7 +2044,7 @@ void Renderer::drawContactShadow(const glm::vec3& centerPos, float radiusX, floa
     glBindVertexArray(0);
 }
 
-void Renderer::drawAimReticle(const glm::vec3& worldPos, float bloomRadius, const glm::vec4& color) {
+void Renderer::drawAimReticle(const glm::vec3& worldPos, float bloomRadius, const glm::vec4& color, bool withTickMarks) {
     const int segments = 28;
     const float step = 2.0f * 3.14159265f / segments;
 
@@ -2078,33 +2078,35 @@ void Renderer::drawAimReticle(const glm::vec3& worldPos, float bloomRadius, cons
         circleData.insert(circleData.end(), {p2.x, p2.y, p2.z, color.r, color.g, color.b, color.a});
     }
 
-    // Four Cardinal Cross Tick Marks facing camera
-    float tickStart = bloomRadius * 1.05f;
-    float tickEnd   = bloomRadius * 1.45f;
+    // Four Cardinal Cross Tick Marks facing camera (Only for actor / target confirmation, never on generic obstacles)
+    if (withTickMarks) {
+        float tickStart = bloomRadius * 1.05f;
+        float tickEnd   = bloomRadius * 1.45f;
 
-    // Top tick
-    glm::vec3 t0 = center + quadUp * tickStart;
-    glm::vec3 t1 = center + quadUp * tickEnd;
-    circleData.insert(circleData.end(), {t0.x, t0.y, t0.z, color.r, color.g, color.b, color.a});
-    circleData.insert(circleData.end(), {t1.x, t1.y, t1.z, color.r, color.g, color.b, color.a});
+        // Top tick
+        glm::vec3 t0 = center + quadUp * tickStart;
+        glm::vec3 t1 = center + quadUp * tickEnd;
+        circleData.insert(circleData.end(), {t0.x, t0.y, t0.z, color.r, color.g, color.b, color.a});
+        circleData.insert(circleData.end(), {t1.x, t1.y, t1.z, color.r, color.g, color.b, color.a});
 
-    // Bottom tick
-    glm::vec3 b0 = center - quadUp * tickStart;
-    glm::vec3 b1 = center - quadUp * tickEnd;
-    circleData.insert(circleData.end(), {b0.x, b0.y, b0.z, color.r, color.g, color.b, color.a});
-    circleData.insert(circleData.end(), {b1.x, b1.y, b1.z, color.r, color.g, color.b, color.a});
+        // Bottom tick
+        glm::vec3 b0 = center - quadUp * tickStart;
+        glm::vec3 b1 = center - quadUp * tickEnd;
+        circleData.insert(circleData.end(), {b0.x, b0.y, b0.z, color.r, color.g, color.b, color.a});
+        circleData.insert(circleData.end(), {b1.x, b1.y, b1.z, color.r, color.g, color.b, color.a});
 
-    // Left tick
-    glm::vec3 l0 = center - quadRight * tickStart;
-    glm::vec3 l1 = center - quadRight * tickEnd;
-    circleData.insert(circleData.end(), {l0.x, l0.y, l0.z, color.r, color.g, color.b, color.a});
-    circleData.insert(circleData.end(), {l1.x, l1.y, l1.z, color.r, color.g, color.b, color.a});
+        // Left tick
+        glm::vec3 l0 = center - quadRight * tickStart;
+        glm::vec3 l1 = center - quadRight * tickEnd;
+        circleData.insert(circleData.end(), {l0.x, l0.y, l0.z, color.r, color.g, color.b, color.a});
+        circleData.insert(circleData.end(), {l1.x, l1.y, l1.z, color.r, color.g, color.b, color.a});
 
-    // Right tick
-    glm::vec3 r0 = center + quadRight * tickStart;
-    glm::vec3 r1 = center + quadRight * tickEnd;
-    circleData.insert(circleData.end(), {r0.x, r0.y, r0.z, color.r, color.g, color.b, color.a});
-    circleData.insert(circleData.end(), {r1.x, r1.y, r1.z, color.r, color.g, color.b, color.a});
+        // Right tick
+        glm::vec3 r0 = center + quadRight * tickStart;
+        glm::vec3 r1 = center + quadRight * tickEnd;
+        circleData.insert(circleData.end(), {r0.x, r0.y, r0.z, color.r, color.g, color.b, color.a});
+        circleData.insert(circleData.end(), {r1.x, r1.y, r1.z, color.r, color.g, color.b, color.a});
+    }
 
     // Center precision pip (subtle crosshair center point)
     float pip = std::min(0.015f, bloomRadius * 0.25f);
@@ -2374,7 +2376,8 @@ void Renderer::drawAimingRay(const glm::vec3& start, const glm::vec3& end, const
         glm::vec3 pipCenter = end + norm * 0.008f + jitterVec;
         float pipAlpha = std::clamp(0.85f - heat * 0.40f, 0.25f, 0.85f);
         glm::vec4 retColor = hitActor ? glm::vec4(1.0f, 0.32f, 0.32f, pipAlpha) : glm::vec4(0.85f, 0.88f, 0.92f, pipAlpha);
-        drawAimReticle(pipCenter, 0.038f + spread * 0.030f + heat * 0.015f, retColor);
+        float pipRadius = hitActor ? (0.038f + spread * 0.030f + heat * 0.015f) : (0.018f + spread * 0.015f);
+        drawAimReticle(pipCenter, pipRadius, retColor, hitActor);
     }
 }
 

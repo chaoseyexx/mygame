@@ -1226,8 +1226,17 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         ? m_rig.getMuzzleForward()
         : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
 
-    glm::vec3 adsAim = (glm::length(unifiedTarget - muzzle) > 0.001f)
-        ? glm::normalize(unifiedTarget - muzzle)
+    glm::vec3 camDir = camera ? camera->getForwardVector() : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+    glm::vec3 camPos = camera ? camera->getPosition() : (m_position + glm::vec3(0.0f, 1.6f, 0.0f));
+
+    // Smooth Battle-Zero Convergence: enforce minimum safe convergence distance (>= 35.0m) along camera view line
+    // Eliminates near-field parallax collapse and prevents the weapon/laser from snapping onto close obstacles (crates, walls, barriers)
+    float targetDist = glm::distance(camPos, unifiedTarget);
+    float safeConvergenceDist = std::max(targetDist, 35.0f);
+    glm::vec3 smoothAimTarget = camPos + camDir * safeConvergenceDist;
+
+    glm::vec3 adsAim = (glm::length(smoothAimTarget - muzzle) > 0.001f)
+        ? glm::normalize(smoothAimTarget - muzzle)
         : gunFwd;
 
     // Smoothly blend aim vector: when ADS aiming, laser converges directly on target; when hip-firing / not aiming, laser follows true gun bore line!
@@ -1544,8 +1553,14 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                     ? m_rig.getMuzzleForward()
                     : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
 
-                glm::vec3 adsAim = (glm::length(unifiedTarget - muzzlePos) > 0.001f)
-                    ? glm::normalize(unifiedTarget - muzzlePos)
+                glm::vec3 camDir = camera ? camera->getForwardVector() : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+                glm::vec3 camPos = camera ? camera->getPosition() : (m_position + glm::vec3(0.0f, 1.6f, 0.0f));
+                float targetDist = glm::distance(camPos, unifiedTarget);
+                float safeConvergenceDist = std::max(targetDist, 35.0f);
+                glm::vec3 smoothAimTarget = camPos + camDir * safeConvergenceDist;
+
+                glm::vec3 adsAim = (glm::length(smoothAimTarget - muzzlePos) > 0.001f)
+                    ? glm::normalize(smoothAimTarget - muzzlePos)
                     : gunFwd;
 
                 // Fire bullet along exact aiming vector: synchronized with 3D ray in both ADS and hip-fire
