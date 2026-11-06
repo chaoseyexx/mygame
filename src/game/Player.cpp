@@ -4,6 +4,7 @@
 #include "engine/Audio.hpp"
 #include "engine/Camera.hpp"
 #include "engine/Network.hpp"
+#include "FrontlineAI.hpp"
 #include <imgui.h>
 #include <cmath>
 #include <random>
@@ -271,7 +272,7 @@ static SoundType getSurfaceFootstepSound(GroundSurface surface) {
     }
 }
 
-void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldPos, World& world, BallisticsSystem& ballistics, float cameraYaw, Camera* camera, const AimTargetInfo* aimInfo) {
+void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldPos, World& world, BallisticsSystem& ballistics, float cameraYaw, Camera* camera, const AimTargetInfo* aimInfo, const std::vector<FrontlineBot>* bots) {
     bool isChatOpen = ChatSystem::get().isChatOpen();
     bool captureKb = isChatOpen || (ImGui::GetCurrentContext() && (ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantTextInput));
     bool uiWantsMouse = isChatOpen || (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse);
@@ -1253,24 +1254,133 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     if (m_aimBlocked) {
         m_aimHitNormal = hitNormal;
     }
+    float nearestHitDist = m_aimBlocked ? glm::distance(muzzle, hitPoint) : rayRange;
+    m_aimHitActor = false;
 
-    // Terrain ground intersection: stops laser ray cleanly on ground surface when depressed
+    // 1. Raycast vs Frontline AI Bots (exact analytical ray-cylinder test)
+    if (bots) {
+        for (const auto& bot : *bots) {
+            if (bot.state == BotState::Dead) continue;
+            float distToPlayer = glm::distance(m_position, bot.position);
+            if (distToPlayer > rayRange) continue;
+
+            float botH = (bot.state == BotState::WoundedDown) ? 0.50f : (bot.isCrouched ? 1.45f : 1.90f);
+            float botRadius = (bot.state == BotState::WoundedDown) ? 0.65f : 0.45f;
+
+            glm::vec3 rStart = muzzle - bot.position;
+            float A = aimDir.x * aimDir.x + aimDir.z * aimDir.z;
+            if (A > 0.0001f) {
+                float B = 2.0f * (rStart.x * aimDir.x + rStart.z * aimDir.z);
+                float C = rStart.x * rStart.x + rStart.z * rStart.z - botRadius * botRadius;
+                float disc = B * B - 4.0f * A * C;
+                if (disc >= 0.0f) {
+                    float sqrtDisc = std::sqrt(disc);
+                    float t1 = (-B - sqrtDisc) / (2.0f * A);
+                    float t2 = (-B + sqrtDisc) / (2.0f * A);
+                    float tCandidate = (t1 > 0.15f) ? t1 : ((t2 > 0.15f) ? t2 : -1.0f);
+                    if (tCandidate > 0.15f && tCandidate < nearestHitDist) {
+                        float yHit = rStart.y + aimDir.y * tCandidate;
+                        if (yHit >= -0.05f && yHit <= botH) {
+                            nearestHitDist = tCandidate;
+                            hitPoint = muzzle + aimDir * tCandidate;
+                            hitNormal = glm::normalize(glm::vec3(hitPoint.x - bot.position.x, 0.0f, hitPoint.z - bot.position.z));
+                            m_aimBlocked = true;
+                            m_aimHitSurface = true;
+                            m_aimHitNormal = hitNormal;
+                            m_aimHitActor = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Raycast vs Remote MMO Players
+    for (const auto& [rId, remote] : NetworkEngine::get().getRemotePlayers()) {
+        if (!remote.active || remote.currentState.health <= 0.0f) continue;
+        glm::vec3 rPos = remote.currentState.position;
+        float distToPlayer = glm::distance(m_position, rPos);
+        if (distToPlayer > rayRange) continue;
+
+        float remH = (remote.currentState.stance == 2) ? 0.45f : ((remote.currentState.stance == 1) ? 1.45f : 1.90f);
+        float remRadius = (remote.currentState.stance == 2) ? 0.65f : 0.45f;
+
+        glm::vec3 rStart = muzzle - rPos;
+        float A = aimDir.x * aimDir.x + aimDir.z * aimDir.z;
+        if (A > 0.0001f) {
+            float B = 2.0f * (rStart.x * aimDir.x + rStart.z * aimDir.z);
+            float C = rStart.x * rStart.x + rStart.z * rStart.z - remRadius * remRadius;
+            float disc = B * B - 4.0f * A * C;
+            if (disc >= 0.0f) {
+                float sqrtDisc = std::sqrt(disc);
+                float t1 = (-B - sqrtDisc) / (2.0f * A);
+                float t2 = (-B + sqrtDisc) / (2.0f * A);
+                float tCandidate = (t1 > 0.15f) ? t1 : ((t2 > 0.15f) ? t2 : -1.0f);
+                if (tCandidate > 0.15f && tCandidate < nearestHitDist) {
+                    float yHit = rStart.y + aimDir.y * tCandidate;
+                    if (yHit >= -0.05f && yHit <= remH) {
+                        nearestHitDist = tCandidate;
+                        hitPoint = muzzle + aimDir * tCandidate;
+                        hitNormal = glm::normalize(glm::vec3(hitPoint.x - rPos.x, 0.0f, hitPoint.z - rPos.z));
+                        m_aimBlocked = true;
+                        m_aimHitSurface = true;
+                        m_aimHitNormal = hitNormal;
+                        m_aimHitActor = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Raycast vs Shooting Range Reactive Targets
+    for (const auto& target : world.getTargets()) {
+        if (!target.isAlive) continue;
+        float distToPlayer = glm::distance(m_position, target.position);
+        if (distToPlayer > rayRange) continue;
+
+        glm::vec3 rStart = muzzle - target.position;
+        float A = aimDir.x * aimDir.x + aimDir.z * aimDir.z;
+        if (A > 0.0001f) {
+            float B = 2.0f * (rStart.x * aimDir.x + rStart.z * aimDir.z);
+            float C = rStart.x * rStart.x + rStart.z * rStart.z - 0.40f * 0.40f;
+            float disc = B * B - 4.0f * A * C;
+            if (disc >= 0.0f) {
+                float sqrtDisc = std::sqrt(disc);
+                float t1 = (-B - sqrtDisc) / (2.0f * A);
+                float t2 = (-B + sqrtDisc) / (2.0f * A);
+                float tCandidate = (t1 > 0.15f) ? t1 : ((t2 > 0.15f) ? t2 : -1.0f);
+                if (tCandidate > 0.15f && tCandidate < nearestHitDist) {
+                    float yHit = rStart.y + aimDir.y * tCandidate;
+                    if (yHit >= 0.15f && yHit <= 1.65f) {
+                        nearestHitDist = tCandidate;
+                        hitPoint = muzzle + aimDir * tCandidate;
+                        hitNormal = glm::normalize(glm::vec3(hitPoint.x - target.position.x, 0.0f, hitPoint.z - target.position.z));
+                        m_aimBlocked = true;
+                        m_aimHitSurface = true;
+                        m_aimHitNormal = hitNormal;
+                        m_aimHitActor = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Terrain ground intersection: stops laser ray cleanly on ground surface when depressed
     if (aimDir.y < -0.01f) {
         float groundUnderMuzzle = World::sampleTerrainHeight(muzzle.x, muzzle.z);
         float tGround = (muzzle.y - groundUnderMuzzle) / std::max(0.001f, -aimDir.y);
-        if (tGround > 0.1f && tGround < rayRange) {
+        if (tGround > 0.1f && tGround < nearestHitDist) {
             glm::vec3 testGroundPos = muzzle + aimDir * tGround;
             float actualGroundY = World::sampleTerrainHeight(testGroundPos.x, testGroundPos.z);
             tGround = (muzzle.y - actualGroundY) / std::max(0.001f, -aimDir.y);
-            if (tGround > 0.1f && tGround < rayRange) {
-                glm::vec3 groundHit = muzzle + aimDir * tGround;
-                if (!m_aimBlocked || glm::distance(muzzle, groundHit) < glm::distance(muzzle, hitPoint)) {
-                    hitPoint = groundHit;
-                    hitNormal = glm::vec3(0.0f, 1.0f, 0.0f);
-                    m_aimBlocked = true;
-                    m_aimHitSurface = true;
-                    m_aimHitNormal = hitNormal;
-                }
+            if (tGround > 0.1f && tGround < nearestHitDist) {
+                hitPoint = muzzle + aimDir * tGround;
+                hitNormal = glm::vec3(0.0f, 1.0f, 0.0f);
+                nearestHitDist = tGround;
+                m_aimBlocked = true;
+                m_aimHitSurface = true;
+                m_aimHitNormal = hitNormal;
+                m_aimHitActor = false;
             }
         }
     }
@@ -1594,7 +1704,7 @@ void Player::render(Renderer& renderer, const CharacterCustomization& custom, bo
                     : (m_position + glm::vec3(0.0f, 1.25f, 0.0f) + glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw)) * 0.75f);
                 float spread = m_currentBloom;
                 float maxRange = weaponOpt->aimRange > 10.0f ? weaponOpt->aimRange : 85.0f;
-                renderer.drawAimingRay(muzzle, m_aimHitPoint, m_aimHitNormal, m_aimHitSurface, maxRange, spread, m_rapidFireHeat);
+                renderer.drawAimingRay(muzzle, m_aimHitPoint, m_aimHitNormal, m_aimHitSurface, maxRange, spread, m_rapidFireHeat, m_aimHitActor);
             }
         }
     }

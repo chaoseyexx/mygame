@@ -12,6 +12,7 @@
 namespace Mercenary {
 
 struct MountedTurret;
+struct FrontlineBot;
 
 struct AimTargetInfo {
     bool hasTarget = false;
@@ -27,7 +28,7 @@ class Player {
 public:
     Player();
 
-    void update(float dt, const Window& window, const glm::vec3& mouseWorldPos, World& world, BallisticsSystem& ballistics, float cameraYaw = 0.0f, Camera* camera = nullptr, const AimTargetInfo* aimInfo = nullptr);
+    void update(float dt, const Window& window, const glm::vec3& mouseWorldPos, World& world, BallisticsSystem& ballistics, float cameraYaw = 0.0f, Camera* camera = nullptr, const AimTargetInfo* aimInfo = nullptr, const std::vector<FrontlineBot>* bots = nullptr);
     bool hasTargetLock() const { return m_hasTargetLock; }
     bool isHeadshotAim() const { return m_isHeadshotAim; }
     const AimTargetInfo& getAimTargetInfo() const { return m_aimTargetInfo; }
@@ -88,6 +89,7 @@ public:
     EquipSlot getActiveWeaponSlot() const { return m_activeWeaponSlot; }
     bool hasEquippedWeapon() const { return m_inventory.getEquipped(m_activeWeaponSlot).has_value(); }
     bool isAimBlocked() const { return m_aimBlocked; }
+    bool isAimHitActor() const { return m_aimHitActor; }
     CoverType getCover() const { return m_stats.cover; }
 
     // GTA 5 / Ghost Recon Dynamic Cover Mechanics
@@ -166,6 +168,7 @@ private:
     glm::vec3 m_aimHitPoint{0.0f};
     glm::vec3 m_aimHitNormal{0.0f, 1.0f, 0.0f};
     bool m_aimHitSurface = false;
+    bool m_aimHitActor = false;
     bool m_hasTargetLock = false;
     bool m_isHeadshotAim = false;
     AimTargetInfo m_aimTargetInfo;

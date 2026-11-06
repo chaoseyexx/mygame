@@ -2045,44 +2045,77 @@ void Renderer::drawContactShadow(const glm::vec3& centerPos, float radiusX, floa
 }
 
 void Renderer::drawAimReticle(const glm::vec3& worldPos, float bloomRadius, const glm::vec4& color) {
-    const int segments = 24;
+    const int segments = 28;
     const float step = 2.0f * 3.14159265f / segments;
 
+    // Camera Billboard Basis: reticle always faces the player camera directly (never flat or tilted edge-on)
+    glm::vec3 toCam = m_cameraPos - worldPos;
+    float camDist = glm::length(toCam);
+    glm::vec3 camFwd = (camDist > 0.001f) ? (toCam / camDist) : glm::vec3(0.0f, 0.0f, 1.0f);
+
+    glm::vec3 quadRight = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), camFwd);
+    if (glm::length(quadRight) < 0.001f) {
+        quadRight = m_camRight;
+    } else {
+        quadRight = glm::normalize(quadRight);
+    }
+    glm::vec3 quadUp = glm::normalize(glm::cross(camFwd, quadRight));
+
+    // Subtle 1.8cm offset towards camera to prevent geometry z-fighting / clipping
+    glm::vec3 center = worldPos + camFwd * 0.018f;
+
     std::vector<float> circleData;
+    circleData.reserve(segments * 14 + 48);
+
     for (int i = 0; i < segments; ++i) {
         float a1 = i * step;
         float a2 = (i + 1) * step;
 
-        float x1 = worldPos.x + std::cos(a1) * bloomRadius;
-        float z1 = worldPos.z + std::sin(a1) * bloomRadius;
-        float x2 = worldPos.x + std::cos(a2) * bloomRadius;
-        float z2 = worldPos.z + std::sin(a2) * bloomRadius;
+        glm::vec3 p1 = center + (quadRight * std::cos(a1) + quadUp * std::sin(a1)) * bloomRadius;
+        glm::vec3 p2 = center + (quadRight * std::cos(a2) + quadUp * std::sin(a2)) * bloomRadius;
 
-        circleData.insert(circleData.end(), {x1, worldPos.y + 0.05f, z1, color.r, color.g, color.b, color.a});
-        circleData.insert(circleData.end(), {x2, worldPos.y + 0.05f, z2, color.r, color.g, color.b, color.a});
+        circleData.insert(circleData.end(), {p1.x, p1.y, p1.z, color.r, color.g, color.b, color.a});
+        circleData.insert(circleData.end(), {p2.x, p2.y, p2.z, color.r, color.g, color.b, color.a});
     }
 
-    // Cross tick marks
-    float tick = bloomRadius * 0.4f;
+    // Four Cardinal Cross Tick Marks facing camera
+    float tickStart = bloomRadius * 1.05f;
+    float tickEnd   = bloomRadius * 1.45f;
+
     // Top tick
-    circleData.insert(circleData.end(), {worldPos.x, worldPos.y + 0.05f, worldPos.z + bloomRadius, color.r, color.g, color.b, color.a});
-    circleData.insert(circleData.end(), {worldPos.x, worldPos.y + 0.05f, worldPos.z + bloomRadius + tick, color.r, color.g, color.b, color.a});
+    glm::vec3 t0 = center + quadUp * tickStart;
+    glm::vec3 t1 = center + quadUp * tickEnd;
+    circleData.insert(circleData.end(), {t0.x, t0.y, t0.z, color.r, color.g, color.b, color.a});
+    circleData.insert(circleData.end(), {t1.x, t1.y, t1.z, color.r, color.g, color.b, color.a});
+
     // Bottom tick
-    circleData.insert(circleData.end(), {worldPos.x, worldPos.y + 0.05f, worldPos.z - bloomRadius, color.r, color.g, color.b, color.a});
-    circleData.insert(circleData.end(), {worldPos.x, worldPos.y + 0.05f, worldPos.z - bloomRadius - tick, color.r, color.g, color.b, color.a});
+    glm::vec3 b0 = center - quadUp * tickStart;
+    glm::vec3 b1 = center - quadUp * tickEnd;
+    circleData.insert(circleData.end(), {b0.x, b0.y, b0.z, color.r, color.g, color.b, color.a});
+    circleData.insert(circleData.end(), {b1.x, b1.y, b1.z, color.r, color.g, color.b, color.a});
+
     // Left tick
-    circleData.insert(circleData.end(), {worldPos.x - bloomRadius, worldPos.y + 0.05f, worldPos.z, color.r, color.g, color.b, color.a});
-    circleData.insert(circleData.end(), {worldPos.x - bloomRadius - tick, worldPos.y + 0.05f, worldPos.z, color.r, color.g, color.b, color.a});
+    glm::vec3 l0 = center - quadRight * tickStart;
+    glm::vec3 l1 = center - quadRight * tickEnd;
+    circleData.insert(circleData.end(), {l0.x, l0.y, l0.z, color.r, color.g, color.b, color.a});
+    circleData.insert(circleData.end(), {l1.x, l1.y, l1.z, color.r, color.g, color.b, color.a});
+
     // Right tick
-    circleData.insert(circleData.end(), {worldPos.x + bloomRadius, worldPos.y + 0.05f, worldPos.z, color.r, color.g, color.b, color.a});
-    circleData.insert(circleData.end(), {worldPos.x + bloomRadius + tick, worldPos.y + 0.05f, worldPos.z, color.r, color.g, color.b, color.a});
+    glm::vec3 r0 = center + quadRight * tickStart;
+    glm::vec3 r1 = center + quadRight * tickEnd;
+    circleData.insert(circleData.end(), {r0.x, r0.y, r0.z, color.r, color.g, color.b, color.a});
+    circleData.insert(circleData.end(), {r1.x, r1.y, r1.z, color.r, color.g, color.b, color.a});
 
     // Center precision pip (subtle crosshair center point)
-    float pip = std::min(0.08f, bloomRadius * 0.25f);
-    circleData.insert(circleData.end(), {worldPos.x - pip, worldPos.y + 0.05f, worldPos.z, color.r, color.g, color.b, color.a * 0.9f});
-    circleData.insert(circleData.end(), {worldPos.x + pip, worldPos.y + 0.05f, worldPos.z, color.r, color.g, color.b, color.a * 0.9f});
-    circleData.insert(circleData.end(), {worldPos.x, worldPos.y + 0.05f, worldPos.z - pip, color.r, color.g, color.b, color.a * 0.9f});
-    circleData.insert(circleData.end(), {worldPos.x, worldPos.y + 0.05f, worldPos.z + pip, color.r, color.g, color.b, color.a * 0.9f});
+    float pip = std::min(0.015f, bloomRadius * 0.25f);
+    glm::vec3 c0 = center - quadRight * pip;
+    glm::vec3 c1 = center + quadRight * pip;
+    glm::vec3 c2 = center - quadUp * pip;
+    glm::vec3 c3 = center + quadUp * pip;
+    circleData.insert(circleData.end(), {c0.x, c0.y, c0.z, color.r, color.g, color.b, color.a * 0.95f});
+    circleData.insert(circleData.end(), {c1.x, c1.y, c1.z, color.r, color.g, color.b, color.a * 0.95f});
+    circleData.insert(circleData.end(), {c2.x, c2.y, c2.z, color.r, color.g, color.b, color.a * 0.95f});
+    circleData.insert(circleData.end(), {c3.x, c3.y, c3.z, color.r, color.g, color.b, color.a * 0.95f});
 
     m_lineShader->bind();
     glBindVertexArray(m_lineVao);
@@ -2264,7 +2297,7 @@ void Renderer::drawTracerBeam(const glm::vec3& start, const glm::vec3& end, floa
     m_additiveParticles.push_back(v3);
 }
 
-void Renderer::drawAimingRay(const glm::vec3& start, const glm::vec3& end, const glm::vec3& hitNormal, bool hitSurface, float maxRange, float spread, float heat) {
+void Renderer::drawAimingRay(const glm::vec3& start, const glm::vec3& end, const glm::vec3& hitNormal, bool hitSurface, float maxRange, float spread, float heat, bool hitActor) {
     glm::vec3 fwd = end - start;
     float len = glm::length(fwd);
     if (len < 0.15f) return;
@@ -2340,7 +2373,8 @@ void Renderer::drawAimingRay(const glm::vec3& start, const glm::vec3& end, const
         glm::vec3 norm = (glm::length(hitNormal) > 0.1f) ? glm::normalize(hitNormal) : glm::vec3(0, 1, 0);
         glm::vec3 pipCenter = end + norm * 0.008f + jitterVec;
         float pipAlpha = std::clamp(0.85f - heat * 0.40f, 0.25f, 0.85f);
-        drawAimReticle(pipCenter, 0.038f + spread * 0.030f + heat * 0.015f, glm::vec4(0.85f, 0.88f, 0.92f, pipAlpha));
+        glm::vec4 retColor = hitActor ? glm::vec4(1.0f, 0.32f, 0.32f, pipAlpha) : glm::vec4(0.85f, 0.88f, 0.92f, pipAlpha);
+        drawAimReticle(pipCenter, 0.038f + spread * 0.030f + heat * 0.015f, retColor);
     }
 }
 

@@ -1369,7 +1369,7 @@ void GameApp::run() {
             }
 
             // Update Player Controller with Camera-Relative Direction and Precision 3D Aim Target
-            player.update(gameDt, window, mouseWorldPos, world, ballistics, camera.getYaw(), &camera, &aimInfo);
+            player.update(gameDt, window, mouseWorldPos, world, ballistics, camera.getYaw(), &camera, &aimInfo, &frontline.getBots());
             if (testAim) player.setAiming(true);
             if (testCrouch) player.getStats().stance = PlayerStance::Crouching;
             if (testMove) {
