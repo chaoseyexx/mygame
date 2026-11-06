@@ -316,11 +316,13 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
             m_position.y = glm::mix(m_climbPeakY, targetGroundY, s2);
         }
 
+        m_rig.setAirborne(true);
         bool hasWeapon = m_inventory.getEquipped(m_activeWeaponSlot).has_value();
         m_rig.update9D(dt, m_position, m_yaw, m_aimTarget, m_velocity, false, true, 0, false, false, hasWeapon, false, 0.0f);
 
         if (t >= 1.0f) {
             m_isClimbing = false;
+            m_rig.setAirborne(false);
             m_position = m_climbTargetPos;
             m_position.y = world.getWalkableSurfaceHeight(m_position, 0.24f);
             glm::vec3 climbDir = glm::normalize(m_climbTargetPos - m_climbStartPos);
@@ -345,12 +347,14 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         float hurdleHeight = std::max(0.12f, m_vaultPeakY - groundBase);
         m_position.y = groundBase + hurdleHeight * vertCurve;
 
+        m_rig.setAirborne(true);
         bool hasWeapon = m_inventory.getEquipped(m_activeWeaponSlot).has_value();
         m_rig.setVaultParameters(true, t, m_vaultHandPlantPos);
         m_rig.update9D(dt, m_position, m_yaw, m_aimTarget, m_velocity, false, true, 0, false, false, hasWeapon, false, 0.0f);
 
         if (t >= 1.0f) {
             m_isVaulting = false;
+            m_rig.setAirborne(false);
             m_rig.setVaultParameters(false, 0.0f, glm::vec3(0.0f));
             m_position.y = world.getWalkableSurfaceHeight(m_position, 0.24f);
             // Carry forward momentum directly into sprint!
@@ -1111,55 +1115,21 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         m_stats.isSprinting = wantsSprint && (groundSpeed > 3.2f);
     }
 
-    // Surface Detection & Realistic Ground-Distance Locomotion Footsteps
+    // Surface Detection & Realistic Ground-Distance Locomotion Footsteps (Prone crawl gear rustle fallback)
     GroundSurface surface = world.getGroundSurface(m_position);
-    float stepIntervalDistance = 1.15f; // Meters per step
-    if (m_stats.isSprinting) stepIntervalDistance = 1.70f;
-    else if (m_stats.stance == PlayerStance::Crouching) stepIntervalDistance = 0.85f;
-    else if (m_stats.stance == PlayerStance::Prone) stepIntervalDistance = 0.65f;
+    float stepIntervalDistance = (m_stats.stance == PlayerStance::Prone) ? 0.65f : 1.15f;
 
-    if (frameDistance > 0.0005f) {
+    if (m_stats.stance == PlayerStance::Prone && frameDistance > 0.0005f) {
         m_footstepDistanceAccumulator += frameDistance;
         if (m_footstepDistanceAccumulator >= stepIntervalDistance) {
             m_footstepDistanceAccumulator -= stepIntervalDistance;
             m_totalSteps++;
-            m_lastFootLeft = !m_lastFootLeft;
-
-            // Environmental acoustic zone detection for physical footsteps
             AcousticEnvironment playerEnv = world.detectAcousticEnvironment(m_position);
-            if (playerEnv == AcousticEnvironment::ConcreteBunker || playerEnv == AcousticEnvironment::IndustrialInterior) {
-                surface = GroundSurface::Concrete;
-            }
-
-            // Determine sound and properties based on physical surface & stance
-            SoundType stepSnd = SoundType::FootstepDirt;
-            float stepVol = 0.38f;
-            float stepPitch = 0.96f + (static_cast<float>(std::rand() % 10) * 0.01f);
-
-            stepSnd = getSurfaceFootstepSound(surface);
-            if (m_stats.stance == PlayerStance::Prone) {
-                stepSnd = SoundType::GearRustle;
-                stepVol = 0.22f;
-                stepPitch = 0.92f;
-            } else if (m_stats.stance == PlayerStance::Crouching) {
-                stepVol = 0.24f;
-                stepPitch *= 0.90f;
-            } else if (m_stats.isSprinting) {
-                stepVol = 0.55f;
-                stepPitch *= 1.08f;
-                if (m_totalSteps % 2 == 0) {
-                    AudioEngine::get().playSound(SoundType::GearRustle, 0.20f, 1.0f);
-                }
-            }
-
-            AudioEngine::get().playSound(stepSnd, stepVol, stepPitch, playerEnv);
-            m_lastStepPitch = stepPitch;
-            m_lastStepVolume = stepVol;
-            m_lastSoundTriggered = getSoundTypeName(stepSnd);
-
+            AudioEngine::get().playSound(SoundType::GearRustle, 0.22f, 0.92f, playerEnv);
+            m_lastSoundTriggered = getSoundTypeName(SoundType::GearRustle);
         }
-    } else {
-        m_footstepDistanceAccumulator = std::max(0.0f, m_footstepDistanceAccumulator - dt * 2.0f);
+    } else if (m_stats.stance != PlayerStance::Prone) {
+        m_footstepDistanceAccumulator = 0.0f;
     }
 
     // Combat Engineering Fortification Cooldown
@@ -1198,7 +1168,9 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     m_coverAimWeight = glm::mix(m_coverAimWeight, targetCoverAim, std::clamp(dt * 12.0f, 0.0f, 1.0f));
     m_rig.setCoverParameters(m_inCover, m_isLowCover, m_coverHeight, m_coverAimWeight, m_coverLeanAngle);
     m_rig.setVaultParameters(m_isVaulting, (m_vaultDuration > 0.0f ? (m_vaultTimer / m_vaultDuration) : 0.0f), m_vaultHandPlantPos);
-    m_rig.setAirborne(m_isVaulting || m_isClimbing || m_isJumping);
+    bool isFalling = (!m_isJumping && !m_isVaulting && !m_isClimbing && std::abs(world.getWalkableSurfaceHeight(m_position, 0.24f) - m_position.y) > 0.35f);
+    m_rig.setAirborne(m_isVaulting || m_isClimbing || m_isJumping || isFalling);
+    m_rig.setSliding(m_isSliding);
     m_rig.setGroundSurface(surface);
     if (camera) {
         m_rig.setShoulderRight(camera->isShoulderRight());
@@ -1211,6 +1183,33 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     // Update character rig IK & frame-accurate weapon matrix before raycasting and weapon firing
     m_rig.update9D(dt, m_position, m_yaw, unifiedTarget, m_velocity, isMoving, m_stats.isSprinting,
                    static_cast<int>(m_stats.stance), fireInput, m_isAiming, hasWeapon, m_isReloading, reloadProg);
+
+    // Audio-visual synchronized footsteps directly linked to rig IK ground strikes
+    int footstepEvt = m_rig.consumeFootstepEvent();
+    if (footstepEvt > 0 && !m_isJumping && !m_isSliding && !m_isVaulting && !m_isClimbing && !isFalling) {
+        AcousticEnvironment playerEnv = world.detectAcousticEnvironment(m_position);
+        if (playerEnv == AcousticEnvironment::ConcreteBunker || playerEnv == AcousticEnvironment::IndustrialInterior) {
+            surface = GroundSurface::Concrete;
+        }
+        SoundType stepSnd = getSurfaceFootstepSound(surface);
+        float stepVol = 0.38f;
+        float stepPitch = 0.96f + (static_cast<float>(std::rand() % 10) * 0.01f);
+        if (m_stats.stance == PlayerStance::Crouching) {
+            stepVol = 0.24f;
+            stepPitch *= 0.90f;
+        } else if (m_stats.isSprinting) {
+            stepVol = 0.55f;
+            stepPitch *= 1.08f;
+            if (m_totalSteps % 2 == 0) {
+                AudioEngine::get().playSound(SoundType::GearRustle, 0.20f, 1.0f);
+            }
+        }
+        AudioEngine::get().playSound(stepSnd, stepVol, stepPitch, playerEnv);
+        m_totalSteps++;
+        m_lastStepPitch = stepPitch;
+        m_lastStepVolume = stepVol;
+        m_lastSoundTriggered = getSoundTypeName(stepSnd);
+    }
 
     // 5. Directional Cover Evaluation & Ballistic Trajectory Raycast
     if (m_inCover) {

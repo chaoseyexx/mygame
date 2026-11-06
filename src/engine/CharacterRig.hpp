@@ -280,8 +280,9 @@ public:
     void setTerrainHeight(float y) { m_terrainHeight = y; }
 
     void setAirborne(bool airborne) { m_isAirborne = airborne; }
-
     bool isAirborne() const { return m_isAirborne; }
+    void setSliding(bool sliding) { m_isSliding = sliding; }
+    bool isSliding() const { return m_isSliding; }
     void setShoulderRight(bool right) { m_shoulderRight = right; }
     bool isShoulderRight() const { return m_shoulderRight; }
 
@@ -399,6 +400,7 @@ private:
 
 
     bool m_isAirborne = false;
+    bool m_isSliding = false;
     GroundSurface m_groundSurface = GroundSurface::Dirt;
     float m_stepTurnDir = 1.0f;
     float m_stepTurnStartLowerYaw = 0.0f;

@@ -144,29 +144,38 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         m_rightFootPlantedYaw = m_lowerBodyYaw;
         m_stanceFeetInitialized = true;
 
-        // Walk cycle progression driven strictly by ground displacement
-        float horizDistTraveled = speed * dt;
-        float strideLength = isSprinting ? 2.10f : (m_stance == 1 ? 0.95f : 1.35f);
-        strideLength *= (1.0f - 0.20f * cCurve - 0.45f * pCurve);
+        if (!m_isSliding) {
+            // Walk cycle progression driven strictly by ground displacement
+            float horizDistTraveled = speed * dt;
+            float strideLength = isSprinting ? 2.10f : (m_stance == 1 ? 0.95f : 1.35f);
+            strideLength *= (1.0f - 0.20f * cCurve - 0.45f * pCurve);
 
-        float prevNorm = m_prevWalkPhase;
-        m_walkCycle += (horizDistTraveled / strideLength) * (2.0f * glm::pi<float>());
-        float currNorm = m_walkCycle / (2.0f * glm::pi<float>());
-        m_prevWalkPhase = currNorm;
+            float prevNorm = m_prevWalkPhase;
+            m_walkCycle += (horizDistTraveled / strideLength) * (2.0f * glm::pi<float>());
+            // Periodic modulo wrapping to preserve 32-bit floating-point precision
+            if (m_walkCycle > 1000.0f) {
+                m_walkCycle = std::fmod(m_walkCycle, 2.0f * glm::pi<float>());
+            }
+            float currNorm = m_walkCycle / (2.0f * glm::pi<float>());
+            m_prevWalkPhase = currNorm;
 
-        // Biomechanically accurate double-support dynamic pelvis dip:
-        // Hips are highest when passing directly over the supporting leg (phase pi/2 and 3pi/2),
-        // and lowest at double-support foot plant (phase 0 and pi), giving outstretched legs reach clearance.
-        float bobFactor = (std::sin(2.0f * m_walkCycle - glm::pi<float>() * 0.5f) - 1.0f) * 0.5f;
-        m_pelvisBob = bobFactor * (isSprinting ? 0.038f : 0.024f);
+            // Biomechanically accurate double-support dynamic pelvis dip:
+            // Hips are highest when passing directly over the supporting leg (phase pi/2 and 3pi/2),
+            // and lowest at double-support foot plant (phase 0 and pi), giving outstretched legs reach clearance.
+            float bobFactor = (std::sin(2.0f * m_walkCycle - glm::pi<float>() * 0.5f) - 1.0f) * 0.5f;
+            m_pelvisBob = bobFactor * (isSprinting ? 0.038f : 0.024f);
 
-        // Deterministic heel-strike event synchronization:
-        // Left foot strikes at phaseNorm 0.0 (and 1.0, 2.0...)
-        // Right foot strikes at phaseNorm 0.5 (and 1.5, 2.5...)
-        int prevStep = static_cast<int>(std::floor(prevNorm * 2.0f));
-        int currStep = static_cast<int>(std::floor(currNorm * 2.0f));
-        if (currStep > prevStep) {
-            m_footstepEvent = (currStep % 2 == 0) ? 1 : 2;
+            // Deterministic heel-strike event synchronization:
+            // Left foot strikes at phaseNorm 0.0 (and 1.0, 2.0...)
+            // Right foot strikes at phaseNorm 0.5 (and 1.5, 2.5...)
+            int prevStep = static_cast<int>(std::floor(prevNorm * 2.0f));
+            int currStep = static_cast<int>(std::floor(currNorm * 2.0f));
+            if (currStep > prevStep) {
+                m_footstepEvent = (currStep % 2 == 0) ? 1 : 2;
+            }
+        } else {
+            m_pelvisBob = -0.06f; // Low grounded pelvis during tactical slide
+            m_footstepEvent = 0;
         }
 
         // Lateral pelvis sway: natural weight transfer between strides
@@ -683,8 +692,9 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 coverChestElevation = std::max(0.0f, targetChestY - currentCrouchChestY) * m_coverAimWeight;
             }
 
-            // Dynamic Athletic Forward Lean
+            // Dynamic Athletic Forward Lean (Reclines backward during tactical sprint slide)
             float sprintLean = (m_isSprinting && m_isMoving) ? 0.30f : ((m_isMoving) ? 0.11f : 0.0f);
+            if (m_isSliding) sprintLean = -0.22f;
             float leanZ = sprintLean + 0.14f * cCurve + m_woundTorsoHunch * 0.25f;
 
             // Asymmetric limp dip when wounded in lower extremities
@@ -865,7 +875,12 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 }
             }
 
-            if (m_isVaulting) {
+            if (m_isSliding) {
+                // Tactical Sprint Slide (Authentic baseball / knee slide pose)
+                // Lead leg (right) extended forward along ground, trailing leg (left) tucked under knee
+                leftFootPos  = lowerToWorld(glm::vec3(-0.16f, 0.06f, -0.22f));
+                rightFootPos = lowerToWorld(glm::vec3( 0.12f, 0.08f,  0.48f));
+            } else if (m_isVaulting) {
                 float tuck = std::sin(m_vaultProgress * 3.14159f) * 0.35f;
                 leftFootPos = lowerToWorld(glm::vec3(-0.13f, 0.07f + tuck + 0.12f, -0.15f + m_vaultProgress * 0.35f));
                 rightFootPos = lowerToWorld(glm::vec3(0.13f, 0.07f + tuck, -0.22f + m_vaultProgress * 0.40f));
@@ -875,13 +890,22 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             glm::vec3 normalL(0.0f, 1.0f, 0.0f);
             glm::vec3 normalR(0.0f, 1.0f, 0.0f);
 
-            if (!m_isAirborne) {
+            if (!m_isAirborne && !m_isSliding) {
                 float groundL = World::sampleTerrainHeight(leftFootPos.x, leftFootPos.z);
                 float groundR = World::sampleTerrainHeight(rightFootPos.x, rightFootPos.z);
 
+                // Elevated structure protection: If terrain is significantly lower than root position
+                // (e.g. standing on bridge, crate, platform, train, roof), anchor to root walkable height!
+                if (std::abs(groundL - m_rootPos.y) > 0.38f) {
+                    groundL = m_rootPos.y;
+                }
+                if (std::abs(groundR - m_rootPos.y) > 0.38f) {
+                    groundR = m_rootPos.y;
+                }
+
                 float deltaL = groundL - m_rootPos.y;
                 float deltaR = groundR - m_rootPos.y;
-                pelvisDrop = std::min(0.0f, std::min(deltaL, deltaR));
+                pelvisDrop = std::clamp(std::min(0.0f, std::min(deltaL, deltaR)), -0.14f, 0.0f);
 
                 leftFootPos.y = groundL + 0.07f + leftLift;
                 rightFootPos.y = groundR + 0.07f + rightLift;
@@ -903,6 +927,11 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             float kneeSplay = 0.16f + 0.18f * cCurve;
             glm::vec3 leftKneePole  = lowerToWorld(glm::vec3(-kneeSplay + moveRgt * 0.08f, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex));
             glm::vec3 rightKneePole = lowerToWorld(glm::vec3( kneeSplay + moveRgt * 0.08f, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex));
+
+            if (m_isSliding) {
+                leftKneePole  = lowerToWorld(glm::vec3(-0.24f, 0.14f, -0.05f));
+                rightKneePole = lowerToWorld(glm::vec3( 0.14f, 0.22f,  0.55f));
+            }
 
             // Procedural knee flexion when stepping during turn in place
             if (!m_isMoving) {
@@ -1071,30 +1100,44 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     leftElbowPole = chestPos - rightDir * 0.40f + aimForward * 0.05f - rifleUp * 0.24f;
 
                 } else if (m_isSprinting && !m_isAiming && !isDroppingWeapon) {
-                    uprightRenderPitch = 0.42f;
-                    float cp = std::cos(uprightRenderPitch);
-                    float sp = -std::sin(uprightRenderPitch);
-                    aimForward = forwardDir * cp + glm::vec3(0, sp, 0);
-                    rifleUp = glm::normalize(glm::cross(aimForward, rightDir));
-
-                    float sprintBobY = std::abs(std::sin(m_walkCycle)) * 0.040f;
-                    float sprintBobX = std::sin(m_walkCycle) * 0.028f;
-                    uprightRifleRoot = chestPos + rightDir * 0.12f - glm::vec3(0.0f, 0.10f - sprintBobY, 0.0f) + aimForward * (0.32f + sprintBobX);
+                    const auto& gripCfg = WeaponRigManager::get().getConfig(weaponToDraw);
+                    uprightRenderPitch = 0.42f; // High-ready athletic sprint tuck
 
                     bool isPistol = (weaponToDraw.find("M9") != std::string::npos ||
                                      weaponToDraw.find("Beretta") != std::string::npos ||
                                      weaponToDraw.find("Pistol") != std::string::npos);
-                    if (isPistol) {
-                        rightHandTarget = uprightRifleRoot - aimForward * 0.02f - rifleUp * 0.05f;
-                        leftHandTarget  = uprightRifleRoot - aimForward * 0.00f - rifleUp * 0.055f - rightDir * 0.03f;
-                        rightElbowPole = rightShoulder + rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.10f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.10f;
-                    } else {
-                        rightHandTarget = uprightRifleRoot - aimForward * 0.08f - rifleUp * 0.065f;
-                        leftHandTarget  = uprightRifleRoot + aimForward * 0.10f - rifleUp * 0.050f - rightDir * 0.015f;
-                        rightElbowPole = rightShoulder + rightDir * 0.22f - rifleUp * 0.20f + aimForward * 0.12f;
-                        leftElbowPole  = leftShoulder  - rightDir * 0.18f - rifleUp * 0.20f + aimForward * 0.16f;
+                    float curYaw = isPistol ? (m_shoulderRight ? -0.10f : 0.10f) : (m_shoulderRight ? -0.32f : 0.32f);
+                    float curRoll = isPistol ? 0.0f : (m_shoulderRight ? -0.12f : 0.12f);
+
+                    glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), m_yaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+                    wRot = glm::rotate(wRot, uprightRenderPitch, glm::vec3(1.0f, 0.0f, 0.0f));
+                    if (std::abs(curRoll) > 0.001f) {
+                        wRot = glm::rotate(wRot, curRoll, glm::vec3(0.0f, 0.0f, 1.0f));
                     }
+
+                    glm::vec3 weaponForward = glm::vec3(wRot * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
+                    glm::vec3 weaponUp      = glm::vec3(wRot * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
+                    glm::vec3 weaponRight   = glm::vec3(wRot * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
+
+                    aimForward = weaponForward;
+                    rifleUp    = weaponUp;
+
+                    float sprintBobY = std::abs(std::sin(m_walkCycle)) * 0.032f;
+                    float sprintBobX = std::sin(m_walkCycle) * 0.020f;
+                    float rootY = gripCfg.rootOffset.y + sprintBobY;
+                    float rootRight = (m_shoulderRight ? gripCfg.rootOffset.x : -gripCfg.rootOffset.x) + sprintBobX;
+                    float rootForward = gripCfg.rootOffset.z;
+
+                    uprightRifleRoot = chestPos + rightDir * rootRight + glm::vec3(0.0f, rootY, 0.0f) + weaponForward * rootForward;
+
+                    glm::vec3 rHandOffset = gripCfg.rightHandOffset;
+                    rightHandTarget = uprightRifleRoot + weaponRight * rHandOffset.x + weaponUp * rHandOffset.y + weaponForward * rHandOffset.z;
+
+                    glm::vec3 lHandOffset = gripCfg.leftHandOffset;
+                    leftHandTarget = uprightRifleRoot + weaponRight * lHandOffset.x + weaponUp * lHandOffset.y + weaponForward * lHandOffset.z;
+
+                    rightElbowPole = rightShoulder + rightDir * 0.22f - weaponUp * 0.20f + weaponForward * 0.12f;
+                    leftElbowPole  = leftShoulder  - rightDir * 0.18f - weaponUp * 0.20f + weaponForward * 0.16f;
 
                 } else {
                     const auto& gripCfg = WeaponRigManager::get().getConfig(weaponToDraw);
@@ -1358,7 +1401,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         } else {
             SkeletonPose pronePose;
             glm::vec3 proneRifleRoot(0.0f);
-            float proneRenderPitch = m_aimPitch;
+            float proneRenderPitch = std::clamp(m_aimPitch, -0.12f, 0.55f);
 
             {
                 float crawlPhase = m_walkCycle;
