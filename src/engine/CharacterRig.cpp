@@ -28,7 +28,6 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
                             bool isAiming, bool hasWeapon, bool isReloading, float reloadProgress) {
     m_rootPos = worldPos;
     m_yaw = yaw;
-    m_aimTarget = aimTarget;
 
     if (!m_stanceFeetInitialized) {
         m_lowerBodyYaw = yaw;
@@ -57,12 +56,10 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         m_hipFireTimer -= dt;
     }
 
-    // Combat-Ready Stance: When holding weapon and not sprinting fast or reloading,
-    // operator maintains active combat-ready aim so 3D aiming ray functions as continuous crosshair
-    bool isSprintingFast = (isSprinting && glm::length(velocity) > 2.5f);
-    bool activeAim = hasWeapon && !m_isReloading && !isSprintingFast;
+    // Smooth ADS interpolation (snappy tactical transitions between Low-Ready and High-Ready ADS)
+    bool activeAim = (isAiming || isFiring || m_hipFireTimer > 0.0f) && hasWeapon && !m_isReloading;
     float targetAimWeight = activeAim ? 1.0f : 0.0f;
-    m_aimWeight = glm::mix(m_aimWeight, targetAimWeight, std::clamp(dt * 14.0f, 0.0f, 1.0f));
+    m_aimWeight = glm::mix(m_aimWeight, targetAimWeight, std::clamp(dt * 12.0f, 0.0f, 1.0f));
 
     // 1. Calculate vertical aim pitch from direct camera feed or 3D target ray
     if (m_hasDirectAimPitch) {
@@ -315,7 +312,7 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
 
     // 5. Recoil & Muzzle Flash decay (rapid snappy return for crisp tactile kick)
     if (m_recoilKick > 0.0f) {
-        m_recoilKick = glm::mix(m_recoilKick, 0.0f, std::clamp(dt * 11.0f, 0.0f, 1.0f));
+        m_recoilKick = glm::mix(m_recoilKick, 0.0f, std::clamp(dt * 22.0f, 0.0f, 1.0f));
         if (m_recoilKick < 0.001f) m_recoilKick = 0.0f;
     }
     if (m_muzzleFlashTimer > 0.0f) {
@@ -387,13 +384,39 @@ void CharacterRig::updateWeaponTransform() {
         chestPos.y += coverChestElevation;
 
         const auto& gripCfg = WeaponRigManager::get().getConfig(weaponToDraw);
+        m_renderPitch = glm::mix(gripCfg.lowReadyPitch, -m_aimPitch, m_aimWeight) - m_recoilKick * 2.8f;
+
+        // Mount weapon directly on cover rim when aiming in low cover
+        if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
+            m_renderPitch = glm::mix(m_renderPitch, -m_aimPitch * 0.85f, m_coverAimWeight);
+        }
+
+        bool isPistol = (weaponToDraw.find("M9") != std::string::npos ||
+                         weaponToDraw.find("Beretta") != std::string::npos ||
+                         weaponToDraw.find("Pistol") != std::string::npos);
+        float idleYaw = isPistol ? (m_shoulderRight ? -0.10f : 0.10f) : (m_shoulderRight ? -0.32f : 0.32f);
+        float idleRoll = isPistol ? 0.0f : (m_shoulderRight ? -0.12f : 0.12f);
+        float curYaw = glm::mix(idleYaw, 0.0f, m_aimWeight);
+        float curRoll = glm::mix(idleRoll, 0.0f, m_aimWeight);
+
+        glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), m_yaw + curYaw + m_weaponLagYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+        float finalPitch = m_renderPitch + m_weaponLagPitch + m_sprintCarryAngle;
+        if (std::abs(finalPitch) > 0.001f) {
+            wRot = glm::rotate(wRot, finalPitch, glm::vec3(1.0f, 0.0f, 0.0f));
+        }
+        float finalRoll = curRoll - m_sprintCarryAngle * 0.45f;
+        if (std::abs(finalRoll) > 0.001f) {
+            wRot = glm::rotate(wRot, finalRoll, glm::vec3(0.0f, 0.0f, 1.0f));
+        }
+
+        glm::vec3 weaponForward = glm::vec3(wRot * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
 
         float rootY = glm::mix(gripCfg.rootOffset.y, gripCfg.rootOffsetADS.y, m_aimWeight);
         float rootRight = glm::mix(gripCfg.rootOffset.x, gripCfg.rootOffsetADS.x, m_aimWeight);
         if (!m_shoulderRight) rootRight = -rootRight;
         float rootForward = glm::mix(gripCfg.rootOffset.z, gripCfg.rootOffsetADS.z, m_aimWeight) - m_recoilKick;
 
-        m_rifleRoot = chestPos + rightDir * rootRight + glm::vec3(0.0f, rootY, 0.0f) + forwardDir * rootForward;
+        m_rifleRoot = chestPos + rightDir * rootRight + glm::vec3(0.0f, rootY, 0.0f) + weaponForward * rootForward;
 
         if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
             float desiredRifleY = m_rootPos.y + m_coverHeight + 0.04f;
@@ -401,49 +424,7 @@ void CharacterRig::updateWeaponTransform() {
             m_rifleRoot += forwardDir * (0.18f * m_coverAimWeight);
         }
 
-        // True 3D convergent look-at vector from rifleRoot directly to aimTarget
-        glm::vec3 toTarget = m_aimTarget - m_rifleRoot;
-        glm::vec3 targetAimDir;
-        if (glm::length(toTarget) > 0.15f) {
-            targetAimDir = glm::normalize(toTarget);
-        } else {
-            targetAimDir = forwardDir;
-        }
-
-        // Apply recoil pitch and kick directly to the aim direction around the lateral axis
-        float totalRecoilAngle = -(m_dynamicRecoilPitch * 1.4f + m_recoilKick * 2.5f);
-        glm::vec3 lateralAxis = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), targetAimDir);
-        if (glm::length(lateralAxis) > 0.001f) {
-            lateralAxis = glm::normalize(lateralAxis);
-            if (std::abs(totalRecoilAngle) > 0.001f) {
-                glm::mat4 kickMat = glm::rotate(glm::mat4(1.0f), totalRecoilAngle, lateralAxis);
-                targetAimDir = glm::normalize(glm::vec3(kickMat * glm::vec4(targetAimDir, 0.0f)));
-            }
-        }
-
-        // Construct orthonormal look-at rotation matrix pointing +Z along targetAimDir
-        glm::vec3 fwd = targetAimDir;
-        glm::vec3 upRef = (std::abs(fwd.y) > 0.95f) ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
-        glm::vec3 rgt = glm::normalize(glm::cross(upRef, fwd));
-        glm::vec3 trueUp = glm::normalize(glm::cross(fwd, rgt));
-        glm::mat4 aimRot = glm::mat4(
-            glm::vec4(rgt, 0.0f),
-            glm::vec4(trueUp, 0.0f),
-            glm::vec4(fwd, 0.0f),
-            glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)
-        );
-
-        // Low-ready patrol rotation for sprint or resting
-        glm::mat4 patrolRot = glm::rotate(glm::mat4(1.0f), m_yaw + (m_shoulderRight ? -0.32f : 0.32f), glm::vec3(0.0f, 1.0f, 0.0f));
-        patrolRot = glm::rotate(patrolRot, gripCfg.lowReadyPitch + m_sprintCarryAngle, glm::vec3(1.0f, 0.0f, 0.0f));
-
-        glm::quat qPatrol = glm::quat_cast(patrolRot);
-        glm::quat qAim = glm::quat_cast(aimRot);
-        glm::quat qFinal = glm::slerp(qPatrol, qAim, m_aimWeight);
-        glm::mat4 wRot = glm::mat4_cast(qFinal);
-
-        m_weaponWorldMatrix = glm::translate(glm::mat4(1.0f), m_rifleRoot) * wRot;
-        wModel = m_weaponWorldMatrix;
+        wModel = glm::translate(glm::mat4(1.0f), m_rifleRoot) * wRot;
     }
 
     glm::vec3 localMuzzle(0.0f, 0.02f, 0.55f);
@@ -461,7 +442,6 @@ void CharacterRig::updateWeaponTransform() {
     }
 
     m_muzzlePos = glm::vec3(wModel * glm::vec4(localMuzzle, 1.0f));
-    m_muzzleForward = glm::normalize(glm::vec3(wModel * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
     m_casingPos = glm::vec3(wModel * glm::vec4(localCasing, 1.0f));
 }
 
@@ -1106,18 +1086,44 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
 
                 } else {
                     const auto& gripCfg = WeaponRigManager::get().getConfig(weaponToDraw);
-                    uprightRenderPitch = glm::mix(gripCfg.lowReadyPitch, -m_aimPitch, m_aimWeight) - (m_dynamicRecoilPitch * 1.4f + m_recoilKick * 2.5f);
+                    uprightRenderPitch = glm::mix(gripCfg.lowReadyPitch, -m_aimPitch, m_aimWeight) - m_recoilKick * 2.8f;
                     if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
                         uprightRenderPitch = glm::mix(uprightRenderPitch, -m_aimPitch * 0.85f, m_coverAimWeight);
                     }
 
-                    glm::vec3 weaponRight   = glm::normalize(glm::vec3(m_weaponWorldMatrix[0]));
-                    glm::vec3 weaponUp      = glm::normalize(glm::vec3(m_weaponWorldMatrix[1]));
-                    glm::vec3 weaponForward = glm::normalize(glm::vec3(m_weaponWorldMatrix[2]));
-                    uprightRifleRoot        = glm::vec3(m_weaponWorldMatrix[3]);
+                    bool isPistol = (weaponToDraw.find("M9") != std::string::npos ||
+                                     weaponToDraw.find("Beretta") != std::string::npos ||
+                                     weaponToDraw.find("Pistol") != std::string::npos);
+                    float idleYaw = isPistol ? (m_shoulderRight ? -0.10f : 0.10f) : (m_shoulderRight ? -0.32f : 0.32f);
+                    float idleRoll = isPistol ? 0.0f : (m_shoulderRight ? -0.12f : 0.12f);
+                    float curYaw = glm::mix(idleYaw, 0.0f, m_aimWeight);
+                    float curRoll = glm::mix(idleRoll, 0.0f, m_aimWeight);
+
+                    glm::mat4 wRot = glm::rotate(glm::mat4(1.0f), m_yaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+                    wRot = glm::rotate(wRot, uprightRenderPitch, glm::vec3(1.0f, 0.0f, 0.0f));
+                    if (std::abs(curRoll) > 0.001f) {
+                        wRot = glm::rotate(wRot, curRoll, glm::vec3(0.0f, 0.0f, 1.0f));
+                    }
+
+                    glm::vec3 weaponForward = glm::vec3(wRot * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
+                    glm::vec3 weaponUp      = glm::vec3(wRot * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
+                    glm::vec3 weaponRight   = glm::vec3(wRot * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
 
                     aimForward = weaponForward;
                     rifleUp    = weaponUp;
+
+                    float rootY = glm::mix(gripCfg.rootOffset.y, gripCfg.rootOffsetADS.y, m_aimWeight) + breathY;
+                    float rootRight = glm::mix(gripCfg.rootOffset.x, gripCfg.rootOffsetADS.x, m_aimWeight) + breathX;
+                    if (!m_shoulderRight) rootRight = -rootRight;
+                    float rootForward = glm::mix(gripCfg.rootOffset.z, gripCfg.rootOffsetADS.z, m_aimWeight) - m_recoilKick;
+
+                    uprightRifleRoot = chestPos + rightDir * rootRight + glm::vec3(0, rootY, 0) + weaponForward * rootForward;
+
+                    if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
+                        float desiredRifleY = m_rootPos.y + m_coverHeight + 0.04f;
+                        uprightRifleRoot.y = glm::mix(uprightRifleRoot.y, desiredRifleY, m_coverAimWeight);
+                        uprightRifleRoot += forwardDir * (0.18f * m_coverAimWeight);
+                    }
 
                     glm::vec3 rHandOffset = gripCfg.rightHandOffset;
                     rightHandTarget = uprightRifleRoot + weaponRight * rHandOffset.x + weaponUp * rHandOffset.y + weaponForward * rHandOffset.z;
@@ -1517,16 +1523,42 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         drawAttachedWeapon = m_deathGrip && !(m_dismemberMask & DISMEMBER_R_ARM) && (weaponToDraw != "None");
     }
     if (drawAttachedWeapon) {
-        if (!m_isDead) {
-            renderer.drawWeapon(weaponToDraw, m_weaponWorldMatrix);
-        } else {
-            glm::mat4 wModel = glm::translate(glm::mat4(1.0f), rifleRoot);
-            wModel = glm::rotate(wModel, m_yaw, glm::vec3(0.0f, 1.0f, 0.0f));
-            if (std::abs(renderPitch) > 0.001f) {
-                wModel = glm::rotate(wModel, renderPitch, glm::vec3(1.0f, 0.0f, 0.0f));
-            }
-            renderer.drawWeapon(weaponToDraw, wModel);
+        bool isPistol = (weaponToDraw.find("M9") != std::string::npos ||
+                         weaponToDraw.find("Beretta") != std::string::npos ||
+                         weaponToDraw.find("Pistol") != std::string::npos);
+        float idleYaw = isPistol ? (m_shoulderRight ? -0.10f : 0.10f) : (m_shoulderRight ? -0.32f : 0.32f);
+        float idleRoll = isPistol ? 0.0f : (m_shoulderRight ? -0.12f : 0.12f);
+        float curYaw = glm::mix(idleYaw, 0.0f, m_aimWeight);
+        float curRoll = glm::mix(idleRoll, 0.0f, m_aimWeight);
+
+        glm::mat4 wModel = glm::translate(glm::mat4(1.0f), rifleRoot);
+        wModel = glm::rotate(wModel, m_yaw + curYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+        if (std::abs(renderPitch) > 0.001f) {
+            wModel = glm::rotate(wModel, renderPitch, glm::vec3(1.0f, 0.0f, 0.0f));
         }
+        if (std::abs(curRoll) > 0.001f) {
+            wModel = glm::rotate(wModel, curRoll, glm::vec3(0.0f, 0.0f, 1.0f));
+        }
+
+        glm::vec3 localMuzzle(0.0f, 0.02f, 0.55f);
+        glm::vec3 localCasing(0.03f, 0.035f, 0.08f);
+        if (weaponToDraw.find("AK") != std::string::npos || weaponToDraw.find("74") != std::string::npos || weaponToDraw.find("Kalash") != std::string::npos) {
+            localMuzzle = glm::vec3(0.0f, 0.032f, 0.6425f);
+            localCasing = glm::vec3(0.035f, 0.040f, 0.10f);
+        } else if (weaponToDraw.find("Mosin") != std::string::npos || weaponToDraw.find("Nagant") != std::string::npos || weaponToDraw.find("Sniper") != std::string::npos) {
+            localMuzzle = glm::vec3(0.0f, 0.022f, 0.86f);
+            localCasing = glm::vec3(0.040f, 0.032f, -0.04f);
+        } else if (weaponToDraw.find("M9") != std::string::npos || weaponToDraw.find("Beretta") != std::string::npos || weaponToDraw.find("Pistol") != std::string::npos) {
+            localMuzzle = glm::vec3(0.0f, 0.035f, 0.135f);
+            localCasing = glm::vec3(0.02f, 0.035f, 0.03f);
+        }
+
+        m_muzzlePos = glm::vec3(wModel * glm::vec4(localMuzzle, 1.0f));
+        m_casingPos = glm::vec3(wModel * glm::vec4(localCasing, 1.0f));
+        m_rifleRoot = rifleRoot;
+        m_renderPitch = renderPitch;
+
+        renderer.drawWeapon(weaponToDraw, wModel);
     }
 }
 

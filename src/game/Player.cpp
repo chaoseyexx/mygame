@@ -1227,9 +1227,8 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     glm::vec3 muzzle = (glm::length(m_rig.getMuzzlePosition()) > 0.1f)
         ? m_rig.getMuzzlePosition()
         : (m_position + glm::vec3(0.0f, 1.25f, 0.0f) + glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw)) * 0.75f);
-    glm::vec3 muzzleFwd = (glm::length(m_rig.getMuzzleForward()) > 0.1f)
-        ? m_rig.getMuzzleForward()
-        : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+    glm::vec3 aimToTarget = unifiedTarget - muzzle;
+    glm::vec3 aimDir = (glm::length(aimToTarget) > 0.001f) ? glm::normalize(aimToTarget) : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
 
     float rayRange = 85.0f;
     auto& equippedForRay = m_inventory.getEquipped(m_activeWeaponSlot);
@@ -1237,7 +1236,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         rayRange = equippedForRay->aimRange;
     }
 
-    glm::vec3 rayTarget = muzzle + muzzleFwd * rayRange;
+    glm::vec3 rayTarget = muzzle + aimDir * rayRange;
     glm::vec3 hitPoint, hitNormal;
     WorldObstacle* hitObs = nullptr;
     m_aimBlocked = world.raycast(muzzle, rayTarget, hitPoint, hitNormal, hitObs);
@@ -1329,15 +1328,12 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     }
 
     // Dynamic Recoil Recovery Delay & Rapid-Fire Heat Dissipation
-    m_rapidFireHeat = std::max(0.0f, m_rapidFireHeat - dt * 2.2f);
+    m_rapidFireHeat = std::max(0.0f, m_rapidFireHeat - dt * 2.5f);
     m_recoilRecoveryDelay = std::max(0.0f, m_recoilRecoveryDelay - dt);
 
-    // Dynamic drive character rig with calculated spring-mass recoil pitch
-    m_rig.setDynamicRecoilPitch(m_recoilPitch);
-
-    // View kick compensation: only recovers when NOT firing and recovery delay has expired!
-    if (camera && m_recoilClimbAccum > 0.001f && !fireInput && m_recoilRecoveryDelay <= 0.0f) {
-        float recoverRate = 6.5f;
+    // View kick compensation: smooth tactical recentering
+    if (camera && m_recoilClimbAccum > 0.001f && (!fireInput || m_recoilRecoveryDelay <= 0.0f)) {
+        float recoverRate = 8.5f;
         float recoverStep = m_recoilClimbAccum * std::clamp(dt * recoverRate, 0.0f, 1.0f);
         if (recoverStep < 0.0005f) recoverStep = m_recoilClimbAccum;
         camera->rotatePitch(recoverStep);
@@ -1377,8 +1373,8 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 if (m_inCover && m_isLowCover) {
                     recoilMod *= (1.0f - 0.50f * m_coverAimWeight); // -50% recoil on cover mount
                 }
-                float vRecoil = (weapon.recoilVertical * 0.0015f) * recoilMod;
-                float hRecoil = (weapon.recoilHorizontal * 0.00075f) * recoilMod;
+                float vRecoil = (weapon.recoilVertical * 0.00065f) * recoilMod;
+                float hRecoil = (weapon.recoilHorizontal * 0.00035f) * recoilMod;
 
                 if (m_isAiming) {
                     vRecoil *= 0.55f;
@@ -1394,22 +1390,24 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 }
 
                 // Dynamic spring-mass impulse injection
-                m_recoilPitchVel += vRecoil * 22.0f;
-                m_recoilPitch += vRecoil * 0.55f;
+                m_recoilPitchVel += vRecoil * 16.0f;
+                m_recoilPitch += vRecoil * 0.25f;
                 float yawSpread = spreadDist(randGen);
-                m_recoilYawVel += yawSpread * (hRecoil * 20.0f);
-                m_recoilYaw += yawSpread * (hRecoil * 0.40f);
-                m_currentBloom = std::min(0.12f, m_currentBloom + vRecoil * 0.50f);
+                m_recoilYawVel += yawSpread * (hRecoil * 14.0f);
+                m_recoilYaw += yawSpread * (hRecoil * 0.20f);
+                m_currentBloom = std::min(0.08f, m_currentBloom + vRecoil * 0.35f);
 
                 // Accumulate rapid-fire thermal heat and refresh recoil recovery lockout
-                m_rapidFireHeat = std::min(1.0f, m_rapidFireHeat + 0.28f);
-                m_recoilRecoveryDelay = 0.20f;
+                m_rapidFireHeat = std::min(1.0f, m_rapidFireHeat + 0.24f);
+                m_recoilRecoveryDelay = 0.08f;
 
                 // Frame-accurate muzzle spawn position directly from 3D weapon barrel matrix
-                glm::vec3 muzzlePos = m_rig.getMuzzlePosition();
-                glm::vec3 muzzleFwd = m_rig.getMuzzleForward();
+                glm::vec3 muzzlePos = (glm::length(m_rig.getMuzzlePosition()) > 0.1f)
+                    ? m_rig.getMuzzlePosition()
+                    : (m_position + glm::vec3(0.0f, 1.25f, 0.0f) + glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw)) * 0.75f);
 
-                glm::vec3 aimDir = (glm::length(muzzleFwd) > 0.1f) ? muzzleFwd : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+                glm::vec3 targetAim = unifiedTarget - muzzlePos;
+                glm::vec3 aimDir = (glm::length(targetAim) > 0.001f) ? glm::normalize(targetAim) : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
 
                 glm::vec3 upRef = (std::abs(aimDir.y) > 0.95f) ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
                 glm::vec3 rightDir = glm::normalize(glm::cross(aimDir, upRef));
@@ -1420,7 +1418,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 float spreadY = spreadDist(randGen) * (m_currentBloom * spreadMult);
                 aimDir = glm::normalize(aimDir + rightDir * spreadX + trueUp * spreadY);
 
-                float kickMagnitude = 0.075f * (weapon.recoilVertical / 40.0f) * recoilMod;
+                float kickMagnitude = 0.045f * (weapon.recoilVertical / 40.0f) * recoilMod;
                 m_rig.triggerMuzzleFlash(kickMagnitude);
 
                 // Caliber and weapon classification
@@ -1453,7 +1451,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 ballistics.spawnShellCasing(casingPos, rightDir, trueUp, aimDir, wTypeInt);
 
                 if (camera) {
-                    float pitchClimb = (weapon.recoilVertical * 0.024f) * recoilMod;
+                    float pitchClimb = (weapon.recoilVertical * 0.0085f) * recoilMod;
                     if (m_isAiming) pitchClimb *= 0.50f;
                     if (m_inCover) pitchClimb *= 0.45f;
                     if (m_isHoldingBreath) pitchClimb *= 0.60f;
@@ -1462,7 +1460,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
 
                     camera->rotatePitch(-pitchClimb);
                     camera->addTrauma(trauma);
-                    m_recoilClimbAccum = std::min(12.0f, m_recoilClimbAccum + pitchClimb);
+                    m_recoilClimbAccum = std::min(4.5f, m_recoilClimbAccum + pitchClimb);
                 }
 
                 float maxRange = weapon.effectiveRange;
