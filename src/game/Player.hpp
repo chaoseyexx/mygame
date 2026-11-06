@@ -164,6 +164,8 @@ private:
     float m_sandbagCooldown = 0.0f;
     bool m_aimBlocked = false;
     glm::vec3 m_aimHitPoint{0.0f};
+    glm::vec3 m_aimHitNormal{0.0f, 1.0f, 0.0f};
+    bool m_aimHitSurface = false;
     bool m_hasTargetLock = false;
     bool m_isHeadshotAim = false;
     AimTargetInfo m_aimTargetInfo;

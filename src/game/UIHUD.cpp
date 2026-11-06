@@ -1119,30 +1119,10 @@ void UIManager::renderInteractionPrompt(Player& player, World& world, const Came
         m_hitMarkerTimer = std::max(0.0f, m_hitMarkerTimer - io.DeltaTime);
     }
 
-    // Dynamic Hip-Fire Crosshair (Third-Person View - Center-Screen Aim Reticle)
+    // 3D Tactical Gray Aiming Ray replaces 2D screen crosshair (Third-Person View)
+    // Only render hitmarker feedback on screen when bullets impact
     if (!player.isAiming() && !uiWantsMouse) {
         ImVec2 mp = ImVec2(screenW * 0.5f, screenH * 0.5f);
-        float spread = player.getCurrentBloom();
-        float moveSpeed = glm::length(player.getVelocity());
-        float gap = 5.0f + spread * 260.0f + moveSpeed * 3.2f;
-        if (player.isSprinting()) gap += 22.0f;
-        if (player.isAirborne()) gap += 28.0f;
-        if (player.isInCover()) gap *= 0.45f;
-        else if (player.getStats().stance == PlayerStance::Crouching) gap *= 0.70f;
-        else if (player.getStats().stance == PlayerStance::Prone) gap *= 0.45f;
-        if (player.isHoldingBreath()) gap *= 0.60f;
-
-        float len = 7.5f;
-        ImU32 retCol = IM_COL32(230, 245, 240, player.isSprinting() ? 120 : 210);
-
-        // 4 sleek dynamic crosshair ticks expanding with bloom & recoil
-        dl->AddLine(ImVec2(mp.x, mp.y - gap - len), ImVec2(mp.x, mp.y - gap), retCol, 1.5f);
-        dl->AddLine(ImVec2(mp.x, mp.y + gap), ImVec2(mp.x, mp.y + gap + len), retCol, 1.5f);
-        dl->AddLine(ImVec2(mp.x - gap - len, mp.y), ImVec2(mp.x - gap, mp.y), retCol, 1.5f);
-        dl->AddLine(ImVec2(mp.x + gap, mp.y), ImVec2(mp.x + gap + len, mp.y), retCol, 1.5f);
-
-        // Center pip dot
-        dl->AddCircleFilled(mp, 1.5f, IM_COL32(255, 255, 255, player.isSprinting() ? 140 : 220));
 
         // Hip-fire Hit Marker
         if (m_hitMarkerTimer > 0.0f) {
@@ -1159,49 +1139,15 @@ void UIManager::renderInteractionPrompt(Player& player, World& world, const Came
         }
     }
 
-    // ADS Mode: Unified Clean Precision Optic Reticle (Third-Person Centered)
+    // ADS Mode: 3D Aiming Ray acts as the ballistic crosshair. Keep sniper scope vignette & hit markers.
     if (player.isAiming()) {
         int zoomLvl = player.getAdsZoomLevel();
         if (camera) {
             glm::vec2 screenAimPos = glm::vec2(screenW * 0.5f, screenH * 0.5f);
 
-            ImU32 retColor = player.isAimBlocked() ? IM_COL32(255, 45, 45, 240) :
-                             (player.isHoldingBreath() ? IM_COL32(40, 230, 255, 245) : IM_COL32(235, 245, 240, 220));
-
-            if (zoomLvl == 0) {
-                // 1.0x CQB Reflex Sight: Clean 4-tick precision crosshair with red center pip & dynamic bloom
-                float gap = 3.5f + player.getCurrentBloom() * 140.0f;
-                if (player.isHoldingBreath()) gap *= 0.60f;
-                float len = 6.0f;
-                dl->AddLine(ImVec2(screenAimPos.x, screenAimPos.y - gap - len), ImVec2(screenAimPos.x, screenAimPos.y - gap), retColor, 1.5f);
-                dl->AddLine(ImVec2(screenAimPos.x, screenAimPos.y + gap), ImVec2(screenAimPos.x, screenAimPos.y + gap + len), retColor, 1.5f);
-                dl->AddLine(ImVec2(screenAimPos.x - gap - len, screenAimPos.y), ImVec2(screenAimPos.x - gap, screenAimPos.y), retColor, 1.5f);
-                dl->AddLine(ImVec2(screenAimPos.x + gap, screenAimPos.y), ImVec2(screenAimPos.x + gap + len, screenAimPos.y), retColor, 1.5f);
-                dl->AddCircleFilled(ImVec2(screenAimPos.x, screenAimPos.y), 1.8f, IM_COL32(255, 45, 45, 255));
-            } else if (zoomLvl == 1) {
-                // 2.5x Combat ACOG: Tactical illuminated chevron (^) with range bullet-drop stadia
-                float bloomOffset = player.getCurrentBloom() * 80.0f;
-                dl->AddLine(ImVec2(screenAimPos.x - 7.0f - bloomOffset, screenAimPos.y + 6.0f), ImVec2(screenAimPos.x, screenAimPos.y - 4.0f), retColor, 2.0f);
-                dl->AddLine(ImVec2(screenAimPos.x, screenAimPos.y - 4.0f), ImVec2(screenAimPos.x + 7.0f + bloomOffset, screenAimPos.y + 6.0f), retColor, 2.0f);
-                dl->AddCircleFilled(ImVec2(screenAimPos.x, screenAimPos.y), 1.5f, IM_COL32(255, 45, 45, 255));
-                // Range stadia lines (100m, 200m, 300m)
-                dl->AddLine(ImVec2(screenAimPos.x - 4.0f, screenAimPos.y + 14.0f), ImVec2(screenAimPos.x + 4.0f, screenAimPos.y + 14.0f), retColor, 1.2f);
-                dl->AddLine(ImVec2(screenAimPos.x - 3.0f, screenAimPos.y + 24.0f), ImVec2(screenAimPos.x + 3.0f, screenAimPos.y + 24.0f), retColor, 1.2f);
-                dl->AddLine(ImVec2(screenAimPos.x - 2.0f, screenAimPos.y + 34.0f), ImVec2(screenAimPos.x + 2.0f, screenAimPos.y + 34.0f), retColor, 1.2f);
-            } else {
-                // 4x/6x Precision Scope: Mil-dot crosshairs with peripheral scope shadow vignette
+            if (zoomLvl >= 2) {
+                // 4x/6x Precision Scope: Peripheral scope shadow vignette
                 dl->AddCircle(ImVec2(screenAimPos.x, screenAimPos.y), screenH * 0.42f, IM_COL32(10, 12, 16, 250), 64, 40.0f);
-                dl->AddLine(ImVec2(screenAimPos.x - 140.0f, screenAimPos.y), ImVec2(screenAimPos.x + 140.0f, screenAimPos.y), retColor, 1.4f);
-                dl->AddLine(ImVec2(screenAimPos.x + 140.0f, screenAimPos.y), ImVec2(screenAimPos.x + 140.0f, screenAimPos.y), retColor, 1.4f);
-                dl->AddLine(ImVec2(screenAimPos.x, screenAimPos.y - 140.0f), ImVec2(screenAimPos.x, screenAimPos.y + 140.0f), retColor, 1.4f);
-                // Mil-dots
-                for (float md = -80.0f; md <= 80.0f; md += 20.0f) {
-                    if (std::abs(md) > 5.0f) {
-                        dl->AddCircleFilled(ImVec2(screenAimPos.x + md, screenAimPos.y), 1.5f, retColor);
-                        dl->AddCircleFilled(ImVec2(screenAimPos.x, screenAimPos.y + md), 1.5f, retColor);
-                    }
-                }
-                dl->AddCircleFilled(ImVec2(screenAimPos.x, screenAimPos.y), 2.0f, IM_COL32(255, 45, 45, 255));
             }
 
             // Tactical Hit Marker Feedback on screen

@@ -711,8 +711,8 @@ float World::getWalkableSurfaceHeight(const glm::vec3& pos, float radius) const 
         if (obs.type == ObstacleType::RiverBridge) {
             float hx = obs.size.x * 0.5f;
             float hz = obs.size.z * 0.5f;
-            if (std::abs(pos.x - obs.position.x) <= (hx + radius * 0.5f) &&
-                std::abs(pos.z - obs.position.z) <= (hz + radius * 0.5f)) {
+            if (std::abs(pos.x - obs.position.x) <= (hx + radius * 0.85f) &&
+                std::abs(pos.z - obs.position.z) <= (hz + radius * 0.85f)) {
                 surfaceY = std::max(surfaceY, obs.position.y + 0.20f);
             }
             continue;
@@ -726,12 +726,13 @@ float World::getWalkableSurfaceHeight(const glm::vec3& pos, float radius) const 
         }
 
         glm::vec3 half = obs.size * 0.5f;
-        // Check if player footprint is within top boundary
-        if (std::abs(relPos.x) <= (half.x + radius * 0.5f) &&
-            std::abs(relPos.z) <= (half.z + radius * 0.5f)) {
+        // Expanded footprint tolerance allows standing, aiming, and walking on top without falling off early
+        float footprintX = half.x + radius * 0.85f;
+        float footprintZ = half.z + radius * 0.85f;
+        if (std::abs(relPos.x) <= footprintX && std::abs(relPos.z) <= footprintZ) {
             float topY = obs.position.y + obs.size.y;
-            // Adopt top surface if player is near top (within step-up tolerance) or above
-            if (pos.y >= (topY - 0.36f)) {
+            // Adopt top surface if player is standing on top, airborne landing, or stepping onto obstacle
+            if (pos.y >= (topY - 0.35f)) {
                 surfaceY = std::max(surfaceY, topY);
             }
         }
@@ -739,12 +740,12 @@ float World::getWalkableSurfaceHeight(const glm::vec3& pos, float radius) const 
 
     // 2. Check supply crates
     for (const auto& crate : m_crates) {
-        float hx = 0.65f;
-        float hz = 0.45f;
+        float hx = 0.65f + radius * 0.85f;
+        float hz = 0.45f + radius * 0.85f;
         float topY = crate.position.y + 0.70f;
-        if (std::abs(pos.x - crate.position.x) <= (hx + radius * 0.5f) &&
-            std::abs(pos.z - crate.position.z) <= (hz + radius * 0.5f)) {
-            if (pos.y >= (topY - 0.36f)) {
+        if (std::abs(pos.x - crate.position.x) <= hx &&
+            std::abs(pos.z - crate.position.z) <= hz) {
+            if (pos.y >= (topY - 0.35f)) {
                 surfaceY = std::max(surfaceY, topY);
             }
         }
@@ -815,7 +816,7 @@ bool World::checkCollision(glm::vec3& pos, float radius) const {
 
         // If player is on top of or above this obstacle, don't collide horizontally with its side walls!
         float topFaceY = obs.position.y + obs.size.y;
-        if (pos.y >= (topFaceY - 0.08f)) {
+        if (pos.y >= (topFaceY - 0.16f)) {
             continue; // Standing on top or airborne over obstacle
         }
 
