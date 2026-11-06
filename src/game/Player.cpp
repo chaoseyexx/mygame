@@ -1047,10 +1047,10 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
 
     // Stance speed multipliers (Fluid athletic tactical pacing)
     float speedMultiplier = 1.0f;
-    if (m_isAiming) speedMultiplier = 0.55f; // Deliberate tactical aiming walk (~2.2 m/s)
-    else if (m_stats.stance == PlayerStance::Crouching) speedMultiplier = 0.60f; // Tactical crouch walk (~2.4 m/s)
-    else if (m_stats.stance == PlayerStance::Prone) speedMultiplier = 0.30f; // Low prone crawl (~1.2 m/s)
-    else if (wantsSprint) speedMultiplier = 1.55f; // High-mobility athletic sprint (~6.2 m/s)
+    if (m_isAiming) speedMultiplier = 0.48f; // Deliberate tactical aiming walk (~1.8 m/s)
+    else if (m_stats.stance == PlayerStance::Crouching) speedMultiplier = 0.53f; // Low crouch walk (~2.0 m/s)
+    else if (m_stats.stance == PlayerStance::Prone) speedMultiplier = 0.24f; // Low prone crawl (~0.9 m/s)
+    else if (wantsSprint) speedMultiplier = 1.63f; // Explosive athletic sprint (~6.2 m/s)
 
     // Anatomical Body Leg & Organ Trauma Movement Multiplier
     speedMultiplier *= m_body.getMovementMultiplier();

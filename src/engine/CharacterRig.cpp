@@ -148,9 +148,22 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         m_stanceFeetInitialized = true;
 
         if (!m_isSliding) {
-            // Walk cycle progression driven strictly by ground displacement
             float horizDistTraveled = speed * dt;
-            float strideLength = isSprinting ? 3.10f : (m_stance == 1 ? 1.40f : 2.05f);
+            // Mode-specific stride cycle length (cycle of 2 steps):
+            // - Sprint (6.2 m/s): 1.90m per cycle (cadence ~195 steps/min, true airborne flight phase)
+            // - Combat Jog (3.8 m/s): 1.40m per cycle (cadence ~160 steps/min)
+            // - Crouch (2.0 m/s): 0.95m per cycle
+            // - Walk / ADS (1.8 m/s): 0.95m per cycle (cadence ~115 steps/min)
+            float strideLength;
+            if (isSprinting) {
+                strideLength = 1.90f;
+            } else if (m_stance == 1) {
+                strideLength = 0.95f;
+            } else if (speed > 2.5f) {
+                strideLength = 1.40f;
+            } else {
+                strideLength = 0.95f;
+            }
             strideLength *= (1.0f - 0.20f * cCurve - 0.45f * pCurve);
 
             float prevNorm = m_prevWalkPhase;
@@ -162,15 +175,17 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
             float currNorm = m_walkCycle / (2.0f * glm::pi<float>());
             m_prevWalkPhase = currNorm;
 
-            // Biomechanically accurate double-support dynamic pelvis dip:
-            // Hips are highest when passing directly over the supporting leg (phase pi/2 and 3pi/2),
-            // and lowest at double-support foot plant (phase 0 and pi), giving outstretched legs reach clearance.
-            float bobFactor = (std::sin(2.0f * m_walkCycle - glm::pi<float>() * 0.5f) - 1.0f) * 0.5f;
-            m_pelvisBob = bobFactor * (isSprinting ? 0.038f : 0.024f);
+            // Dynamic Pelvis Vertical Kinetics:
+            // Walking/Crouching: Inverted pendulum (highest at midstance, lowest at heel plant).
+            // Sprinting/Jogging: Spring-mass system (lowest at midstance impact absorption, HIGHEST in flight phase launch).
+            if (isSprinting || speed > 2.8f) {
+                m_pelvisBob = std::sin(2.0f * m_walkCycle - glm::pi<float>() * 0.25f) * (isSprinting ? 0.040f : 0.024f);
+            } else {
+                float bobFactor = (std::sin(2.0f * m_walkCycle - glm::pi<float>() * 0.5f) - 1.0f) * 0.5f;
+                m_pelvisBob = bobFactor * 0.020f;
+            }
 
-            // Deterministic heel-strike event synchronization:
-            // Left foot strikes at phaseNorm 0.0 (and 1.0, 2.0...)
-            // Right foot strikes at phaseNorm 0.5 (and 1.5, 2.5...)
+            // Heel-strike / footplant event synchronization:
             int prevStep = static_cast<int>(std::floor(prevNorm * 2.0f));
             int currStep = static_cast<int>(std::floor(currNorm * 2.0f));
             if (currStep > prevStep) {
@@ -730,13 +745,15 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                                                          0.81f + m_stanceHeight + m_pelvisBob + limpPelvisDip + coverChestElevation * 0.45f + pelvisPitchDropY + stepTurnPelvisDip, 
                                                          leanZ * 0.45f + pelvisPitchShiftZ));
 
-            // --- 2. BIOMECHANICALLY REALISTIC TWO-BONE LEG IK (60/40 Stance/Swing Gait) ---
-            // Mathematical Zero-Slip Stride Matching:
-            // Stance phase occupies 60% of gait cycle (displacement 2 * stride).
-            // Stride displacement stride = 0.30 * strideLength precisely cancels forward body speed.
-            float currentStrideLength = m_isSprinting ? 3.10f : (m_stance == 1 ? 1.40f : 2.05f);
-            currentStrideLength *= (1.0f - 0.20f * cCurve - 0.45f * pCurve);
-            float stride = m_isMoving ? (0.30f * currentStrideLength) : 0.18f;
+            // --- 2. BIOMECHANICALLY REALISTIC TWO-BONE LEG IK (Dual-Mode Gait Synthesis) ---
+            // Mode A (Walking / ADS / Crouch): Inverted pendulum, stanceFraction = 0.58, double-support, low ground sweep.
+            // Mode B (Sprint / Fast Jog): Spring-mass system, stanceFraction = 0.34, true flight phase (both feet off ground),
+            //                             explosive push-off, high heel-kick to glutes, and forward knee drive.
+            bool isSprintGait = m_isSprinting;
+            float stanceFraction = isSprintGait ? 0.34f : 0.58f;
+            float maxReach = isSprintGait ? 0.21f : ((glm::length(m_velocity) > 2.5f) ? 0.20f : 0.17f);
+            maxReach *= (1.0f - 0.20f * cCurve - 0.40f * pCurve);
+
             float leftStrideZ = 0.0f, rightStrideZ = 0.0f;
             float leftStrideX = 0.0f, rightStrideX = 0.0f;
             float leftLift = 0.0f, rightLift = 0.0f;
@@ -764,7 +781,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 glm::vec3 rgt(cy, 0.0f, -sy);
                 float footBaseX = 0.13f + 0.05f * cCurve;
                 float sign = isRight ? 1.0f : -1.0f;
-                float strideZ = isRight ? glm::mix(0.0f, 0.18f, cCurve) : glm::mix(0.0f, -0.14f, cCurve);
+                float strideZ = isRight ? glm::mix(0.0f, 0.14f, cCurve) : glm::mix(0.0f, -0.12f, cCurve);
                 float strideX = isRight ? glm::mix(0.0f, 0.04f, cCurve) : glm::mix(0.0f, -0.04f, cCurve);
                 return m_rootPos + rgt * (sign * footBaseX + strideX) + fwd * strideZ + glm::vec3(0, 0.07f, 0);
             };
@@ -780,39 +797,63 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 float uL = std::fmod(phaseNorm, 1.0f); if (uL < 0.0f) uL += 1.0f;
                 float uR = std::fmod(phaseNorm + 0.5f, 1.0f); if (uR < 0.0f) uR += 1.0f;
 
-                float maxLift = (m_isSprinting ? 0.12f : (m_isMoving ? 0.075f : 0.040f));
-                if (cCurve > 0.01f) {
-                    maxLift = glm::mix(maxLift, 0.038f, cCurve); // Lower, cautious foot clearance
-                }
-
-                // Biological 60% Stance / 40% Swing Gait Function (Foot Pinned to Ground in Stance)
-                auto calcGaitDisplacement = [](float u, float strideVal, float liftVal, float fwd, float rgt) -> std::pair<glm::vec3, float> {
-                    const float stanceFraction = 0.60f;
-                    float disp = 0.0f;
+                // Biomechanical Dual-Mode Gait Function
+                auto calcDualModeGait = [&](float u, float fwd, float rgt) -> std::pair<glm::vec3, float> {
+                    float dispZ = 0.0f;
                     float curLift = 0.0f;
+
                     if (u <= stanceFraction) {
-                        // Stance Phase: linear displacement matching forward body speed (firmly pinned foot)
+                        // --- STANCE PHASE (Grounded foot driving backward) ---
                         float t = u / stanceFraction;
-                        disp = strideVal * (1.0f - 2.0f * t);
-                        curLift = 0.0f;
+                        // Linear ground speed cancellation within safe anatomical envelope
+                        dispZ = maxReach * (1.0f - 2.0f * t);
+                        curLift = 0.0f; // Firmly locked to ground
                     } else {
-                        // Swing Phase: smooth cubic forward sweep
-                        float t = (u - stanceFraction) / (1.0f - stanceFraction);
-                        float ease = t * t * (3.0f - 2.0f * t);
-                        disp = -strideVal + 2.0f * strideVal * ease;
-                        float sinLift = std::sin(t * glm::pi<float>());
-                        curLift = liftVal * std::pow(sinLift, 1.15f);
+                        // --- SWING PHASE ---
+                        float t = (u - stanceFraction) / (1.0f - stanceFraction); // [0.0, 1.0]
+
+                        if (isSprintGait) {
+                            // --- SPRINT / RUNNING BIOMECHANICS ---
+                            // 1. Toe-off & High Heel-Kick toward Glutes (t: 0.0 -> 0.45):
+                            //    Knee flexes deeply, pulling heel backward and upward!
+                            // 2. High Forward Knee Drive (t: 0.45 -> 0.85):
+                            //    Thigh drives forward while leg is folded, high knee clearance.
+                            // 3. Ground Preparation (t: 0.85 -> 1.0):
+                            //    Foot extends forward and drops down smoothly for forefoot strike.
+                            if (t < 0.45f) {
+                                float subT = t / 0.45f;
+                                dispZ = glm::mix(-maxReach, -maxReach * 0.70f, subT);
+                                curLift = std::sin(subT * (glm::pi<float>() * 0.5f)) * 0.24f;
+                            } else if (t < 0.85f) {
+                                float subT = (t - 0.45f) / 0.40f;
+                                float ease = subT * subT * (3.0f - 2.0f * subT);
+                                dispZ = glm::mix(-maxReach * 0.70f, maxReach, ease);
+                                curLift = glm::mix(0.24f, 0.08f, ease);
+                            } else {
+                                float subT = (t - 0.85f) / 0.15f;
+                                dispZ = maxReach;
+                                curLift = glm::mix(0.08f, 0.0f, subT);
+                            }
+                        } else {
+                            // --- WALKING / JOGGING BIOMECHANICS ---
+                            // Smooth cubic forward sweep with moderate foot clearance
+                            float ease = t * t * (3.0f - 2.0f * t);
+                            dispZ = -maxReach + 2.0f * maxReach * ease;
+                            float baseLift = (cCurve > 0.01f) ? 0.038f : 0.065f;
+                            curLift = baseLift * std::pow(std::sin(t * glm::pi<float>()), 1.2f);
+                        }
                     }
-                    // Lateral foot movement scaled down (0.40f) to reflect natural human hip-width kinematics
-                    return { glm::vec3(disp * rgt * 0.40f, curLift, disp * fwd), curLift };
+
+                    // Lateral foot movement scaled down (0.35f) to reflect natural human hip-width kinematics
+                    return { glm::vec3(dispZ * rgt * 0.35f, curLift, dispZ * fwd), curLift };
                 };
 
-                auto resL = calcGaitDisplacement(uL, stride, maxLift, moveFwd, moveRgt);
+                auto resL = calcDualModeGait(uL, moveFwd, moveRgt);
                 leftStrideZ = resL.first.z;
                 leftStrideX = resL.first.x;
                 leftLift    = resL.second;
 
-                auto resR = calcGaitDisplacement(uR, stride, maxLift, moveFwd, moveRgt);
+                auto resR = calcDualModeGait(uR, moveFwd, moveRgt);
                 rightStrideZ = resR.first.z;
                 rightStrideX = resR.first.x;
                 rightLift    = resR.second;
@@ -954,8 +995,9 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             float kneeSplay = 0.16f + 0.18f * cCurve;
             float leftPoleX = std::min(-kneeSplay + moveRgt * 0.04f, leftFootLocalX - 0.03f);
             float rightPoleX = std::max(kneeSplay + moveRgt * 0.04f, rightFootLocalX + 0.03f);
-            glm::vec3 leftKneePole  = lowerToWorld(glm::vec3(leftPoleX, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex));
-            glm::vec3 rightKneePole = lowerToWorld(glm::vec3(rightPoleX, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex));
+            float sprintKneeForward = m_isSprinting ? 0.18f : 0.0f;
+            glm::vec3 leftKneePole  = lowerToWorld(glm::vec3(leftPoleX, 0.38f + m_stanceHeight * 0.45f + (isSprintGait ? leftLift * 0.4f : 0.0f), 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex + sprintKneeForward));
+            glm::vec3 rightKneePole = lowerToWorld(glm::vec3(rightPoleX, 0.38f + m_stanceHeight * 0.45f + (isSprintGait ? rightLift * 0.4f : 0.0f), 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex + sprintKneeForward));
 
             if (m_isSliding) {
                 leftKneePole  = lowerToWorld(glm::vec3(-0.24f, 0.14f, -0.05f));
@@ -1322,17 +1364,26 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             uprightPose.boneRotations[BONE_L_CALF] = SkinnedSoldier::computeLimbRotation(bindCalfDir, leftFootPos - leftKneePos, stdLThighRot);
 
             // Dynamic Foot Roll & Push-off Ankle Flexion
-            auto calcAnklePitch = [](float u, float crouchC) -> float {
-                const float stanceFraction = 0.60f;
+            auto calcAnklePitch = [](float u, float crouchC, bool isSprint) -> float {
+                float stanceFraction = isSprint ? 0.34f : 0.58f;
                 float pitch = 0.0f;
                 if (u <= stanceFraction) {
                     float t = u / stanceFraction;
-                    if (t < 0.18f) pitch = glm::mix(-0.20f, 0.0f, t / 0.18f); // Heel-strike
-                    else if (t < 0.75f) pitch = 0.0f;                           // Full plant
-                    else pitch = glm::mix(0.0f, 0.36f, (t - 0.75f) / 0.25f);   // Toe push-off
+                    if (isSprint) {
+                        if (t < 0.20f) pitch = 0.05f; // Forefoot sprint contact
+                        else pitch = glm::mix(0.05f, 0.48f, (t - 0.20f) / 0.80f); // Explosive push-off
+                    } else {
+                        if (t < 0.18f) pitch = glm::mix(-0.20f, 0.0f, t / 0.18f); // Heel-strike
+                        else if (t < 0.75f) pitch = 0.0f;                           // Full plant
+                        else pitch = glm::mix(0.0f, 0.36f, (t - 0.75f) / 0.25f);   // Toe push-off
+                    }
                 } else {
                     float t = (u - stanceFraction) / (1.0f - stanceFraction);
-                    pitch = glm::mix(0.36f, -0.20f, glm::smoothstep(0.0f, 1.0f, t));
+                    if (isSprint) {
+                        pitch = glm::mix(0.48f, 0.05f, glm::smoothstep(0.0f, 1.0f, t));
+                    } else {
+                        pitch = glm::mix(0.36f, -0.20f, glm::smoothstep(0.0f, 1.0f, t));
+                    }
                 }
                 return pitch * (1.0f - crouchC * 0.5f);
             };
@@ -1341,7 +1392,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             float uL = std::fmod(phaseNorm, 1.0f); if (uL < 0.0f) uL += 1.0f;
             float uR = std::fmod(phaseNorm + 0.5f, 1.0f); if (uR < 0.0f) uR += 1.0f;
 
-            float lAnklePitch = m_isMoving ? calcAnklePitch(uL, cCurve) : 0.0f;
+            float lAnklePitch = m_isMoving ? calcAnklePitch(uL, cCurve, m_isSprinting) : 0.0f;
             glm::mat4 lFootRot = glm::rotate(glm::mat4(1.0f), lFootYaw, glm::vec3(0, 1, 0));
             lFootRot = glm::rotate(lFootRot, lAnklePitch, glm::vec3(1, 0, 0));
             if (!m_isAirborne) {
@@ -1360,7 +1411,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             uprightPose.bonePositions[BONE_R_CALF] = rightKneePos;
             uprightPose.boneRotations[BONE_R_CALF] = SkinnedSoldier::computeLimbRotation(bindCalfDir, rightFootPos - rightKneePos, stdRThighRot);
 
-            float rAnklePitch = m_isMoving ? calcAnklePitch(uR, cCurve) : 0.0f;
+            float rAnklePitch = m_isMoving ? calcAnklePitch(uR, cCurve, m_isSprinting) : 0.0f;
             glm::mat4 rFootRot = glm::rotate(glm::mat4(1.0f), rFootYaw, glm::vec3(0, 1, 0));
             rFootRot = glm::rotate(rFootRot, rAnklePitch, glm::vec3(1, 0, 0));
             if (!m_isAirborne) {
