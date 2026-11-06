@@ -1227,8 +1227,17 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     glm::vec3 muzzle = (glm::length(m_rig.getMuzzlePosition()) > 0.1f)
         ? m_rig.getMuzzlePosition()
         : (m_position + glm::vec3(0.0f, 1.25f, 0.0f) + glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw)) * 0.75f);
-    glm::vec3 aimToTarget = unifiedTarget - muzzle;
-    glm::vec3 aimDir = (glm::length(aimToTarget) > 0.001f) ? glm::normalize(aimToTarget) : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+
+    glm::vec3 gunFwd = (glm::length(m_rig.getMuzzleForward()) > 0.1f)
+        ? m_rig.getMuzzleForward()
+        : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+
+    glm::vec3 adsAim = (glm::length(unifiedTarget - muzzle) > 0.001f)
+        ? glm::normalize(unifiedTarget - muzzle)
+        : gunFwd;
+
+    // Smoothly blend aim vector: when ADS aiming, laser converges directly on target; when hip-firing / not aiming, laser follows true gun bore line!
+    glm::vec3 aimDir = glm::normalize(glm::mix(gunFwd, adsAim, m_rig.getAimWeight()));
 
     float rayRange = 85.0f;
     auto& equippedForRay = m_inventory.getEquipped(m_activeWeaponSlot);
@@ -1244,6 +1253,28 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     if (m_aimBlocked) {
         m_aimHitNormal = hitNormal;
     }
+
+    // Terrain ground intersection: stops laser ray cleanly on ground surface when depressed
+    if (aimDir.y < -0.01f) {
+        float groundUnderMuzzle = World::sampleTerrainHeight(muzzle.x, muzzle.z);
+        float tGround = (muzzle.y - groundUnderMuzzle) / std::max(0.001f, -aimDir.y);
+        if (tGround > 0.1f && tGround < rayRange) {
+            glm::vec3 testGroundPos = muzzle + aimDir * tGround;
+            float actualGroundY = World::sampleTerrainHeight(testGroundPos.x, testGroundPos.z);
+            tGround = (muzzle.y - actualGroundY) / std::max(0.001f, -aimDir.y);
+            if (tGround > 0.1f && tGround < rayRange) {
+                glm::vec3 groundHit = muzzle + aimDir * tGround;
+                if (!m_aimBlocked || glm::distance(muzzle, groundHit) < glm::distance(muzzle, hitPoint)) {
+                    hitPoint = groundHit;
+                    hitNormal = glm::vec3(0.0f, 1.0f, 0.0f);
+                    m_aimBlocked = true;
+                    m_aimHitSurface = true;
+                    m_aimHitNormal = hitNormal;
+                }
+            }
+        }
+    }
+
     glm::vec3 targetHit = m_aimBlocked ? hitPoint : rayTarget;
     m_aimHitPoint = targetHit;
 
@@ -1406,8 +1437,16 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                     ? m_rig.getMuzzlePosition()
                     : (m_position + glm::vec3(0.0f, 1.25f, 0.0f) + glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw)) * 0.75f);
 
-                glm::vec3 targetAim = unifiedTarget - muzzlePos;
-                glm::vec3 aimDir = (glm::length(targetAim) > 0.001f) ? glm::normalize(targetAim) : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+                glm::vec3 gunFwd = (glm::length(m_rig.getMuzzleForward()) > 0.1f)
+                    ? m_rig.getMuzzleForward()
+                    : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+
+                glm::vec3 adsAim = (glm::length(unifiedTarget - muzzlePos) > 0.001f)
+                    ? glm::normalize(unifiedTarget - muzzlePos)
+                    : gunFwd;
+
+                // Fire bullet along exact aiming vector: synchronized with 3D ray in both ADS and hip-fire
+                glm::vec3 aimDir = glm::normalize(glm::mix(gunFwd, adsAim, m_rig.getAimWeight()));
 
                 glm::vec3 upRef = (std::abs(aimDir.y) > 0.95f) ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
                 glm::vec3 rightDir = glm::normalize(glm::cross(aimDir, upRef));

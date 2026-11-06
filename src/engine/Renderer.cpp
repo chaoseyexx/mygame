@@ -873,8 +873,8 @@ void main() {
         // Smooth anti-aliased cross-sectional core with soft edge feathering
         float core = pow(clamp(1.0 - lat, 0.0, 1.0), 2.2);
         // Distance falloff: smooth start near muzzle, fades out cleanly as weapon range ends
-        float distFade = clamp(1.0 - pow(fwd, 1.35), 0.0, 1.0);
-        float muzzleSoft = smoothstep(0.0, 0.025, fwd);
+        float distFade = clamp(1.0 - pow(fwd, 3.2), 0.0, 1.0);
+        float muzzleSoft = smoothstep(0.0, 0.003, fwd);
 
         float alpha = core * distFade * muzzleSoft * vColor.a;
         if (alpha < 0.003) discard;

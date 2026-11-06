@@ -159,6 +159,8 @@ public:
 
 
     glm::vec3 getMuzzlePosition() const { return m_muzzlePos; }
+    glm::vec3 getMuzzleForward() const { return m_muzzleForward; }
+    float getAimWeight() const { return m_aimWeight; }
 
     glm::vec3 getCasingPosition() const { return m_casingPos; }
 
@@ -454,6 +456,7 @@ private:
     float m_sprintCarryAngle = 0.0f;
 
     glm::vec3 m_muzzlePos{0.0f};
+    glm::vec3 m_muzzleForward{0.0f, 0.0f, 1.0f};
 
     glm::vec3 m_casingPos{0.0f};
 
