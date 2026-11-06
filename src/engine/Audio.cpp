@@ -99,72 +99,61 @@ void AudioEngine::audioCallback(ma_device* pDevice, void* pOutput, const void* p
                     switch (voice.type) {
                     case SoundType::Footstep:
                     case SoundType::FootstepDirt: {
-                        float env = std::exp(-t * 40.0f);
-                        float thud = std::sin(2.0f * 3.14159f * 85.0f * t);
-                        float grass = whiteNoise() * 0.08f * std::exp(-t * 55.0f);
-                        soundSample = (thud * 0.90f + grass) * env * 0.30f;
+                        float pulse = (t <= 0.0f) ? 0.0f : (t / 0.012f) * std::exp(1.0f - t / 0.012f) * 0.85f;
+                        float grit = whiteNoise() * std::exp(-t * 45.0f) * 0.45f;
+                        soundSample = std::tanh(pulse + grit) * 0.35f;
                         break;
                     }
                     case SoundType::FootstepMud: {
-                        float fSweep = 62.0f + 118.0f * std::exp(-t * 60.0f);
-                        float pop = std::sin(2.0f * 3.14159f * fSweep * t) * std::exp(-t * 32.0f);
-                        float suction = whiteNoise() * std::exp(-t * 28.0f) * 0.16f;
-                        float slosh = (t > 0.04f) ? std::sin(2.0f * 3.14159f * 130.0f * (t - 0.04f)) * std::exp(-(t - 0.04f) * 45.0f) * 0.4f : 0.0f;
-                        soundSample = (pop * 0.70f + suction + slosh) * 0.35f;
+                        float suction = (t <= 0.0f) ? 0.0f : (t / 0.018f) * std::exp(1.0f - t / 0.018f) * 0.75f;
+                        float squelch = whiteNoise() * std::exp(-t * 30.0f) * 0.40f;
+                        soundSample = std::tanh(suction + squelch) * 0.35f;
                         break;
                     }
                     case SoundType::FootstepWater: {
-                        float splash1 = std::sin(2.0f * 3.14159f * 310.0f * t) * std::exp(-t * 45.0f);
-                        float splash2 = std::sin(2.0f * 3.14159f * 460.0f * (t - 0.02f)) * std::exp(-t * 50.0f);
-                        float spray = whiteNoise() * std::exp(-t * 38.0f) * 0.20f;
-                        soundSample = (splash1 * 0.45f + splash2 * 0.35f + spray) * 0.36f;
+                        float pulse = (t <= 0.0f) ? 0.0f : (t / 0.014f) * std::exp(1.0f - t / 0.014f) * 0.65f;
+                        float splash = whiteNoise() * std::exp(-t * 32.0f) * 0.55f;
+                        soundSample = std::tanh(pulse + splash) * 0.35f;
                         break;
                     }
                     case SoundType::FootstepWood: {
-                        float env = std::exp(-t * 48.0f);
-                        float wood1 = std::sin(2.0f * 3.14159f * 215.0f * t);
-                        float wood2 = std::sin(2.0f * 3.14159f * 430.0f * t) * 0.35f;
-                        soundSample = (wood1 + wood2 + whiteNoise() * 0.04f) * env * 0.32f;
+                        float tap = (t <= 0.0f) ? 0.0f : (t / 0.009f) * std::exp(1.0f - t / 0.009f) * 0.80f;
+                        float creak = whiteNoise() * std::exp(-t * 48.0f) * 0.35f;
+                        soundSample = std::tanh(tap + creak) * 0.35f;
                         break;
                     }
                     case SoundType::FootstepConcrete: {
-                        float env = std::exp(-t * 42.0f);
-                        float heel = std::sin(2.0f * 3.14159f * 145.0f * t) * 0.75f;
-                        float grit = whiteNoise() * 0.15f * std::exp(-t * 35.0f);
-                        soundSample = (heel + grit) * env * 0.32f;
+                        float heel = (t <= 0.0f) ? 0.0f : (t / 0.009f) * std::exp(1.0f - t / 0.009f) * 0.85f;
+                        float grit = whiteNoise() * std::exp(-t * 80.0f) * 0.50f;
+                        soundSample = std::tanh(heel + grit) * 0.35f;
                         break;
                     }
                     case SoundType::GearRustle: {
-                        float env = std::sin(3.14159f * std::clamp(t / 0.16f, 0.0f, 1.0f));
+                        float u = std::clamp(t / 0.16f, 0.0f, 1.0f);
+                        float env = 4.0f * u * (1.0f - u);
                         soundSample = whiteNoise() * env * 0.09f;
                         break;
                     }
                     case SoundType::ArtilleryWhistle: {
-                        float fDesc = 280.0f + 1170.0f * std::exp(-t * 1.8f);
-                        float whistle = std::sin(2.0f * 3.14159f * fDesc * t);
-                        float volRamp = std::clamp(t / 1.1f, 0.05f, 1.0f);
-                        soundSample = whistle * volRamp * 0.45f;
+                        float env = std::clamp(t / 1.1f, 0.05f, 1.0f) * std::exp(-t * 0.8f);
+                        soundSample = whiteNoise() * env * 0.25f;
                         break;
                     }
                     case SoundType::ArtilleryExplosion: {
-                        float shockwave = std::tanh(std::sin(2.0f * 3.14159f * 38.0f * t) * 4.2f) * std::exp(-t * 1.8f);
-                        float blastPop = std::sin(2.0f * 3.14159f * 75.0f * t) * std::exp(-t * 4.5f) * 0.9f;
-                        float rumbleTail = (std::sin(2.0f * 3.14159f * 48.0f * t) * 0.6f + whiteNoise() * 0.18f) * std::exp(-t * 0.85f);
-                        soundSample = (shockwave * 0.65f + blastPop * 0.40f + rumbleTail * 0.45f) * 0.95f;
+                        float boom = (t <= 0.0f) ? 0.0f : (t / 0.012f) * std::exp(1.0f - t / 0.012f) * 1.5f;
+                        float roar = whiteNoise() * std::exp(-t * 4.5f) * 0.75f;
+                        soundSample = std::tanh(boom + roar) * 0.75f;
                         break;
                     }
                     case SoundType::FortifyBuild: {
-                        float env = std::exp(-t * 35.0f);
-                        float hammer = std::sin(2.0f * 3.14159f * 115.0f * t) + std::sin(2.0f * 3.14159f * 340.0f * t) * 0.4f;
-                        float burlap = whiteNoise() * 0.12f * std::exp(-t * 22.0f);
-                        soundSample = (hammer * 0.75f + burlap) * env * 0.50f;
+                        float strike = (t <= 0.0f) ? 0.0f : (t / 0.007f) * std::exp(1.0f - t / 0.007f) * 0.85f;
+                        float burlap = whiteNoise() * 0.25f * std::exp(-t * 22.0f);
+                        soundSample = std::tanh(strike + burlap) * 0.50f;
                         break;
                     }
                     case SoundType::RadioChatter: {
                         float env = (t < 0.08f) ? (t / 0.08f) : std::exp(-(t - 0.08f) * 16.0f);
-                        float pip = std::sin(2.0f * 3.14159f * 960.0f * t);
-                        float hash = whiteNoise() * 0.08f * std::exp(-t * 12.0f);
-                        soundSample = (pip * 0.7f + hash) * env * 0.35f;
+                        soundSample = whiteNoise() * env * 0.20f;
                         break;
                     }
                     case SoundType::Bandage: {
@@ -173,127 +162,97 @@ void AudioEngine::audioCallback(ma_device* pDevice, void* pOutput, const void* p
                         break;
                     }
                     case SoundType::TacticalClick: {
-                        float env = std::exp(-t * 180.0f);
-                        soundSample = std::sin(2.0f * 3.14159f * 1750.0f * t) * env * 0.25f;
+                        float click = (t < 0.0015f ? 0.75f : 0.0f) + whiteNoise() * std::exp(-t * 180.0f) * 0.35f;
+                        soundSample = click * 0.25f;
                         break;
                     }
                     case SoundType::ItemEquip: {
-                        float env1 = std::exp(-t * 70.0f) * std::sin(2.0f * 3.14159f * 620.0f * t);
+                        float rustle = whiteNoise() * std::exp(-t * 60.0f) * 0.35f;
                         float t2 = t - 0.07f;
-                        float env2 = (t2 > 0.0f) ? std::exp(-t2 * 95.0f) * std::sin(2.0f * 3.14159f * 1180.0f * t2) : 0.0f;
-                        soundSample = (env1 * 0.45f + env2 * 0.55f) * 0.40f;
+                        float slap = (t2 > 0.0f) ? whiteNoise() * std::exp(-t2 * 90.0f) * 0.40f : 0.0f;
+                        soundSample = (rustle + slap) * 0.40f;
                         break;
                     }
                     case SoundType::StashMove: {
-                        float env = std::sin(3.14159f * (t / 0.16f)) * std::exp(-t * 14.0f);
-                        soundSample = (whiteNoise() * 0.12f + std::sin(2.0f * 3.14159f * 260.0f * t) * 0.88f) * env * 0.15f;
+                        float u = std::clamp(t / 0.16f, 0.0f, 1.0f);
+                        float env = 4.0f * u * (1.0f - u) * std::exp(-t * 14.0f);
+                        soundSample = whiteNoise() * env * 0.30f;
                         break;
                     }
                     case SoundType::MoneyRustle: {
-                        float env1 = std::exp(-t * 30.0f) * whiteNoise() * 0.10f;
+                        float env1 = std::exp(-t * 30.0f) * whiteNoise() * 0.20f;
                         float t2 = t - 0.12f;
-                        float coin = (t2 > 0.0f) ? std::exp(-t2 * 60.0f) * std::sin(2.0f * 3.14159f * 2400.0f * t2) * 0.35f : 0.0f;
+                        float coin = (t2 > 0.0f) ? std::exp(-t2 * 60.0f) * whiteNoise() * 0.25f : 0.0f;
                         soundSample = (env1 + coin) * 0.38f;
                         break;
                     }
                     case SoundType::DeployHorn: {
                         float env = (t < 0.25f) ? (t / 0.25f) : std::exp(-(t - 0.25f) * 1.2f);
-                        float sub = std::sin(2.0f * 3.14159f * 46.0f * t) * 0.70f + std::sin(2.0f * 3.14159f * 92.0f * t) * 0.30f;
-                        soundSample = sub * env * 0.60f;
+                        float blast = ((t <= 0.0f) ? 0.0f : (t / 0.025f) * std::exp(1.0f - t / 0.025f) * 0.85f) + whiteNoise() * 0.25f;
+                        soundSample = std::tanh(blast * env) * 0.60f;
                         break;
                     }
                     case SoundType::Thunder: {
                         float env = (t < 0.4f) ? (t / 0.4f) : std::exp(-(t - 0.4f) * 0.75f);
-                        float rumble = std::sin(2.0f * 3.14159f * 34.0f * t) * 0.65f + std::sin(2.0f * 3.14159f * 56.0f * t) * 0.35f;
-                        soundSample = (whiteNoise() * 0.06f + rumble * 0.94f) * env * 0.55f;
+                        float rumble = ((t <= 0.0f) ? 0.0f : (t / 0.045f) * std::exp(1.0f - t / 0.045f) * 0.85f) + whiteNoise() * 0.40f;
+                        soundSample = std::tanh(rumble * env) * 0.55f;
                         break;
                     }
                     case SoundType::RainAmbience: {
                         float rainDrop = (whiteNoise() > 0.92f) ? (whiteNoise() - 0.92f) * 1.8f : 0.0f;
-                        float windDrone = std::sin(2.0f * 3.14159f * 55.0f * t) * 0.04f + whiteNoise() * 0.06f;
+                        float windDrone = whiteNoise() * 0.08f;
                         soundSample = (rainDrop * 0.40f + windDrone) * 0.35f;
                         break;
                     }
                     case SoundType::AimDownSight: {
-                        float env = std::sin(3.14159f * std::clamp(t / 0.16f, 0.0f, 1.0f));
-                        float fabric = whiteNoise() * env * 0.14f;
-                        float click = (t > 0.06f) ? std::sin(2.0f * 3.14159f * 920.0f * (t - 0.06f)) * std::exp(-(t - 0.06f) * 80.0f) * 0.18f : 0.0f;
+                        float u = std::clamp(t / 0.16f, 0.0f, 1.0f);
+                        float fabric = whiteNoise() * 4.0f * u * (1.0f - u) * 0.14f;
+                        float click = (t > 0.06f) ? whiteNoise() * std::exp(-(t - 0.06f) * 110.0f) * 0.15f : 0.0f;
                         soundSample = fabric + click;
                         break;
                     }
                     case SoundType::AimDownSightOut: {
-                        float env = std::sin(3.14159f * std::clamp(t / 0.14f, 0.0f, 1.0f));
-                        soundSample = whiteNoise() * env * 0.09f;
+                        float u = std::clamp(t / 0.14f, 0.0f, 1.0f);
+                        soundSample = whiteNoise() * 4.0f * u * (1.0f - u) * 0.09f;
                         break;
                     }
                     case SoundType::ItemDrop: {
-                        float thud = std::sin(2.0f * 3.14159f * 85.0f * t) * std::exp(-t * 28.0f) * 0.65f;
-                        float metalPing = std::sin(2.0f * 3.14159f * 1250.0f * t) * std::exp(-t * 22.0f) * 0.35f;
-                        float rattle = (t > 0.05f) ? std::sin(2.0f * 3.14159f * 740.0f * (t - 0.05f)) * std::exp(-(t - 0.05f) * 35.0f) * 0.30f : 0.0f;
-                        float debris = whiteNoise() * std::exp(-t * 30.0f) * 0.15f;
-                        soundSample = (thud + metalPing + rattle + debris) * 0.55f;
+                        float thud = (t <= 0.0f) ? 0.0f : (t / 0.010f) * std::exp(1.0f - t / 0.010f) * 0.75f;
+                        float rattle = (t > 0.05f) ? whiteNoise() * std::exp(-(t - 0.05f) * 45.0f) * 0.30f : 0.0f;
+                        float debris = whiteNoise() * std::exp(-t * 30.0f) * 0.25f;
+                        soundSample = std::tanh((thud + rattle + debris) * 0.55f);
                         break;
                     }
                     case SoundType::HeavyBreathing: {
-                        float breathCycle = std::sin(2.0f * 3.14159f * 1.35f * t);
-                        float airFlow = (breathCycle > 0.0f ? breathCycle : 0.0f) * whiteNoise() * 0.16f;
+                        float phase = std::fmod(t * 1.35f, 1.0f);
+                        float breathEnv = (phase < 0.5f) ? (phase * 2.0f) : (2.0f - phase * 2.0f);
+                        float airFlow = breathEnv * whiteNoise() * 0.16f;
                         soundSample = airFlow * std::exp(-t * 2.2f);
                         break;
                     }
-                    case SoundType::SoldierBarkContact: {
-                        float vocalCore = std::sin(2.0f * 3.14159f * 280.0f * t) * 0.6f + std::sin(2.0f * 3.14159f * 640.0f * t) * 0.4f;
-                        float squelch = (t < 0.05f || t > 0.45f) ? whiteNoise() * 0.15f : 0.0f;
-                        soundSample = (vocalCore * 0.65f + whiteNoise() * 0.20f) * std::exp(-t * 2.1f) + squelch;
-                        break;
-                    }
-                    case SoundType::SoldierBarkSuppressed: {
-                        float grunt = std::sin(2.0f * 3.14159f * 360.0f * t) * 0.7f + std::sin(2.0f * 3.14159f * 820.0f * t) * 0.3f;
-                        soundSample = (grunt * 0.7f + whiteNoise() * 0.15f) * std::exp(-t * 2.8f);
-                        break;
-                    }
-                    case SoundType::SoldierBarkWounded: {
-                        float groan = std::sin(2.0f * 3.14159f * (240.0f - t * 45.0f) * t) * 0.8f;
-                        soundSample = (groan * 0.75f + whiteNoise() * 0.12f) * std::exp(-t * 1.8f);
+                    case SoundType::SoldierBarkContact:
+                    case SoundType::SoldierBarkSuppressed:
+                    case SoundType::SoldierBarkWounded:
+                    case SoundType::SoldierBarkFragOut:
+                    case SoundType::SoldierBarkReloading:
+                    case SoundType::SoldierBarkIncoming:
+                    case SoundType::SoldierBarkFlanking:
+                    case SoundType::SoldierBarkManDown:
+                    {
+                        float env = std::exp(-t * 2.4f);
+                        soundSample = whiteNoise() * env * 0.18f;
                         break;
                     }
                     case SoundType::RadioBeepDatalink: {
-                        float f = (t < 0.045f) ? 1200.0f : 1850.0f;
-                        float beep = std::sin(2.0f * 3.14159f * f * t) * 0.6f;
-                        soundSample = beep * std::exp(-t * 12.0f);
-                        break;
-                    }
-                    case SoundType::SoldierBarkReloading: {
-                        float fVocal = std::sin(2.0f * 3.14159f * (320.0f - t * 40.0f) * t) * 0.6f + std::sin(2.0f * 3.14159f * 720.0f * t) * 0.4f;
-                        float burst = (t < 0.22f) ? 1.0f : ((t < 0.26f) ? 0.2f : 0.85f);
-                        soundSample = (fVocal * burst + whiteNoise() * 0.18f) * std::exp(-t * 2.3f);
-                        break;
-                    }
-                    case SoundType::SoldierBarkIncoming: {
-                        float fVocal = std::sin(2.0f * 3.14159f * (420.0f + std::sin(t * 30.0f) * 60.0f) * t) * 0.75f;
-                        soundSample = (fVocal * 0.75f + whiteNoise() * 0.22f) * std::exp(-t * 2.0f);
-                        break;
-                    }
-                    case SoundType::SoldierBarkFlanking: {
-                        float fVocal = std::sin(2.0f * 3.14159f * (310.0f + t * 45.0f) * t) * 0.70f + std::sin(2.0f * 3.14159f * 680.0f * t) * 0.35f;
-                        float squelch = (t < 0.04f || t > 0.45f) ? whiteNoise() * 0.12f : 0.0f;
-                        soundSample = (fVocal * 0.7f + whiteNoise() * 0.15f) * std::exp(-t * 2.2f) + squelch;
-                        break;
-                    }
-                    case SoundType::SoldierBarkManDown: {
-                        float groan = std::sin(2.0f * 3.14159f * (380.0f - t * 85.0f) * t) * 0.80f;
-                        soundSample = (groan * 0.75f + whiteNoise() * 0.22f) * std::exp(-t * 1.9f);
-                        break;
-                    }
-                    case SoundType::SoldierBarkFragOut: {
-                        float bark = std::sin(2.0f * 3.14159f * (460.0f - t * 60.0f) * t) * 0.85f;
-                        soundSample = (bark * 0.80f + whiteNoise() * 0.18f) * std::exp(-t * 2.6f);
+                        float env = (t < 0.015f) ? (t / 0.015f) : std::exp(-(t - 0.015f) * 35.0f);
+                        soundSample = whiteNoise() * env * 0.25f;
                         break;
                     }
                     case SoundType::HeavyMGShot: {
-                        float boom = std::sin(2.0f * 3.14159f * 65.0f * t) * std::exp(-t * 8.0f);
-                        float crack = (whiteNoise() * 0.85f + std::sin(2.0f * 3.14159f * 180.0f * t) * 0.5f) * std::exp(-t * 22.0f);
+                        float boom = (t <= 0.0f) ? 0.0f : (t / 0.008f) * std::exp(1.0f - t / 0.008f) * 1.4f;
+                        float crack = whiteNoise() * std::exp(-t * 22.0f) * 0.75f;
                         float mech = (t > 0.04f && t < 0.08f) ? whiteNoise() * 0.35f : 0.0f;
-                        soundSample = boom * 0.85f + crack * 0.65f + mech;
+                        soundSample = std::tanh(boom + crack + mech) * 0.85f;
                         break;
                     }
                     default:
@@ -383,6 +342,51 @@ void AudioEngine::generateProceduralSoundBank() {
             b2 = 0.57000f * b2 + w * 0.1538520f;
             return b0 + b1 + b2 + w * 0.5362f;
         }
+    };
+
+    // 2-Pole Biquad IIR Filter for natural acoustic bandwidth shaping without harmonic pitch
+    struct Biquad {
+        float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f;
+        float a1 = 0.0f, a2 = 0.0f;
+        float z1 = 0.0f, z2 = 0.0f;
+
+        void setLowpass(float fc, float Q, float fs = SR) {
+            float w0 = 2.0f * 3.14159265f * fc / fs;
+            float alpha = std::sin(w0) / (2.0f * Q);
+            float cosw = std::cos(w0);
+            float a0 = 1.0f + alpha;
+            b0 = ((1.0f - cosw) * 0.5f) / a0;
+            b1 = (1.0f - cosw) / a0;
+            b2 = ((1.0f - cosw) * 0.5f) / a0;
+            a1 = (-2.0f * cosw) / a0;
+            a2 = (1.0f - alpha) / a0;
+        }
+
+        void setBandpass(float fc, float Q, float fs = SR) {
+            float w0 = 2.0f * 3.14159265f * fc / fs;
+            float alpha = std::sin(w0) / (2.0f * Q);
+            float cosw = std::cos(w0);
+            float a0 = 1.0f + alpha;
+            b0 = alpha / a0;
+            b1 = 0.0f;
+            b2 = -alpha / a0;
+            a1 = (-2.0f * cosw) / a0;
+            a2 = (1.0f - alpha) / a0;
+        }
+
+        float process(float in) {
+            float out = in * b0 + z1;
+            z1 = in * b1 - a1 * out + z2;
+            z2 = in * b2 - a2 * out;
+            return out;
+        }
+    };
+
+    // Unipolar kinetic pressure pulse (a single physical compression wave, 0% sine oscillation)
+    auto unipolarPulse = [](float t, float tau) -> float {
+        if (t <= 0.0f) return 0.0f;
+        float x = t / tau;
+        return x * std::exp(1.0f - x);
     };
 
     auto saturateAir = [](float x) -> float {
@@ -482,8 +486,7 @@ void AudioEngine::generateProceduralSoundBank() {
         float diffuseLpf = 0.0f;
         for (size_t i = static_cast<size_t>(SR * 0.018f); i < outSize; ++i) {
             float t = static_cast<float>(i) / SR;
-            float flutterMod = 1.0f + 0.35f * std::sin(2.0f * 3.14159f * 220.0f * t) + 0.20f * std::sin(2.0f * 3.14159f * 850.0f * t);
-            float env = std::pow(t, 0.25f) * std::exp(-t * 9.5f) * flutterMod;
+            float env = std::pow(t, 0.25f) * std::exp(-t * 9.5f); // Pure stochastic decay (zero sinusoidal pitch ringing)
             float rawNoise = rng.nextFloat();
             float pNoise = diffusePink.process(rawNoise);
             float fc = 750.0f + 6500.0f * std::exp(-t * 7.5f);
@@ -607,7 +610,7 @@ void AudioEngine::generateProceduralSoundBank() {
     };
 
     // =========================================================================
-    // 1. ASSAULT RIFLE (M4A1 5.56mm & AK-74M 5.45mm) - 4 Organic Variations
+    // 1. ASSAULT RIFLE (M4A1 5.56mm & AK-74M 5.45mm) - 4 Organic Variations (Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.rifleShotsOutdoor.resize(4);
     m_soundBank.rifleShotsBunker.resize(4);
@@ -616,65 +619,64 @@ void AudioEngine::generateProceduralSoundBank() {
     for (size_t v = 0; v < 4; ++v) {
         PRNG rng(1001u + static_cast<uint32_t>(v) * 337u);
         PinkFilter pinkF;
-        float coreDur = 0.20f;
+        Biquad bqBlast;
+        bqBlast.setLowpass(95.0f + static_cast<float>(v) * 6.0f, 1.1f, SR);
+        Biquad bqMid;
+        bqMid.setBandpass(240.0f, 0.9f, SR);
+
+        float coreDur = 0.22f;
         size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
-        float t_rise = 0.00004f;
-        float t_pos  = 0.00035f + static_cast<float>(v) * 0.00002f;
-        float mech_time = 0.014f + static_cast<float>(v) * 0.001f;
+        float tau_pulse = 0.0035f + static_cast<float>(v) * 0.0003f;
+        float t_rise = 0.00003f;
+        float t_pos = 0.00028f;
+        float mech_time = 0.015f;
 
-        float lpf_combust = 0.0f;
         float hpf_bite = 0.0f;
 
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
 
-            // A. Supersonic Shock Front (Instantaneous Mach 2.5 N-Wave Pressure Jump)
+            // A. Supersonic Mach 2.5 N-Wave Shock Crack (Zero sine)
             float shock = 0.0f;
             if (t < t_rise) {
                 shock = t / t_rise;
             } else if (t < t_pos) {
                 shock = 1.0f - 2.0f * (t - t_rise) / (t_pos - t_rise);
-            } else if (t < 0.0035f) {
-                shock = -0.45f * std::exp(-(t - t_pos) / 0.0008f);
+            } else if (t < 0.0030f) {
+                shock = -0.40f * std::exp(-(t - t_pos) / 0.0007f);
             }
 
-            // B. High-Frequency Mach Bite (Sharp metallic supersonic crack, not a sine beep)
+            // B. High-Frequency Mach Crackle (Aperiodic filtered noise)
             float rawN = rng.nextFloat();
             float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 4200.0f / SR);
             hpf_bite += biteAlpha * (rawN - hpf_bite);
-            float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.008f) * 0.95f;
+            float crackle = (rawN - hpf_bite) * std::exp(-t / 0.007f) * 1.10f;
 
-            // C. Concussive Gunpowder Detonation Blast (Visceral non-linear Bessel saturation, NO electronic sine kick!)
+            // C. Concussive Unipolar Air-Blast + Biquad Low-Pass Noise (NO SINE WAVE!)
+            float pulse = unipolarPulse(t, tau_pulse) * 1.65f;
             float pN = pinkF.process(rawN);
-            float blastAlpha = std::min(1.0f, 2.0f * 3.14159f * 125.0f / SR);
-            lpf_combust += blastAlpha * (pN - lpf_combust);
-            float blastWave = std::sin(2.0f * 3.14159f * 68.0f * t) * 0.65f + std::sin(2.0f * 3.14159f * 115.0f * t) * 0.35f;
-            float blastEnv = std::exp(-t / 0.048f);
-            float subThump = std::tanh((blastWave * 1.8f + lpf_combust * 2.4f) * blastEnv) * 1.15f;
+            float blastNoise = bqBlast.process(pN) * std::exp(-t / 0.055f) * 2.8f;
+            float midBody = bqMid.process(rawN) * std::exp(-t / 0.035f) * 1.2f;
+            float concussion = std::tanh((pulse + blastNoise + midBody) * 1.35f);
 
-            // D. Expanding Combustion Plume (Supersonic expanding gas wash, no comb filter ringing)
-            float fc = 350.0f + 9500.0f * std::exp(-t / 0.015f);
-            float cAlpha = std::min(1.0f, 2.0f * 3.14159f * fc / SR);
-            hpfOut += cAlpha * (pN - hpfOut);
-            float combustEnv = (1.0f - std::exp(-t / 0.0002f)) * std::exp(-t / 0.042f);
-            float combust = std::tanh(pN * combustEnv * 2.2f) * 0.55f;
+            // D. Expanding Combustion Gas Wash
+            float gasEnv = (1.0f - std::exp(-t / 0.0003f)) * std::exp(-t / 0.045f);
+            float gasWash = std::tanh(pN * gasEnv * 2.2f) * 0.45f;
 
-            // E. Mechanical Steel Bolt Carrier Action (Particulate impact transients, NOT sine tones)
+            // E. Mechanical Receiver Steel Friction (Stochastic impacts, zero tones)
             float mech = 0.0f;
             if (t >= mech_time && t <= mech_time + 0.035f) {
                 float dtm = t - mech_time;
-                float boltNoise = (rng.nextFloat() * 2.0f - 1.0f);
-                float click1 = std::exp(-dtm * 280.0f) * boltNoise * 0.45f;
-                float click2 = (dtm > 0.012f) ? std::exp(-(dtm - 0.012f) * 320.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.40f : 0.0f;
+                float click1 = std::exp(-dtm * 320.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.45f;
+                float click2 = (dtm > 0.012f) ? std::exp(-(dtm - 0.012f) * 280.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.38f : 0.0f;
                 mech = click1 + click2;
             }
 
-            core[i] = shock * 0.75f + hpfOut * 0.65f + subThump * 1.25f + combust * 0.50f + mech * 0.40f;
+            core[i] = shock * 0.75f + crackle * 0.65f + concussion * 1.30f + gasWash * 0.40f + mech * 0.35f;
         }
 
-        // Multi-environment acoustic profile generation
         auto wetOutdoor = applyOutdoorRollingReverb(core, 1.45f, 0.75f, 2.4f, rng);
         m_soundBank.rifleShotsOutdoor[v].resize(wetOutdoor.size());
         for (size_t i = 0; i < wetOutdoor.size(); ++i) {
@@ -685,8 +687,9 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.rifleShotsWarehouse[v] = applyIndoorWarehouseReverb(core, rng);
         m_soundBank.rifleShotsTrench[v] = applyTrenchReverb(core, rng);
     }
+
     // =========================================================================
-    // 2. HEAVY SNIPER / DMR (SVD Marksman 7.62x54mmR) - 4 Organic Variations
+    // 2. HEAVY SNIPER / DMR (SVD Marksman 7.62x54mmR) - 4 Organic Variations (Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.sniperShotsOutdoor.resize(4);
     m_soundBank.sniperShotsBunker.resize(4);
@@ -695,60 +698,54 @@ void AudioEngine::generateProceduralSoundBank() {
     for (size_t v = 0; v < 4; ++v) {
         PRNG rng(2741u + static_cast<uint32_t>(v) * 619u);
         PinkFilter pinkF;
-        float coreDur = 0.28f;
+        Biquad bqBlast;
+        bqBlast.setLowpass(68.0f + static_cast<float>(v) * 4.0f, 1.2f, SR);
+        Biquad bqBody;
+        bqBody.setBandpass(180.0f, 0.9f, SR);
+
+        float coreDur = 0.30f;
         size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
+        float tau_pulse = 0.0055f + static_cast<float>(v) * 0.0004f;
         float t_rise = 0.00003f;
-        float t_pos  = 0.00045f + static_cast<float>(v) * 0.00003f;
-        float mech_time = 0.020f;
-
-        float lpf_combust = 0.0f;
+        float t_pos  = 0.00040f;
+        float mech_time = 0.022f;
         float hpf_bite = 0.0f;
 
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
 
-            // 1. Supersonic Mach 2.8 Shock Crack
             float shock = 0.0f;
             if (t < t_rise) {
                 shock = (t / t_rise) * 1.55f;
             } else if (t < t_pos) {
                 shock = (1.0f - 2.0f * (t - t_rise) / (t_pos - t_rise)) * 1.55f;
-            } else if (t < 0.0055f) {
-                shock = -0.65f * std::exp(-(t - t_pos) / 0.0012f);
+            } else if (t < 0.0045f) {
+                shock = -0.55f * std::exp(-(t - t_pos) / 0.0010f);
             }
 
             float rawN = rng.nextFloat();
-            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 3600.0f / SR);
+            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 3800.0f / SR);
             hpf_bite += biteAlpha * (rawN - hpf_bite);
-            float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.011f) * 1.15f;
+            float crackle = (rawN - hpf_bite) * std::exp(-t / 0.010f) * 1.25f;
 
-            // 2. Earth-Shaking High-Pressure 7.62mm Detonation Blast (No sine dive)
+            float pulse = unipolarPulse(t, tau_pulse) * 2.2f;
             float pN = pinkF.process(rawN);
-            float blastAlpha = std::min(1.0f, 2.0f * 3.14159f * 95.0f / SR);
-            lpf_combust += blastAlpha * (pN - lpf_combust);
-            float blastWave = std::sin(2.0f * 3.14159f * 48.0f * t) * 0.70f + std::sin(2.0f * 3.14159f * 84.0f * t) * 0.35f;
-            float blastEnv = std::exp(-t / 0.075f);
-            float subThump = std::tanh((blastWave * 2.2f + lpf_combust * 3.2f) * blastEnv) * 1.45f;
+            float blastNoise = bqBlast.process(pN) * std::exp(-t / 0.080f) * 3.4f;
+            float body = bqBody.process(rawN) * std::exp(-t / 0.050f) * 1.5f;
+            float concussion = std::tanh((pulse + blastNoise + body) * 1.45f);
 
-            // 3. Expanding Combustion Plume
-            float fc = 280.0f + 11000.0f * std::exp(-t / 0.018f);
-            float cAlpha = std::min(1.0f, 2.0f * 3.14159f * fc / SR);
-            hpfOut += cAlpha * (pN - hpfOut);
-            float combustEnv = (1.0f - std::exp(-t / 0.0002f)) * std::exp(-t / 0.065f);
-            float combust = std::tanh(pN * combustEnv * 2.6f) * 0.70f;
+            float gasEnv = (1.0f - std::exp(-t / 0.0002f)) * std::exp(-t / 0.065f);
+            float gasWash = std::tanh(pN * gasEnv * 2.6f) * 0.55f;
 
-            // 4. Heavy Steel Bolt Recoil Action
             float mech = 0.0f;
             if (t >= mech_time && t <= mech_time + 0.045f) {
                 float dtm = t - mech_time;
-                float click1 = std::exp(-dtm * 220.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.55f;
-                float click2 = (dtm > 0.016f) ? std::exp(-(dtm - 0.016f) * 260.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.45f : 0.0f;
-                mech = click1 + click2;
+                mech = std::exp(-dtm * 240.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.50f;
             }
 
-            core[i] = shock * 0.85f + hpfOut * 0.75f + subThump * 1.45f + combust * 0.60f + mech * 0.45f;
+            core[i] = shock * 0.85f + crackle * 0.75f + concussion * 1.45f + gasWash * 0.50f + mech * 0.40f;
         }
 
         auto wetOutdoor = applyOutdoorRollingReverb(core, 2.80f, 0.95f, 1.8f, rng);
@@ -761,68 +758,62 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.sniperShotsWarehouse[v] = applyIndoorWarehouseReverb(core, rng);
         m_soundBank.sniperShotsTrench[v] = applyTrenchReverb(core, rng);
     }
+
     // =========================================================================
-    // 3. TACTICAL SIDEARM (M9A3 9x19mm Parabellum) - 4 Organic Variations
+    // 3. TACTICAL SIDEARM (M9A3 9x19mm Parabellum) - 4 Organic Variations (Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.pistolShotsOutdoor.resize(4);
     m_soundBank.pistolShotsBunker.resize(4);
     m_soundBank.pistolShotsWarehouse.resize(4);
     m_soundBank.pistolShotsTrench.resize(4);
     for (size_t v = 0; v < 4; ++v) {
-        PRNG rng(3201u + static_cast<uint32_t>(v) * 443u);
+        PRNG rng(3911u + static_cast<uint32_t>(v) * 431u);
         PinkFilter pinkF;
+        Biquad bqBlast;
+        bqBlast.setLowpass(130.0f, 1.0f, SR);
+
         float coreDur = 0.14f;
         size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
-        float t_rise = 0.00005f;
-        float t_pos = 0.00028f;
+        float tau_pulse = 0.0022f;
+        float t_rise = 0.00004f;
+        float t_pos = 0.00025f;
         float mech_time = 0.010f;
-
-        float lpf_combust = 0.0f;
         float hpf_bite = 0.0f;
 
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
 
-            // 1. Snappy 9mm Mach Shock Crack
             float shock = 0.0f;
             if (t < t_rise) {
                 shock = (t / t_rise) * 1.10f;
             } else if (t < t_pos) {
                 shock = (1.0f - 2.0f * (t - t_rise) / (t_pos - t_rise)) * 1.10f;
-            } else if (t < 0.0028f) {
-                shock = -0.35f * std::exp(-(t - t_pos) / 0.0007f);
+            } else if (t < 0.0025f) {
+                shock = -0.30f * std::exp(-(t - t_pos) / 0.0006f);
             }
 
             float rawN = rng.nextFloat();
             float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 4800.0f / SR);
             hpf_bite += biteAlpha * (rawN - hpf_bite);
-            float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.006f) * 0.85f;
+            float crackle = (rawN - hpf_bite) * std::exp(-t / 0.006f) * 0.95f;
 
-            // 2. Compact 9mm Detonation Thump
+            float pulse = unipolarPulse(t, tau_pulse) * 1.4f;
             float pN = pinkF.process(rawN);
-            float blastAlpha = std::min(1.0f, 2.0f * 3.14159f * 160.0f / SR);
-            lpf_combust += blastAlpha * (pN - lpf_combust);
-            float blastWave = std::sin(2.0f * 3.14159f * 92.0f * t) * 0.75f + std::sin(2.0f * 3.14159f * 155.0f * t) * 0.35f;
-            float blastEnv = std::exp(-t / 0.032f);
-            float subThump = std::tanh((blastWave * 1.6f + lpf_combust * 2.0f) * blastEnv) * 0.85f;
+            float blastNoise = bqBlast.process(pN) * std::exp(-t / 0.038f) * 2.2f;
+            float concussion = std::tanh((pulse + blastNoise) * 1.25f);
 
-            // 3. Combustion Plume
-            float fc = 450.0f + 12000.0f * std::exp(-t / 0.012f);
-            float cAlpha = std::min(1.0f, 2.0f * 3.14159f * fc / SR);
-            hpfOut += cAlpha * (pN - hpfOut);
-            float combustEnv = (1.0f - std::exp(-t / 0.0002f)) * std::exp(-t / 0.028f);
-            float combust = std::tanh(pN * combustEnv * 1.8f) * 0.45f;
+            float gasEnv = (1.0f - std::exp(-t / 0.0002f)) * std::exp(-t / 0.030f);
+            float gasWash = std::tanh(pN * gasEnv * 1.8f) * 0.35f;
 
-            // 4. Slide Recoil & Ejection Click
             float mech = 0.0f;
             if (t >= mech_time && t <= mech_time + 0.025f) {
                 float dtm = t - mech_time;
-                mech = std::exp(-dtm * 320.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.45f;
+                mech = std::exp(-dtm * 350.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.40f;
             }
 
-            core[i] = shock * 0.70f + hpfOut * 0.60f + subThump * 0.95f + combust * 0.40f + mech * 0.40f;
+            core[i] = shock * 0.70f + crackle * 0.60f + concussion * 1.15f + gasWash * 0.35f + mech * 0.35f;
         }
 
         auto wetOutdoor = applyOutdoorRollingReverb(core, 0.85f, 0.65f, 3.8f, rng);
@@ -880,9 +871,8 @@ void AudioEngine::generateProceduralSoundBank() {
             hpf_bite += biteAlpha * (rawN - hpf_bite);
             float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.014f) * 0.95f;
 
-            // Massive Concussive 12.7mm Low-End (155Hz -> 26Hz)
-            float phase = 2.0f * 3.14159265f * (f_end * t + (f_start - f_end) * tau_dive * (1.0f - std::exp(-t / tau_dive)));
-            float subThump = std::tanh(3.2f * std::sin(phase)) * std::exp(-t / 0.20f) * 1.35f;
+            // Massive Concussive 12.7mm Low-End (Zero-Sine Unipolar Shock & Deep Resonance)
+            float subThump = unipolarPulse(t, 0.0075f) * 1.55f;
 
             float pN = pinkF.process(rawN);
             float fc = 280.0f + 14000.0f * std::exp(-t / 0.035f);
@@ -898,8 +888,7 @@ void AudioEngine::generateProceduralSoundBank() {
             float mech = 0.0f;
             if (t >= mech_time && t <= mech_time + 0.055f) {
                 float dtm = t - mech_time;
-                mech = (std::sin(2.0f * 3.14159f * 950.0f * dtm) * 0.7f +
-                        std::sin(2.0f * 3.14159f * 1850.0f * dtm) * 0.5f) * std::exp(-dtm * 120.0f) * 0.60f;
+                mech = (rawN * 0.65f) * std::exp(-dtm * 140.0f);
             }
 
             core[i] = shock * 0.75f + hpfOut * 0.60f + subThump * 1.25f + combust * 0.65f + barrelOut * 0.40f + mech * 0.50f;
@@ -917,186 +906,246 @@ void AudioEngine::generateProceduralSoundBank() {
     }
 
     // =========================================================================
-    // 5. BULLET IMPACTS (Flesh, Steel, Sandbag, Dirt) - 3 Variations
+    // 5. BULLET IMPACTS (Flesh, Steel, Sandbag, Dirt) - 3 Variations (Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.impacts.resize(3);
     for (size_t v = 0; v < 3; ++v) {
         PRNG rng(5119u + static_cast<uint32_t>(v) * 293u);
-        float dur = 0.28f;
+        PinkFilter pf;
+        Biquad bqThud;
+        bqThud.setLowpass(150.0f, 0.9f, SR);
+        float dur = 0.24f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.impacts[v].resize(totalSamples, 0.0f);
+        float tau_impact = 0.005f + static_cast<float>(v) * 0.0015f;
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float thud = std::sin(2.0f * 3.14159f * (140.0f - t * 80.0f) * t) * std::exp(-t * 28.0f) * 0.85f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float thudPulse = unipolarPulse(t, tau_impact) * 0.90f;
+            float thudBody = bqThud.process(pf.process(rawN)) * std::exp(-t * 36.0f) * 1.2f;
             float snap = (t < 0.0015f) ? (1.0f - t / 0.0015f) * 0.95f : 0.0f;
-            float grit = rng.nextFloat() * 0.35f * std::exp(-t * 32.0f);
-            m_soundBank.impacts[v][i] = std::tanh((thud + snap + grit) * 0.85f);
+            float grit = rawN * 0.35f * std::exp(-t * 32.0f);
+            m_soundBank.impacts[v][i] = std::tanh((thudPulse + thudBody + snap + grit) * 0.90f);
         }
     }
 
     // =========================================================================
-    // 6. SPENT SHELL CASINGS (Physical Brass Clink & Surface Impact) - 4 Variations Each
+    // 6. SPENT SHELL CASINGS (Physical Brass Clink & Surface Impact) - 4 Variations Each (Zero-Sine)
     // =========================================================================
-    // 6a. Concrete / Steel: Sharp impact click transient + fast-damped brass clatter
+    // 6a. Concrete / Steel: Sharp impact click transient + fast-damped brass clatter (0% sine)
     m_soundBank.shellCasings.resize(4);
     for (size_t v = 0; v < 4; ++v) {
         PRNG rng(7129u + static_cast<uint32_t>(v) * 431u);
+        PinkFilter pf;
+        Biquad bqBrass;
+        bqBrass.setBandpass(2800.0f + static_cast<float>(v) * 180.0f, 1.4f, SR);
         float dur = 0.11f; // Quick crisp duration
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.shellCasings[v].resize(totalSamples, 0.0f);
-        float f1 = 2650.0f + static_cast<float>(v) * 120.0f;
-        float f2 = 4120.0f + static_cast<float>(v) * 160.0f;
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
             // High-frequency broadband impact click tap (1.5ms impulse)
-            float click = (rng.nextFloat() * 2.0f - 1.0f) * 0.35f * std::exp(-t * 1200.0f);
-            // Damped high-frequency brass body ping (rapid damping on ground)
-            float ring = (std::sin(2.0f * 3.14159f * f1 * t) * 0.22f +
-                          std::sin(2.0f * 3.14159f * f2 * t) * 0.10f) * std::exp(-t * 95.0f);
+            float click = rawN * 0.40f * std::exp(-t * 1200.0f);
+            // Damped high-frequency brass body ping via bandpass noise
+            float ring = bqBrass.process(rawN) * std::exp(-t * 85.0f) * 0.45f;
             // Secondary bounce slap at 26ms
             float t2 = t - 0.026f;
-            float slap = (t2 > 0.0f) ? (((rng.nextFloat() * 2.0f - 1.0f) * 0.16f +
-                                         std::sin(2.0f * 3.14159f * (f1 * 0.92f) * t2) * 0.10f) * std::exp(-t2 * 130.0f)) : 0.0f;
-            m_soundBank.shellCasings[v][i] = std::tanh((click + ring + slap) * 0.40f);
+            float slap = (t2 > 0.0f) ? (rawN * 0.20f * std::exp(-t2 * 110.0f)) : 0.0f;
+            m_soundBank.shellCasings[v][i] = std::tanh((click + ring + slap) * 0.45f);
         }
     }
 
-    // 6b. Dirt / Grass / Mud: Soft low-frequency muffled thud + damped soil friction
+    // 6b. Dirt / Grass / Mud: Soft low-frequency muffled thud + damped soil friction (0% sine)
     m_soundBank.shellCasingsDirt.resize(4);
     for (size_t v = 0; v < 4; ++v) {
         PRNG rng(8451u + static_cast<uint32_t>(v) * 277u);
+        PinkFilter pf;
+        Biquad bqSoil;
+        bqSoil.setLowpass(160.0f, 0.85f, SR);
         float dur = 0.06f; // Soft, short organic clatter
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.shellCasingsDirt[v].resize(totalSamples, 0.0f);
-        float fLow = 180.0f + static_cast<float>(v) * 25.0f;
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float thud = std::sin(2.0f * 3.14159f * fLow * t) * 0.35f * std::exp(-t * 130.0f);
-            float grit = (rng.nextFloat() * 2.0f - 1.0f) * 0.15f * std::exp(-t * 180.0f);
-            m_soundBank.shellCasingsDirt[v][i] = std::tanh((thud + grit) * 0.25f);
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float thud = unipolarPulse(t, 0.006f) * 0.40f + bqSoil.process(pf.process(rawN)) * std::exp(-t * 110.0f) * 0.50f;
+            float scuff = rawN * 0.15f * std::exp(-t * 80.0f);
+            m_soundBank.shellCasingsDirt[v][i] = std::tanh((thud + scuff) * 0.40f);
         }
     }
 
     // =========================================================================
-    // 7. DRY FIRE & WEAPON CLICKS
+    // 7. DRY FIRE & WEAPON CLICKS (Zero-Sine Physical Model)
     // =========================================================================
     {
         float dur = 0.08f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.dryFire.resize(totalSamples, 0.0f);
+        PRNG rng(4411u);
+        Biquad bqClick;
+        bqClick.setBandpass(2200.0f, 1.2f, SR);
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float click = (std::sin(2.0f * 3.14159f * 1850.0f * t) * 0.6f + std::sin(2.0f * 3.14159f * 3400.0f * t) * 0.4f) * std::exp(-t * 95.0f);
-            m_soundBank.dryFire[i] = click * 0.40f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float snap = (t < 0.001f) ? (1.0f - t / 0.001f) * 0.85f : 0.0f;
+            float click = bqClick.process(rawN) * std::exp(-t * 110.0f) * 0.65f;
+            m_soundBank.dryFire[i] = std::tanh((snap + click) * 0.50f);
         }
     }
 
     // =========================================================================
-    // 8. RELOAD & MAGAZINE INSERTION
+    // 8. RELOAD & MAGAZINE INSERTION (Zero-Sine Physical Model)
     // =========================================================================
     {
         float dur = 0.55f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.reload.resize(totalSamples, 0.0f);
         PRNG rng(7103u);
+        PinkFilter pf;
+        Biquad bqLatch;
+        bqLatch.setBandpass(1800.0f, 1.0f, SR);
+        Biquad bqWell;
+        bqWell.setLowpass(320.0f, 0.9f, SR);
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float rustle = rng.nextFloat() * 0.15f * std::exp(-t * 12.0f);
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float rustle = pf.process(rawN) * 0.18f * std::exp(-t * 10.0f);
             // Mag release click at 0.05s
-            float magOut = (t > 0.05f && t < 0.09f) ? std::sin(2.0f * 3.14159f * 1650.0f * (t - 0.05f)) * std::exp(-(t - 0.05f) * 110.0f) * 0.5f : 0.0f;
+            float magOut = 0.0f;
+            if (t > 0.05f && t < 0.09f) {
+                float dt = t - 0.05f;
+                magOut = bqLatch.process(rawN) * std::exp(-dt * 130.0f) * 0.65f;
+            }
             // Mag insert rock at 0.32s
-            float magIn = (t > 0.32f && t < 0.42f) ? (std::sin(2.0f * 3.14159f * 850.0f * (t - 0.32f)) * 0.6f + std::sin(2.0f * 3.14159f * 2400.0f * (t - 0.32f)) * 0.4f) * std::exp(-(t - 0.32f) * 75.0f) * 0.7f : 0.0f;
+            float magIn = 0.0f;
+            if (t > 0.32f && t < 0.42f) {
+                float dt = t - 0.32f;
+                float seatingThump = unipolarPulse(dt, 0.008f) * 0.75f;
+                float guideScuff = bqWell.process(rawN) * std::exp(-dt * 65.0f) * 0.85f;
+                magIn = seatingThump + guideScuff;
+            }
             m_soundBank.reload[i] = std::tanh((rustle + magOut + magIn) * 0.70f);
         }
     }
 
     // =========================================================================
-    // 9. CHAMBER ROUND (Charging Handle Rack)
+    // 9. CHAMBER ROUND (Charging Handle Rack - Zero-Sine Physical Model)
     // =========================================================================
     {
         float dur = 0.35f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.chamberRound.resize(totalSamples, 0.0f);
+        PRNG rng(8821u);
+        PinkFilter pf;
+        Biquad bqSteel;
+        bqSteel.setBandpass(1400.0f, 1.1f, SR);
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
             // Pull back at 0.02s
-            float pull = (t > 0.02f && t < 0.09f) ? std::sin(2.0f * 3.14159f * 1950.0f * (t - 0.02f)) * std::exp(-(t - 0.02f) * 80.0f) * 0.45f : 0.0f;
+            float pull = 0.0f;
+            if (t > 0.02f && t < 0.09f) {
+                float dt = t - 0.02f;
+                pull = bqSteel.process(rawN) * std::exp(-dt * 85.0f) * 0.55f;
+            }
             // Slam forward at 0.14s
-            float slam = (t > 0.14f && t < 0.25f) ? (std::sin(2.0f * 3.14159f * 1150.0f * (t - 0.14f)) * 0.65f + std::sin(2.0f * 3.14159f * 3100.0f * (t - 0.14f)) * 0.35f) * std::exp(-(t - 0.14f) * 60.0f) * 0.75f : 0.0f;
+            float slam = 0.0f;
+            if (t > 0.14f && t < 0.25f) {
+                float dt = t - 0.14f;
+                float boltThump = unipolarPulse(dt, 0.006f) * 0.90f;
+                float lockRattle = pf.process(rawN) * std::exp(-dt * 70.0f) * 0.60f;
+                slam = boltThump + lockRattle;
+            }
             m_soundBank.chamberRound[i] = std::tanh((pull + slam) * 0.80f);
         }
     }
 
     // =========================================================================
-    // 10. SUPERSONIC BULLET FLYBY (Doppler Sonic Crack)
+    // 10. SUPERSONIC BULLET FLYBY (Doppler Sonic Crack - Zero-Sine Physical Model)
     // =========================================================================
     {
         float dur = 0.25f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.bulletFlyby.resize(totalSamples, 0.0f);
+        PRNG rng(6511u);
+        PinkFilter pf;
+        Biquad bqWhoosh;
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
             // Sharp N-wave snap at t=0.04s
             float snap = (t >= 0.038f && t <= 0.042f) ? (1.0f - (t - 0.038f) / 0.002f * 2.0f) * 0.95f : 0.0f;
-            // Rapid Doppler whoosh
-            float fDop = 1950.0f - std::tanh((t - 0.04f) * 45.0f) * 1450.0f;
-            float whoosh = std::sin(2.0f * 3.14159f * fDop * t) * std::exp(-std::abs(t - 0.04f) * 35.0f) * 0.55f;
+            // Rapid Doppler whoosh via swept bandpass noise
+            float fc = 800.0f + 1600.0f * (1.0f - std::clamp((t - 0.04f) * 15.0f, 0.0f, 1.0f));
+            bqWhoosh.setBandpass(fc, 0.9f, SR);
+            float whoosh = bqWhoosh.process(pf.process(rawN)) * std::exp(-std::abs(t - 0.04f) * 35.0f) * 0.85f;
             m_soundBank.bulletFlyby[i] = std::tanh((snap + whoosh) * 0.85f);
         }
     }
 
     // =========================================================================
-    // 11. BALLISTIC HELMET PING (Steel & Kevlar Ricochet)
+    // 11. BALLISTIC HELMET PING (Steel & Kevlar Ricochet - Zero-Sine Physical Model)
     // =========================================================================
     {
-        float dur = 0.65f;
+        float dur = 0.55f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.helmetPing.resize(totalSamples, 0.0f);
+        PRNG rng(7733u);
+        Biquad bqPing1, bqPing2;
+        bqPing1.setBandpass(3200.0f, 2.2f, SR);
+        bqPing2.setBandpass(5800.0f, 2.0f, SR);
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
             float attack = (t < 0.001f) ? (1.0f - t / 0.001f) * 0.95f : 0.0f;
-            // High-Q pure steel bell harmonics
-            float ring = (std::sin(2.0f * 3.14159f * 2850.0f * t) * 0.6f +
-                          std::sin(2.0f * 3.14159f * 5180.0f * t) * 0.35f +
-                          std::sin(2.0f * 3.14159f * 7900.0f * t) * 0.20f) * std::exp(-t * 14.0f) * 0.85f;
+            float ring = (bqPing1.process(rawN) * 0.6f + bqPing2.process(rawN) * 0.4f) * std::exp(-t * 22.0f) * 0.85f;
             m_soundBank.helmetPing[i] = std::tanh((attack + ring) * 0.88f);
         }
     }
 
     // =========================================================================
-    // 12. BODY ARMOR CERAMIC DEFLECT
+    // 12. BODY ARMOR CERAMIC DEFLECT (Zero-Sine Physical Model)
     // =========================================================================
     {
         float dur = 0.35f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.armorDeflect.resize(totalSamples, 0.0f);
         PRNG rng(8191u);
+        PinkFilter pf;
+        Biquad bqPlate;
+        bqPlate.setLowpass(220.0f, 0.9f, SR);
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float shatter = rng.nextFloat() * 0.65f * std::exp(-t * 40.0f);
-            float thud = std::sin(2.0f * 3.14159f * (165.0f - t * 90.0f) * t) * std::exp(-t * 22.0f) * 0.75f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float shatter = rawN * 0.65f * std::exp(-t * 40.0f);
+            float thud = unipolarPulse(t, 0.008f) * 0.85f + bqPlate.process(pf.process(rawN)) * std::exp(-t * 26.0f) * 0.70f;
             m_soundBank.armorDeflect[i] = std::tanh((shatter + thud) * 0.80f);
         }
     }
 
     // =========================================================================
-    // 13. FLESH IMPACT (Visceral Wet Cavitation)
+    // 13. FLESH IMPACT (Visceral Wet Cavitation - Zero-Sine Physical Model)
     // =========================================================================
     {
         float dur = 0.30f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.fleshImpact.resize(totalSamples, 0.0f);
         PRNG rng(9011u);
+        PinkFilter pf;
+        Biquad bqCav;
+        bqCav.setLowpass(160.0f, 0.85f, SR);
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float pop = std::sin(2.0f * 3.14159f * (120.0f - t * 75.0f) * t) * std::exp(-t * 30.0f) * 0.90f;
-            float wet = rng.nextFloat() * 0.35f * std::exp(-t * 35.0f);
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float pop = unipolarPulse(t, 0.007f) * 0.95f + bqCav.process(pf.process(rawN)) * std::exp(-t * 32.0f) * 0.80f;
+            float wet = rawN * 0.35f * std::exp(-t * 35.0f);
             m_soundBank.fleshImpact[i] = std::tanh((pop + wet) * 0.85f);
         }
     }
 
     // =========================================================================
-    // 14. SPRINT SLIDE & TACTICAL BOOT DRAG
+    // 14. SPRINT SLIDE & TACTICAL BOOT DRAG (Zero-Sine Physical Model)
     // =========================================================================
     {
         float dur = 0.45f;
@@ -1106,60 +1155,72 @@ void AudioEngine::generateProceduralSoundBank() {
         PinkFilter pf;
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float env = std::sin(3.14159f * std::clamp(t / dur, 0.0f, 1.0f));
-            float gravel = pf.process(rng.nextFloat()) * env * 0.45f;
+            float u = std::clamp(t / dur, 0.0f, 1.0f);
+            float env = 4.0f * u * (1.0f - u);
+            float gravel = pf.process(rng.nextFloat() * 2.0f - 1.0f) * env * 0.45f;
             m_soundBank.sprintSlide[i] = gravel;
         }
     }
 
     // =========================================================================
-    // 15. TACTICAL GRENADE PIN & SPOON FLY-OFF
+    // 15. TACTICAL GRENADE PIN & SPOON FLY-OFF (Zero-Sine Physical Model)
     // =========================================================================
     {
         float dur = 0.18f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.grenadePin.resize(totalSamples, 0.0f);
+        PRNG rng(5512u);
+        Biquad bqSpoon;
+        bqSpoon.setBandpass(2600.0f, 1.3f, SR);
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float ping = std::sin(2.0f * 3.14159f * 3650.0f * t) * std::exp(-t * 85.0f) * 0.65f;
-            float snap = std::sin(2.0f * 3.14159f * 1450.0f * t) * std::exp(-t * 60.0f) * 0.45f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float ping = bqSpoon.process(rawN) * std::exp(-t * 85.0f) * 0.70f;
+            float snap = (t < 0.0015f) ? (1.0f - t / 0.0015f) * 0.85f : 0.0f;
             m_soundBank.grenadePin[i] = (ping + snap) * 0.60f;
         }
     }
 
     // =========================================================================
-    // 16. GRENADE GROUND BOUNCE
+    // 16. GRENADE GROUND BOUNCE (Zero-Sine Physical Model)
     // =========================================================================
     {
         float dur = 0.22f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.grenadeBounce.resize(totalSamples, 0.0f);
+        PRNG rng(6621u);
+        PinkFilter pf;
+        Biquad bqCastIron;
+        bqCastIron.setBandpass(650.0f, 1.2f, SR);
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float thud = std::sin(2.0f * 3.14159f * 180.0f * t) * std::exp(-t * 40.0f) * 0.65f;
-            float ring = std::sin(2.0f * 3.14159f * 890.0f * t) * std::exp(-t * 55.0f) * 0.40f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float thud = unipolarPulse(t, 0.007f) * 0.75f;
+            float ring = bqCastIron.process(pf.process(rawN)) * std::exp(-t * 45.0f) * 0.55f;
             m_soundBank.grenadeBounce[i] = std::tanh((thud + ring) * 0.75f);
         }
     }
 
     // =========================================================================
-    // 17. HE GRENADE EXPLOSION (Concussive Detonation & Debris Fallout)
+    // 17. HE GRENADE EXPLOSION (Concussive Detonation & Debris Fallout - Zero-Sine)
     // =========================================================================
     {
         PRNG rng(9606u);
         PinkFilter pf;
+        Biquad bqDet;
+        bqDet.setLowpass(85.0f, 1.0f, SR);
         float coreDur = 0.45f;
         size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float shock = (t < 0.003f) ? (1.0f - t / 0.003f) * 1.5f : 0.0f;
-            float fDop = 85.0f - t * 45.0f;
-            float subBass = std::sin(2.0f * 3.14159f * fDop * t) * std::exp(-t * 4.5f) * 1.25f;
-            float rumble = pf.process(rng.nextFloat()) * std::exp(-t * 5.2f) * 0.90f;
-            float debris = (t > 0.12f) ? rng.nextFloat() * 0.35f * std::exp(-(t - 0.12f) * 3.5f) : 0.0f;
-            core[i] = shock * 0.70f + subBass * 0.85f + rumble * 0.65f + debris * 0.45f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float shock = unipolarPulse(t, 0.005f) * 2.2f;
+            float subBass = bqDet.process(pf.process(rawN)) * std::exp(-t * 4.5f) * 1.50f;
+            float rumble = pf.process(rawN) * std::exp(-t * 5.2f) * 0.90f;
+            float debris = (t > 0.12f) ? rawN * 0.35f * std::exp(-(t - 0.12f) * 3.5f) : 0.0f;
+            core[i] = shock * 0.75f + subBass * 0.85f + rumble * 0.65f + debris * 0.45f;
         }
 
         auto wet = applyOutdoorRollingReverb(core, 2.20f, 1.10f, 1.4f, rng);
@@ -1170,23 +1231,24 @@ void AudioEngine::generateProceduralSoundBank() {
     }
 
     // =========================================================================
-    // 18. ARTILLERY SHELL EXPLOSION (152mm/155mm Heavy Howitzer Blast)
+    // 18. ARTILLERY SHELL EXPLOSION (152mm/155mm Heavy Howitzer Blast - Zero-Sine)
     // =========================================================================
     {
         PRNG rng(9887u);
         PinkFilter pf;
+        Biquad bqSeismic;
+        bqSeismic.setLowpass(50.0f, 1.1f, SR);
         float coreDur = 0.65f;
         size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float shock = (t < 0.005f) ? (1.0f - t / 0.005f) * 2.0f : 0.0f;
-            // Seismic 22Hz low-frequency earth-shaker
-            float fDop = 75.0f - t * 38.0f;
-            float seismic = std::sin(2.0f * 3.14159f * fDop * t) * std::exp(-t * 2.8f) * 1.55f;
-            float roar = pf.process(rng.nextFloat()) * std::exp(-t * 3.8f) * 1.20f;
-            float earthRumble = (t > 0.08f) ? std::sin(2.0f * 3.14159f * 24.0f * t) * std::exp(-t * 1.8f) * 0.95f : 0.0f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float shock = unipolarPulse(t, 0.008f) * 2.8f;
+            float seismic = bqSeismic.process(pf.process(rawN)) * std::exp(-t * 2.8f) * 1.80f;
+            float roar = pf.process(rawN) * std::exp(-t * 3.8f) * 1.20f;
+            float earthRumble = (t > 0.08f) ? pf.process(rawN) * 0.85f * std::exp(-t * 1.8f) : 0.0f;
             core[i] = shock * 0.80f + seismic * 1.10f + roar * 0.75f + earthRumble * 0.85f;
         }
 
@@ -1198,25 +1260,28 @@ void AudioEngine::generateProceduralSoundBank() {
     }
 
     // =========================================================================
-    // 19. BALLISTIC BARRIER PENETRATION CRACK (Kinetic Rupture & Exit Shock)
+    // 19. BALLISTIC BARRIER PENETRATION CRACK (Kinetic Rupture & Exit Shock - Zero-Sine)
     // =========================================================================
     {
         float dur = 0.28f;
         size_t totalSamples = static_cast<size_t>(SR * dur);
         m_soundBank.penetrationCrack.resize(totalSamples, 0.0f);
         PRNG rng(7119u);
+        PinkFilter pf;
+        Biquad bqWhip;
+        bqWhip.setBandpass(1800.0f, 1.0f, SR);
         for (size_t i = 0; i < totalSamples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float snap = (rng.nextFloat() * 2.0f - 1.0f) * std::exp(-t * 65.0f) * 0.95f;
-            float freqSweep = 3400.0f - t * 4500.0f;
-            float whip = std::sin(2.0f * 3.14159f * std::max(600.0f, freqSweep) * t) * std::exp(-t * 42.0f) * 0.70f;
-            float resonance = std::sin(2.0f * 3.14159f * 1650.0f * t) * std::exp(-t * 22.0f) * 0.40f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float snap = rawN * std::exp(-t * 65.0f) * 0.95f;
+            float whip = bqWhip.process(rawN) * std::exp(-t * 42.0f) * 0.75f;
+            float resonance = pf.process(rawN) * std::exp(-t * 22.0f) * 0.40f;
             m_soundBank.penetrationCrack[i] = std::tanh(snap + whip + resonance);
         }
     }
 
     // =========================================================================
-    // 20. CONCRETE FOOTSTEPS (4 Organic Boot-on-Pavement Variations)
+    // 20. CONCRETE FOOTSTEPS (4 Organic Boot-on-Pavement Variations - Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.footstepsConcrete.resize(4);
     for (size_t v = 0; v < 4; ++v) {
@@ -1225,24 +1290,37 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.footstepsConcrete[v].resize(samples, 0.0f);
         PRNG rng(5101u + static_cast<uint32_t>(v) * 233u);
         PinkFilter pf;
+        Biquad bqHeel;
+        bqHeel.setLowpass(160.0f, 0.85f, SR);
+        Biquad bqSlap;
+        bqSlap.setBandpass(260.0f, 0.90f, SR);
+
+        float tau_heel = 0.009f;
+
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            // A. Sharp Viscoelastic Rubber Heel Impact (Low-frequency structural shock)
-            float heelImpulse = std::sin(2.0f * 3.14159f * 140.0f * t) * std::exp(-t * 65.0f) * 0.70f;
-            // B. High-Frequency Pavement Friction / Micro-Grit Snap
             float rawN = rng.nextFloat() * 2.0f - 1.0f;
-            float gritSnap = rawN * std::exp(-t * 90.0f) * 0.45f;
-            // C. Secondary Sole Slap & Weight Transfer (Delayed 14ms)
-            float soleSlap = (t > 0.014f) ? std::sin(2.0f * 3.14159f * 220.0f * (t - 0.014f)) * std::exp(-(t - 0.014f) * 75.0f) * 0.40f : 0.0f;
-            // D. Tread Texture Release Scuff
-            float scuff = pf.process(rawN) * std::exp(-t * 40.0f) * 0.22f;
+            float pN = pf.process(rawN);
 
-            m_soundBank.footstepsConcrete[v][i] = std::tanh((heelImpulse + gritSnap + soleSlap + scuff) * 1.15f);
+            // A. Viscoelastic Rubber Sole Impact (Unipolar displacement pulse + damped low-pass noise, 0% sine)
+            float heelPulse = unipolarPulse(t, tau_heel) * 0.85f;
+            float heelBody = bqHeel.process(pN) * std::exp(-t * 55.0f) * 1.4f;
+
+            // B. High-Frequency Pavement Friction / Micro-Grit Snap
+            float gritSnap = rawN * std::exp(-t * 95.0f) * 0.55f;
+
+            // C. Secondary Sole Slap (Delayed 14ms)
+            float soleSlap = (t > 0.014f) ? bqSlap.process(rawN) * std::exp(-(t - 0.014f) * 70.0f) * 0.65f : 0.0f;
+
+            // D. Tread Texture Release Scuff
+            float scuff = pN * std::exp(-t * 38.0f) * 0.25f;
+
+            m_soundBank.footstepsConcrete[v][i] = std::tanh((heelPulse + heelBody + gritSnap + soleSlap + scuff) * 1.15f);
         }
     }
 
     // =========================================================================
-    // 21. DIRT / GRAVEL FOOTSTEPS (4 Organic Earth Variations)
+    // 21. DIRT / GRAVEL FOOTSTEPS (4 Organic Earth Variations - Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.footstepsDirt.resize(4);
     for (size_t v = 0; v < 4; ++v) {
@@ -1251,36 +1329,46 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.footstepsDirt[v].resize(samples, 0.0f);
         PRNG rng(6201u + static_cast<uint32_t>(v) * 317u);
         PinkFilter pf;
-        // Pre-generate 8 asynchronous particulate grain fracture times
+        Biquad bqSoil;
+        bqSoil.setLowpass(90.0f, 0.85f, SR);
+        Biquad bqCrunch;
+        bqCrunch.setBandpass(380.0f, 0.80f, SR);
+
+        float tau_thud = 0.012f;
+
+        // 8 asynchronous particulate grain fracture times
         float grainTimes[8];
-        float grainPitches[8];
         for (int k = 0; k < 8; ++k) {
-            grainTimes[k] = 0.006f + (static_cast<float>(k) * 0.008f) + rng.nextFloat() * 0.006f;
-            grainPitches[k] = 600.0f + rng.nextFloat() * 1800.0f;
+            grainTimes[k] = 0.005f + (static_cast<float>(k) * 0.009f) + rng.nextFloat() * 0.005f;
         }
 
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            // A. Low-frequency Soil Deformation Thump (Damped ground displacement)
-            float soilThud = std::sin(2.0f * 3.14159f * 75.0f * t) * std::exp(-t * 45.0f) * 0.75f;
-            // B. Visceral Particulate Crunch (Multi-grain asynchronous fracture)
-            float grainTotal = 0.0f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float pN = pf.process(rawN);
+
+            // A. Soil Displacement (Unipolar pulse + damped low-frequency soil resonance, 0% sine)
+            float soilPulse = unipolarPulse(t, tau_thud) * 0.80f;
+            float soilBody = bqSoil.process(pN) * std::exp(-t * 42.0f) * 1.35f;
+
+            // B. Granular Earth / Pebble Crunch (Broadband stochastic particulate clicks, zero sine)
+            float grainClicks = 0.0f;
             for (int k = 0; k < 8; ++k) {
-                if (t >= grainTimes[k] && t < grainTimes[k] + 0.012f) {
+                if (t >= grainTimes[k] && t < grainTimes[k] + 0.008f) {
                     float dtg = t - grainTimes[k];
-                    grainTotal += std::sin(2.0f * 3.14159f * grainPitches[k] * dtg) * std::exp(-dtg * 180.0f) * 0.18f;
+                    grainClicks += (rng.nextFloat() * 2.0f - 1.0f) * std::exp(-dtg * 320.0f) * 0.26f;
                 }
             }
-            // C. Broad-spectrum Earth Shear Noise
-            float rawN = rng.nextFloat() * 2.0f - 1.0f;
-            float earthCrunch = pf.process(rawN) * std::exp(-t * 36.0f) * 0.55f;
 
-            m_soundBank.footstepsDirt[v][i] = std::tanh((soilThud + grainTotal + earthCrunch) * 1.10f);
+            // C. Broad-spectrum Earth Shear Texture
+            float crunch = bqCrunch.process(rawN) * std::exp(-t * 32.0f) * 0.55f;
+
+            m_soundBank.footstepsDirt[v][i] = std::tanh((soilPulse + soilBody + grainClicks + crunch) * 1.10f);
         }
     }
 
     // =========================================================================
-    // 22. WOOD FOOTSTEPS (4 Organic Timber / Plank Variations)
+    // 22. WOOD FOOTSTEPS (4 Organic Timber / Plank Variations - Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.footstepsWood.resize(4);
     for (size_t v = 0; v < 4; ++v) {
@@ -1288,20 +1376,30 @@ void AudioEngine::generateProceduralSoundBank() {
         size_t samples = static_cast<size_t>(SR * dur);
         m_soundBank.footstepsWood[v].resize(samples, 0.0f);
         PRNG rng(7301u + static_cast<uint32_t>(v) * 401u);
-        float f1 = 180.0f + static_cast<float>(v) * 10.0f;
-        float f2 = 360.0f + static_cast<float>(v) * 15.0f;
+        PinkFilter pf;
+        Biquad bqWood1;
+        bqWood1.setBandpass(175.0f, 1.1f, SR);
+        Biquad bqWood2;
+        bqWood2.setBandpass(350.0f, 0.9f, SR);
+
+        float tau_tap = 0.008f;
+
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float w1 = std::sin(2.0f * 3.14159f * f1 * t) * std::exp(-t * 50.0f) * 0.70f;
-            float w2 = std::sin(2.0f * 3.14159f * f2 * t) * std::exp(-t * 65.0f) * 0.35f;
             float rawN = rng.nextFloat() * 2.0f - 1.0f;
-            float creak = (t > 0.018f) ? rawN * std::exp(-(t - 0.018f) * 55.0f) * 0.22f : 0.0f;
-            m_soundBank.footstepsWood[v][i] = std::tanh((w1 + w2 + creak) * 1.05f);
+            float pN = pf.process(rawN);
+
+            float tapPulse = unipolarPulse(t, tau_tap) * 0.75f;
+            float cavity1 = bqWood1.process(pN) * std::exp(-t * 48.0f) * 1.4f;
+            float cavity2 = bqWood2.process(rawN) * std::exp(-t * 62.0f) * 0.65f;
+            float creak = (t > 0.016f) ? rawN * std::exp(-(t - 0.016f) * 45.0f) * 0.28f : 0.0f;
+
+            m_soundBank.footstepsWood[v][i] = std::tanh((tapPulse + cavity1 + cavity2 + creak) * 1.05f);
         }
     }
 
     // =========================================================================
-    // 23. MUD FOOTSTEPS (4 Organic Viscous Slurry Variations)
+    // 23. MUD FOOTSTEPS (4 Organic Viscous Slurry Variations - Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.footstepsMud.resize(4);
     for (size_t v = 0; v < 4; ++v) {
@@ -1310,17 +1408,24 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.footstepsMud[v].resize(samples, 0.0f);
         PRNG rng(8401u + static_cast<uint32_t>(v) * 509u);
         PinkFilter pf;
+        Biquad bqSuction;
+        bqSuction.setBandpass(85.0f, 0.95f, SR);
+
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float suctionPop = std::sin(2.0f * 3.14159f * (50.0f + 65.0f * (1.0f - std::exp(-t * 35.0f))) * t) * std::exp(-t * 28.0f) * 0.70f;
-            float squelch = pf.process(rng.nextFloat() * 2.0f - 1.0f) * std::exp(-t * 24.0f) * 0.50f;
-            float splash = (t > 0.035f) ? std::sin(2.0f * 3.14159f * 125.0f * (t - 0.035f)) * std::exp(-(t - 0.035f) * 40.0f) * 0.30f : 0.0f;
-            m_soundBank.footstepsMud[v][i] = std::tanh((suctionPop + squelch + splash) * 1.05f);
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float pN = pf.process(rawN);
+
+            float suction = bqSuction.process(pN) * std::exp(-t * 26.0f) * 1.4f;
+            float squelch = rawN * std::exp(-t * 22.0f) * 0.50f;
+            float splatter = (t > 0.030f) ? (rng.nextFloat() * 2.0f - 1.0f) * std::exp(-(t - 0.030f) * 45.0f) * 0.35f : 0.0f;
+
+            m_soundBank.footstepsMud[v][i] = std::tanh((suction + squelch + splatter) * 1.05f);
         }
     }
 
     // =========================================================================
-    // 24. WATER FOOTSTEPS (4 Hydrodynamic Splashing Variations)
+    // 24. WATER FOOTSTEPS (4 Hydrodynamic Splashing Variations - Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.footstepsWater.resize(4);
     for (size_t v = 0; v < 4; ++v) {
@@ -1329,16 +1434,23 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.footstepsWater[v].resize(samples, 0.0f);
         PRNG rng(9501u + static_cast<uint32_t>(v) * 613u);
         PinkFilter pf;
+        Biquad bqSplash;
+        bqSplash.setBandpass(220.0f, 0.9f, SR);
+
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float entry = std::sin(2.0f * 3.14159f * 240.0f * t) * std::exp(-t * 38.0f) * 0.65f;
-            float spray = pf.process(rng.nextFloat() * 2.0f - 1.0f) * std::exp(-t * 22.0f) * 0.48f;
-            float bubble = (t > 0.04f) ? std::sin(2.0f * 3.14159f * 480.0f * (t - 0.04f)) * std::exp(-(t - 0.04f) * 45.0f) * 0.35f : 0.0f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float pN = pf.process(rawN);
+
+            float entry = bqSplash.process(pN) * std::exp(-t * 35.0f) * 1.35f;
+            float spray = rawN * std::exp(-t * 24.0f) * 0.45f;
+            float bubble = (t > 0.035f) ? pf.process(rawN) * std::exp(-(t - 0.035f) * 40.0f) * 0.35f : 0.0f;
+
             m_soundBank.footstepsWater[v][i] = std::tanh((entry + spray + bubble) * 1.05f);
         }
     }
     // =========================================================================
-    // 25. TACTICAL GEAR RUSTLE (4 Cordura Webbing & Sling Clink Variations)
+    // 25. TACTICAL GEAR RUSTLE (4 Cordura Webbing & Sling Clink Variations - Zero-Sine Physical Model)
     // =========================================================================
     m_soundBank.gearRustles.resize(4);
     for (size_t v = 0; v < 4; ++v) {
@@ -1347,11 +1459,15 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.gearRustles[v].resize(samples, 0.0f);
         PRNG rng(10601u + static_cast<uint32_t>(v) * 719u);
         PinkFilter pf;
+        Biquad bqBuckle;
+        bqBuckle.setBandpass(1650.0f, 1.2f, SR);
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float env = std::sin(3.14159f * std::clamp(t / 0.15f, 0.0f, 1.0f));
-            float fabric = pf.process(rng.nextFloat()) * env * 0.35f;
-            float buckle = (t > 0.02f && t < 0.05f) ? std::sin(2.0f * 3.14159f * 1850.0f * (t - 0.02f)) * std::exp(-(t - 0.02f) * 75.0f) * 0.25f : 0.0f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float u = std::clamp(t / 0.15f, 0.0f, 1.0f);
+            float env = 4.0f * u * (1.0f - u);
+            float fabric = pf.process(rawN) * env * 0.35f;
+            float buckle = (t > 0.02f && t < 0.05f) ? bqBuckle.process(rawN) * std::exp(-(t - 0.02f) * 90.0f) * 0.25f : 0.0f;
             m_soundBank.gearRustles[v][i] = std::tanh((fabric + buckle) * 0.70f);
         }
     }
