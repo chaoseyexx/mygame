@@ -722,6 +722,15 @@ void GameApp::run() {
         }
         f11PressedLast = f11Pressed;
 
+        // F3: Toggle Real-Time Acoustic & Sensor Debug Visualizer
+        static bool f3PressedLast = false;
+        bool f3Pressed = window.isKeyPressed(GLFW_KEY_F3);
+        if (f3Pressed && !f3PressedLast) {
+            ui.toggleAudioDebugVisualizer();
+            AudioEngine::get().playSound(SoundType::TacticalClick);
+        }
+        f3PressedLast = f3Pressed;
+
         // Enter Key: Toggle Tactical Text Chat
         static bool enterPressedLast = false;
         static bool yPressedLast = false;
@@ -1367,6 +1376,8 @@ void GameApp::run() {
 
             // Update Player Controller with Camera-Relative Direction and Precision 3D Aim Target
             player.update(gameDt, window, mouseWorldPos, world, ballistics, camera.getYaw(), &camera, &aimInfo, &frontline.getBots());
+            AudioEngine::get().setListener(player.getPosition(), glm::radians(camera.getYaw()));
+            AudioEngine::get().updateAcoustics(gameDt);
             if (testAim) player.setAiming(true);
             if (testCrouch) player.getStats().stance = PlayerStance::Crouching;
             if (testMove) {
@@ -2424,6 +2435,9 @@ void GameApp::run() {
         glm::mat4 decalVP = camera.getProjectionMatrix(window.getAspectRatio()) * camera.getViewMatrix();
         DecalSystem::get().render(decalVP, camera.getPosition(), renderer.getLight().direction, renderer.getLight().color);
         ballistics.render(renderer);
+        if (ui.isAudioDebugVisualizerEnabled()) {
+            renderer.renderAcousticWaves(AudioEngine::get().getActiveAcousticWaves());
+        }
         renderer.endFrame();
 
         // ================= PASS 3: NEXT-GEN SSAO, SSGI BOUNCE & ACES TONEMAPPING =================

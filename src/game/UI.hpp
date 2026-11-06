@@ -112,6 +112,13 @@ public:
     void updateTacticalPings(float dt);
     void renderTacticalPings(const Camera& camera, float aspectRatio, const Player& player);
     const std::vector<TacticalPing>& getTacticalPings() const { return m_tacticalPings; }
+
+    // F3 Real-Time Acoustic & Sensor Debug Visualizer
+    bool m_audioDebugVisualizerEnabled = false;
+    void toggleAudioDebugVisualizer() { m_audioDebugVisualizerEnabled = !m_audioDebugVisualizerEnabled; }
+    bool isAudioDebugVisualizerEnabled() const { return m_audioDebugVisualizerEnabled; }
+    void setAudioDebugVisualizerEnabled(bool val) { m_audioDebugVisualizerEnabled = val; }
+    void renderAcousticDebugVisualizer(const Player& player, const Camera& camera, float aspectRatio, float screenW, float screenH);
     void clearTacticalPings() { m_tacticalPings.clear(); }
 
 

@@ -1625,6 +1625,48 @@ const std::vector<float>* AudioEngine::selectFootstepBuffer(SoundType type, size
     return nullptr;
 }
 
+void AudioEngine::recordAcousticWave(SoundType type, const glm::vec3& origin, float volume, float maxDist, AcousticEnvironment env, bool isPlayer) {
+    if (!m_initialized) return;
+
+    AcousticWaveEvent wave;
+    wave.id = m_nextWaveId++;
+    wave.soundType = type;
+    wave.origin = origin;
+    wave.initialDb = getSoundTypeBaseDb(type) * std::clamp(volume, 0.2f, 1.5f);
+    wave.maxRadius = (maxDist > 5.0f) ? maxDist : 40.0f;
+    wave.currentRadius = 0.5f;
+    wave.speed = m_acousticWaveVisualSpeed;
+    wave.lifetime = 0.0f;
+    wave.maxLifetime = wave.maxRadius / wave.speed;
+    wave.env = env;
+    wave.isPlayerSource = isPlayer;
+    wave.color = getSoundTypeAcousticColor(type);
+
+    std::lock_guard<std::mutex> lock(m_acousticWaveMutex);
+    if (m_acousticWaves.size() >= 64) {
+        m_acousticWaves.erase(m_acousticWaves.begin());
+    }
+    m_acousticWaves.push_back(wave);
+}
+
+void AudioEngine::updateAcoustics(float dt) {
+    std::lock_guard<std::mutex> lock(m_acousticWaveMutex);
+    for (auto it = m_acousticWaves.begin(); it != m_acousticWaves.end(); ) {
+        it->lifetime += dt;
+        it->currentRadius = it->lifetime * it->speed;
+        if (it->currentRadius >= it->maxRadius || it->lifetime >= it->maxLifetime) {
+            it = m_acousticWaves.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+std::vector<AcousticWaveEvent> AudioEngine::getActiveAcousticWaves() const {
+    std::lock_guard<std::mutex> lock(m_acousticWaveMutex);
+    return m_acousticWaves;
+}
+
 void AudioEngine::playSound(SoundType type, float volume, float pitch, AcousticEnvironment env) {
     if (!m_initialized) return;
 
@@ -1636,11 +1678,20 @@ void AudioEngine::playSound(SoundType type, float volume, float pitch, AcousticE
     cmd.pitch = pitch;
     cmd.env = env;
     m_commandRing.push(cmd);
+
+    // Record acoustic wave for F3 debug visualizer
+    float estRange = 35.0f;
+    if (type == SoundType::RifleShot || type == SoundType::SniperShot || type == SoundType::HeavyMGShot) estRange = 180.0f;
+    else if (type == SoundType::PistolShot) estRange = 95.0f;
+    recordAcousticWave(type, m_lastListenerPos, volume, estRange, env, true);
 }
 
 void AudioEngine::playSound3D(SoundType type, const glm::vec3& soundPos, const glm::vec3& listenerPos,
                               float cameraYawRad, float volume, float maxDist, AcousticEnvironment env, float occlusion) {
     if (!m_initialized) return;
+
+    m_lastListenerPos = listenerPos;
+    m_lastCameraYawRad = cameraYawRad;
 
     // A1 fix: Non-blocking push to lock-free SPSC command ring (Zero mutex locks!)
     AudioCommand cmd;
@@ -1655,6 +1706,9 @@ void AudioEngine::playSound3D(SoundType type, const glm::vec3& soundPos, const g
     cmd.maxDist = maxDist;
     cmd.occlusion = occlusion;
     m_commandRing.push(cmd);
+
+    // Record acoustic wave for F3 debug visualizer
+    recordAcousticWave(type, soundPos, volume, maxDist, env, false);
 }
 
 void AudioEngine::processCommandOnAudioThread(const AudioCommand& cmd) {

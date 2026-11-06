@@ -19,6 +19,7 @@ struct DirectionalLight {
 };
 
 struct WorldObstacle;
+struct AcousticWaveEvent;
 
 class Renderer {
 public:
@@ -42,6 +43,11 @@ public:
     void drawGrassField(bool isTrainingBase = false);
     void drawLine(const glm::vec3& start, const glm::vec3& end, const glm::vec4& color);
     void drawAimReticle(const glm::vec3& worldPos, float bloomRadius, const glm::vec4& color, bool withTickMarks = true);
+
+    // AAA Acoustic Wavefront & Sensor Beacon Rendering (F3 Debug Visualizer)
+    void drawAcousticWaveRing(const glm::vec3& center, float radius, const glm::vec4& color, int segments = 36);
+    void drawAcousticBeacon(const glm::vec3& origin, const glm::vec4& color, float height = 1.8f);
+    void renderAcousticWaves(const std::vector<AcousticWaveEvent>& waves);
     void drawAimingRay(const glm::vec3& start, const glm::vec3& end, const glm::vec3& hitNormal, bool hitSurface, float maxRange, float spread = 0.0f, float heat = 0.0f, bool hitActor = false);
     void drawContactShadow(const glm::vec3& centerPos, float radiusX, float radiusZ, float opacity = 0.65f);
 

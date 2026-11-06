@@ -119,6 +119,96 @@ inline const char* getSoundTypeName(SoundType type) {
     return "Unknown";
 }
 
+struct AcousticWaveEvent {
+    uint32_t id = 0;
+    SoundType soundType = SoundType::Footstep;
+    glm::vec3 origin{0.0f};
+    float initialDb = 70.0f;
+    float maxRadius = 180.0f;
+    float currentRadius = 0.0f;
+    float speed = 80.0f; // Visual propagation speed in m/s
+    float lifetime = 0.0f;
+    float maxLifetime = 2.0f;
+    AcousticEnvironment env = AcousticEnvironment::OpenField;
+    bool isPlayerSource = false;
+    glm::vec4 color{0.0f, 0.88f, 1.0f, 0.85f};
+};
+
+inline float getSoundTypeBaseDb(SoundType type) {
+    switch (type) {
+        case SoundType::RifleShot:          return 118.0f;
+        case SoundType::SniperShot:         return 126.0f;
+        case SoundType::HeavyMGShot:        return 128.0f;
+        case SoundType::PistolShot:         return 110.0f;
+        case SoundType::GrenadeExplosion:   return 135.0f;
+        case SoundType::ArtilleryExplosion: return 142.0f;
+        case SoundType::PenetrationCrack:   return 102.0f;
+        case SoundType::BulletFlyby:        return 96.0f;
+        case SoundType::HelmetPing:         return 88.0f;
+        case SoundType::ArmorDeflect:       return 84.0f;
+        case SoundType::FleshImpact:        return 78.0f;
+        case SoundType::SprintSlide:        return 74.0f;
+        case SoundType::Footstep:
+        case SoundType::FootstepConcrete:
+        case SoundType::FootstepWood:       return 62.0f;
+        case SoundType::FootstepDirt:
+        case SoundType::FootstepMud:        return 58.0f;
+        case SoundType::FootstepWater:      return 68.0f;
+        case SoundType::GearRustle:         return 50.0f;
+        case SoundType::Reload:
+        case SoundType::ChamberRound:       return 60.0f;
+        case SoundType::DryFire:
+        case SoundType::TacticalClick:      return 52.0f;
+        case SoundType::ShellCasing:
+        case SoundType::ShellCasingDirt:    return 48.0f;
+        case SoundType::GrenadePin:
+        case SoundType::GrenadeBounce:      return 56.0f;
+        case SoundType::ItemEquip:
+        case SoundType::ItemDrop:           return 54.0f;
+        default:                            return 65.0f;
+    }
+}
+
+inline glm::vec4 getSoundTypeAcousticColor(SoundType type) {
+    switch (type) {
+        case SoundType::RifleShot:
+        case SoundType::SniperShot:
+        case SoundType::HeavyMGShot:
+        case SoundType::PistolShot:
+        case SoundType::GrenadeExplosion:
+        case SoundType::ArtilleryExplosion:
+            return glm::vec4(1.0f, 0.22f, 0.15f, 0.95f); // Concussive Red/Orange
+
+        case SoundType::Footstep:
+        case SoundType::FootstepConcrete:
+        case SoundType::FootstepDirt:
+        case SoundType::FootstepMud:
+        case SoundType::FootstepWood:
+        case SoundType::FootstepWater:
+        case SoundType::SprintSlide:
+        case SoundType::GearRustle:
+            return glm::vec4(0.0f, 0.88f, 1.0f, 0.85f); // Stealth Cyan / Sonar Blue
+
+        case SoundType::DryFire:
+        case SoundType::Reload:
+        case SoundType::ChamberRound:
+        case SoundType::TacticalClick:
+        case SoundType::ShellCasing:
+        case SoundType::ShellCasingDirt:
+        case SoundType::GrenadePin:
+        case SoundType::GrenadeBounce:
+        case SoundType::ItemEquip:
+        case SoundType::ItemDrop:
+        case SoundType::HelmetPing:
+        case SoundType::ArmorDeflect:
+        case SoundType::Impact:
+            return glm::vec4(1.0f, 0.85f, 0.15f, 0.90f); // Mechanical Gold / Amber
+
+        default:
+            return glm::vec4(0.2f, 1.0f, 0.5f, 0.85f); // Voice / Tactical Emerald Green
+    }
+}
+
 struct AudioCommand {
     enum class CommandType : uint8_t { Play2D, Play3D, StopAll } cmdType = CommandType::Play2D;
     SoundType soundType = SoundType::Footstep;
@@ -186,6 +276,19 @@ public:
     int getCurrentPlaybackDeviceIndex() const { return m_currentPlaybackDeviceIndex; }
     bool setPlaybackDevice(int deviceIndex);
 
+    // Real-Time F3 Acoustic Propagation & Sensor Tracking
+    void recordAcousticWave(SoundType type, const glm::vec3& origin, float volume, float maxDist, AcousticEnvironment env, bool isPlayer = false);
+    void updateAcoustics(float dt);
+    std::vector<AcousticWaveEvent> getActiveAcousticWaves() const;
+    void setListener(const glm::vec3& pos, float yawRad) {
+        m_lastListenerPos = pos;
+        m_lastCameraYawRad = yawRad;
+    }
+    const glm::vec3& getListenerPos() const { return m_lastListenerPos; }
+    float getListenerYawRad() const { return m_lastCameraYawRad; }
+    void setAcousticVisualSpeed(float speed) { m_acousticWaveVisualSpeed = std::clamp(speed, 20.0f, 343.0f); }
+    float getAcousticVisualSpeed() const { return m_acousticWaveVisualSpeed; }
+
     struct VoiceTelemetrySnapshot {
         int activeCount = 0;
         int maxVoices = 32;
@@ -238,6 +341,10 @@ private:
     std::atomic<float> m_masterVolume{1.0f};
     std::atomic<float> m_sfxVolume{0.85f};
     std::atomic<float> m_ambientVolume{0.70f};
+    mutable std::mutex m_acousticWaveMutex;
+    std::vector<AcousticWaveEvent> m_acousticWaves;
+    uint32_t m_nextWaveId = 1;
+    float m_acousticWaveVisualSpeed = 80.0f; // Configurable visual propagation speed
     glm::vec3 m_lastListenerPos{0.0f};
     float m_lastCameraYawRad = 0.0f;
     AudioCommandRing m_commandRing;
