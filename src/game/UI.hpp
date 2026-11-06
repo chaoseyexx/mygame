@@ -115,7 +115,11 @@ public:
 
     // F3 Real-Time Acoustic & Sensor Debug Visualizer
     bool m_audioDebugVisualizerEnabled = false;
-    void toggleAudioDebugVisualizer() { m_audioDebugVisualizerEnabled = !m_audioDebugVisualizerEnabled; }
+    float m_audioVisualizerToastTimer = 0.0f;
+    void toggleAudioDebugVisualizer() { 
+        m_audioDebugVisualizerEnabled = !m_audioDebugVisualizerEnabled; 
+        m_audioVisualizerToastTimer = 2.8f;
+    }
     bool isAudioDebugVisualizerEnabled() const { return m_audioDebugVisualizerEnabled; }
     bool m_cursorFreed = false;
     void setCursorFreed(bool freed) { m_cursorFreed = freed; }

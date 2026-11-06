@@ -881,6 +881,27 @@ void UIManager::renderTopNavigationBar(Player& player, CharacterProfile* active)
 
         // 3. RIGHT SECTION: Currencies & Quick Utility Actions
         float rightX = io.DisplaySize.x - 380.0f;
+
+        // F3 Acoustic Sensor Visualizer Toggle Pill Button
+        {
+            float sBtnX = rightX - 165.0f;
+            ImVec2 sBtnMin(sBtnX, 13);
+            ImVec2 sBtnMax(sBtnX + 155, 41);
+            ImGui::SetCursorScreenPos(sBtnMin);
+            ImGui::InvisibleButton("##F3SensorNavbarToggle", ImVec2(155, 28));
+            bool sHover = ImGui::IsItemHovered();
+            if (ImGui::IsItemClicked()) {
+                toggleAudioDebugVisualizer();
+                AudioEngine::get().playSound(SoundType::TacticalClick);
+            }
+            ImU32 sBgCol = m_audioDebugVisualizerEnabled ? IM_COL32(10, 42, 54, 230) : (sHover ? IM_COL32(24, 30, 40, 220) : IM_COL32(16, 20, 26, 200));
+            ImU32 sBorderCol = m_audioDebugVisualizerEnabled ? IM_COL32(0, 235, 255, 240) : (sHover ? IM_COL32(80, 100, 120, 200) : IM_COL32(45, 55, 70, 180));
+            dl->AddRectFilled(sBtnMin, sBtnMax, sBgCol, 4.0f);
+            dl->AddRect(sBtnMin, sBtnMax, sBorderCol, 4.0f, 0, 1.4f);
+            const char* sLabel = m_audioDebugVisualizerEnabled ? "[F3 AUDIO: ON]" : "[F3 AUDIO: OFF]";
+            ImU32 sTxtCol = m_audioDebugVisualizerEnabled ? IM_COL32(0, 245, 255, 255) : IM_COL32(155, 170, 185, 220);
+            dl->AddText(ImVec2(sBtnX + 18.0f, 18), sTxtCol, sLabel);
+        }
         if (active) {
             // Cash Chip ($ USD)
             char cashBuf[32];

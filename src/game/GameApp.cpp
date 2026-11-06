@@ -722,12 +722,13 @@ void GameApp::run() {
         }
         f11PressedLast = f11Pressed;
 
-        // F3: Toggle Real-Time Acoustic & Sensor Debug Visualizer
+        // F3 (or F2 / O fallback if laptop Fn-lock is on): Toggle Real-Time Acoustic & Sensor Debug Visualizer
         static bool f3PressedLast = false;
-        bool f3Pressed = window.isKeyPressed(GLFW_KEY_F3);
+        bool f3Pressed = window.isKeyPressed(GLFW_KEY_F3) || window.isKeyPressed(GLFW_KEY_F2) || (!ChatSystem::get().isChatOpen() && window.isKeyPressed(GLFW_KEY_O));
         if (f3Pressed && !f3PressedLast) {
             ui.toggleAudioDebugVisualizer();
             AudioEngine::get().playSound(SoundType::TacticalClick);
+            std::cout << "[Acoustic Visualizer] Toggled: " << (ui.isAudioDebugVisualizerEnabled() ? "ENABLED" : "DISABLED") << std::endl;
         }
         f3PressedLast = f3Pressed;
 
@@ -1381,9 +1382,9 @@ void GameApp::run() {
             }
 
             // Update Player Controller with Camera-Relative Direction and Precision 3D Aim Target
-            player.update(gameDt, window, mouseWorldPos, world, ballistics, camera.getYaw(), &camera, &aimInfo, &frontline.getBots());
             AudioEngine::get().setListener(player.getPosition(), glm::radians(camera.getYaw()));
             AudioEngine::get().updateAcoustics(gameDt);
+            player.update(gameDt, window, mouseWorldPos, world, ballistics, camera.getYaw(), &camera, &aimInfo, &frontline.getBots());
             if (testAim) player.setAiming(true);
             if (testCrouch) player.getStats().stance = PlayerStance::Crouching;
             if (testMove) {

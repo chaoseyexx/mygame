@@ -1637,7 +1637,9 @@ void AudioEngine::recordAcousticWave(SoundType type, const glm::vec3& origin, fl
     wave.currentRadius = 0.5f;
     wave.speed = m_acousticWaveVisualSpeed;
     wave.lifetime = 0.0f;
-    wave.maxLifetime = wave.maxRadius / wave.speed;
+    // Guaranteed minimum visual duration of 2.0 seconds for footsteps, 3.5 seconds for gunfire!
+    float minDuration = (type == SoundType::RifleShot || type == SoundType::SniperShot || type == SoundType::HeavyMGShot || type == SoundType::GrenadeExplosion) ? 3.5f : 2.0f;
+    wave.maxLifetime = std::max(minDuration, wave.maxRadius / wave.speed);
     wave.env = env;
     wave.isPlayerSource = isPlayer;
     wave.color = getSoundTypeAcousticColor(type);

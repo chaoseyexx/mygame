@@ -2266,6 +2266,25 @@ void UIManager::renderAcousticDebugVisualizer(const Player& player, const Camera
     glm::vec3 playerPos = player.getPosition();
     float cameraYawRad = glm::radians(camera.getYaw());
 
+    // Big Visual Toast Notification when F3 is toggled
+    if (m_audioVisualizerToastTimer > 0.0f) {
+        ImGuiIO& io = ImGui::GetIO();
+        float dt = io.DeltaTime > 0.0f ? io.DeltaTime : 0.016f;
+        m_audioVisualizerToastTimer -= dt;
+
+        float alphaFrac = std::clamp(m_audioVisualizerToastTimer / 0.5f, 0.0f, 1.0f);
+        uint32_t aByte = static_cast<uint32_t>(alphaFrac * 255.0f);
+
+        float tW = 440.0f;
+        float tH = 34.0f;
+        float tX = (screenW - tW) * 0.5f;
+        float tY = 82.0f;
+
+        dl->AddRectFilled(ImVec2(tX, tY), ImVec2(tX + tW, tY + tH), IM_COL32(10, 16, 24, static_cast<uint32_t>(aByte * 0.92f)), 6.0f);
+        dl->AddRect(ImVec2(tX, tY), ImVec2(tX + tW, tY + tH), IM_COL32(0, 230, 255, aByte), 6.0f, 0, 1.6f);
+        dl->AddText(ImVec2(tX + 22.0f, tY + 8.0f), IM_COL32(0, 245, 255, aByte), "ACOUSTIC SENSOR & 3D PROPAGATION: ENABLED [F3]");
+    }
+
     // =========================================================================
     // 1. TACTICAL BOOMERANG POLAR ACOUSTIC RADAR (Top-Right HUD)
     // =========================================================================
@@ -2476,12 +2495,28 @@ void UIManager::renderAcousticDebugVisualizer(const Player& player, const Camera
         if (ImGui::SliderFloat("Visual Speed", &curSpeed, 30.0f, 343.0f, "%.0f m/s")) {
             audio.setAcousticVisualSpeed(curSpeed);
         }
-        if (ImGui::Button("Reset Visual (80 m/s)")) {
-            audio.setAcousticVisualSpeed(80.0f);
+        if (ImGui::Button("Visual (65 m/s)")) {
+            audio.setAcousticVisualSpeed(65.0f);
         }
         ImGui::SameLine();
-        if (ImGui::Button("True Physical (343 m/s)")) {
+        if (ImGui::Button("Fast (120 m/s)")) {
+            audio.setAcousticVisualSpeed(120.0f);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Physical (343 m/s)")) {
             audio.setAcousticVisualSpeed(343.0f);
+        }
+
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.2f, 0.95f, 1.0f, 1.0f), "Instant Sound Wave Tests:");
+        if (ImGui::Button("▶ Test Footstep (Cyan Ripple)")) {
+            audio.recordAcousticWave(SoundType::FootstepConcrete, playerPos, 0.75f, 28.0f, AcousticEnvironment::OpenField, true);
+            audio.playSound(SoundType::FootstepConcrete, 0.65f);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("▶ Test Gunfire (Red Shockwave)")) {
+            audio.recordAcousticWave(SoundType::RifleShot, playerPos, 1.0f, 180.0f, AcousticEnvironment::OpenField, true);
+            audio.playSound(SoundType::RifleShot, 0.85f);
         }
 
         ImGui::Spacing();

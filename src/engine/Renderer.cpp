@@ -2561,7 +2561,7 @@ void Renderer::drawAcousticWaveRing(const glm::vec3& center, float radius, const
     const float step = 2.0f * 3.14159265f / static_cast<float>(segments);
 
     // Height offset slightly above floor to prevent z-fighting
-    float y = center.y + 0.04f;
+    float y = center.y + 0.06f;
 
     std::vector<float> ringData;
     ringData.reserve(segments * 14);
@@ -2578,6 +2578,8 @@ void Renderer::drawAcousticWaveRing(const glm::vec3& center, float radius, const
     }
 
     m_lineShader->bind();
+    m_lineShader->setMat4("uViewProj", m_viewProjMatrix);
+
     glBindVertexArray(m_lineVao);
     glBindBuffer(GL_ARRAY_BUFFER, m_lineVbo);
 
@@ -2590,10 +2592,14 @@ void Renderer::drawAcousticWaveRing(const glm::vec3& center, float radius, const
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glLineWidth(2.2f);
+    glDisable(GL_DEPTH_TEST); // Acoustic waves propagate through walls and terrain! Always visible!
+    glDepthMask(GL_FALSE);
+    glLineWidth(3.0f);
 
     glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(segments * 2));
 
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
     glLineWidth(1.0f);
     glBindVertexArray(0);
@@ -2602,14 +2608,28 @@ void Renderer::drawAcousticWaveRing(const glm::vec3& center, float radius, const
 void Renderer::drawAcousticBeacon(const glm::vec3& origin, const glm::vec4& color, float height) {
     if (color.a <= 0.02f) return;
 
+    m_lineShader->bind();
+    m_lineShader->setMat4("uViewProj", m_viewProjMatrix);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glLineWidth(3.0f);
+
     // Vertical locator line from ground to beacon height
     drawLine(origin + glm::vec3(0.0f, 0.02f, 0.0f), origin + glm::vec3(0.0f, height, 0.0f), color);
 
     // Subtle 4-tick crosshair at beacon top
-    float tick = 0.22f;
+    float tick = 0.35f;
     glm::vec3 top = origin + glm::vec3(0.0f, height, 0.0f);
     drawLine(top - glm::vec3(tick, 0.0f, 0.0f), top + glm::vec3(tick, 0.0f, 0.0f), color);
     drawLine(top - glm::vec3(0.0f, 0.0f, tick), top + glm::vec3(0.0f, 0.0f, tick), color);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+    glLineWidth(1.0f);
 }
 
 void Renderer::renderAcousticWaves(const std::vector<AcousticWaveEvent>& waves) {

@@ -146,6 +146,10 @@ void UIManager::render(Player& player, World& world, MissionSystem& missions, co
     // If Tactical Deployment & Loading Briefing is active, render full-screen over everything
     if (m_isDeploying) {
         renderTacticalDeploymentScreen(player, ProfileManager::get().getActiveProfile(), &world, frontline, renderer);
+        if (m_audioDebugVisualizerEnabled && camera) {
+            ImGuiIO& io = ImGui::GetIO();
+            renderAcousticDebugVisualizer(player, *camera, aspectRatio, io.DisplaySize.x, io.DisplaySize.y);
+        }
         return;
     }
 
@@ -157,6 +161,10 @@ void UIManager::render(Player& player, World& world, MissionSystem& missions, co
 
     if (m_gameState == GameState::CharacterSelect) {
         renderCharacterSelectScreen(player);
+        if (m_audioDebugVisualizerEnabled && camera) {
+            ImGuiIO& io = ImGui::GetIO();
+            renderAcousticDebugVisualizer(player, *camera, aspectRatio, io.DisplaySize.x, io.DisplaySize.y);
+        }
         return;
     }
 
@@ -164,6 +172,10 @@ void UIManager::render(Player& player, World& world, MissionSystem& missions, co
         renderLobbyMainMenu(player, world, missions);
         if (m_serverOfflineModalOpen) {
             renderServerOfflineModal(player, ProfileManager::get().getActiveProfile());
+        }
+        if (m_audioDebugVisualizerEnabled && camera) {
+            ImGuiIO& io = ImGui::GetIO();
+            renderAcousticDebugVisualizer(player, *camera, aspectRatio, io.DisplaySize.x, io.DisplaySize.y);
         }
         return;
     }
