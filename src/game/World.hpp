@@ -193,6 +193,7 @@ public:
     void render(Renderer& renderer, const glm::vec3& cameraPos);
 
     bool checkCollision(glm::vec3& pos, float radius) const;
+    float getWalkableSurfaceHeight(const glm::vec3& pos, float radius = 0.24f) const;
     bool raycast(const glm::vec3& start, const glm::vec3& end, glm::vec3& hitPoint, glm::vec3& hitNormal, WorldObstacle*& outHitObstacle);
     bool hasLineOfSight(const glm::vec3& from, const glm::vec3& to) const;
 

@@ -311,7 +311,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
             float s2 = p2 * p2 * (3.0f - 2.0f * p2); // Smoothstep easing
             m_position.x = glm::mix(m_climbStartPos.x, m_climbTargetPos.x, s2);
             m_position.z = glm::mix(m_climbStartPos.z, m_climbTargetPos.z, s2);
-            float targetGroundY = World::sampleTerrainHeight(m_climbTargetPos.x, m_climbTargetPos.z);
+            float targetGroundY = world.getWalkableSurfaceHeight(m_climbTargetPos, 0.24f);
             m_position.y = glm::mix(m_climbPeakY, targetGroundY, s2);
         }
 
@@ -321,7 +321,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         if (t >= 1.0f) {
             m_isClimbing = false;
             m_position = m_climbTargetPos;
-            m_position.y = World::sampleTerrainHeight(m_position.x, m_position.z);
+            m_position.y = world.getWalkableSurfaceHeight(m_position, 0.24f);
             glm::vec3 climbDir = glm::normalize(m_climbTargetPos - m_climbStartPos);
             m_velocity = climbDir * 5.5f;
             m_stats.isSprinting = true;
@@ -339,7 +339,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         float horizEase = t * t * (3.0f - 2.0f * t);
         m_position.x = glm::mix(m_vaultStartPos.x, m_vaultTargetPos.x, horizEase);
         m_position.z = glm::mix(m_vaultStartPos.z, m_vaultTargetPos.z, horizEase);
-        float groundBase = World::sampleTerrainHeight(m_position.x, m_position.z);
+        float groundBase = world.getWalkableSurfaceHeight(m_position, 0.24f);
         float vertCurve = std::sin(3.14159265f * std::pow(t, 0.85f));
         float hurdleHeight = std::max(0.12f, m_vaultPeakY - groundBase);
         m_position.y = groundBase + hurdleHeight * vertCurve;
@@ -351,7 +351,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         if (t >= 1.0f) {
             m_isVaulting = false;
             m_rig.setVaultParameters(false, 0.0f, glm::vec3(0.0f));
-            m_position.y = groundBase;
+            m_position.y = world.getWalkableSurfaceHeight(m_position, 0.24f);
             // Carry forward momentum directly into sprint!
             m_velocity = m_vaultTraverseDir * 6.5f;
             m_stats.isSprinting = true;
@@ -502,9 +502,10 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         if (m_inCover) {
             glm::vec3 traverseDir = -m_coverNormal;
             float depth = std::max(0.40f, m_coverDepth);
-            float clearDist = depth + 0.85f;
-            glm::vec3 landingTarget = m_position + traverseDir * clearDist;
-            landingTarget.y = World::sampleTerrainHeight(landingTarget.x, landingTarget.z);
+            bool mantleOnto = (depth > 1.6f);
+            float travelDist = mantleOnto ? (depth * 0.40f + 0.45f) : (depth + 0.75f);
+            glm::vec3 landingTarget = m_position + traverseDir * travelDist;
+            landingTarget.y = world.getWalkableSurfaceHeight(landingTarget, 0.24f);
 
             glm::vec3 landingCheck = landingTarget;
             world.checkCollision(landingCheck, 0.24f);
@@ -516,7 +517,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 m_vaultTimer = 0.0f;
                 m_vaultDuration = 0.44f;
                 m_vaultStartPos = m_position;
-                m_vaultTargetPos = landingCheck;
+                m_vaultTargetPos = mantleOnto ? landingTarget : landingCheck;
                 m_vaultTraverseDir = traverseDir;
                 m_vaultPeakY = m_position.y + m_coverHeight + 0.16f;
                 m_vaultHandPlantPos = (m_vaultStartPos + m_vaultTargetPos) * 0.5f;
@@ -526,14 +527,14 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 m_isAtCoverEdge = false;
                 m_coverLeanAngle = 0.0f;
                 AudioEngine::get().playSound(SoundType::GearRustle, 0.50f, 1.20f);
-            } else if (pushback < 0.28f && m_coverHeight <= 3.2f) {
+            } else if (pushback < 0.28f && m_coverHeight <= 2.8f) {
                 // Smooth High Wall Climb / Mantle
                 m_isClimbing = true;
                 m_climbTimer = 0.0f;
                 m_climbDuration = 0.72f;
                 m_climbWallHeight = m_coverHeight;
                 m_climbStartPos = m_position;
-                m_climbTargetPos = landingCheck;
+                m_climbTargetPos = mantleOnto ? landingTarget : landingCheck;
                 m_climbPeakY = m_position.y + m_coverHeight + 0.20f;
                 m_yaw = std::atan2(traverseDir.x, traverseDir.z);
                 m_inCover = false;
@@ -555,14 +556,19 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                 }
             }
         } else {
-            // Not in Cover: check if running directly into vaultable or climbable obstacle
-            bool isMovingToward = (glm::length(m_velocity) > 2.0f) || m_stats.isSprinting;
-            if (isMovingToward && cand.valid && cand.dist <= 1.40f) {
-                glm::vec3 traverseDir = (glm::length(m_velocity) > 0.5f) ? glm::normalize(m_velocity) : -cand.normal;
+            // Not in Cover: check if facing or moving towards a vaultable or climbable obstacle
+            glm::vec3 moveDir = (glm::length(m_velocity) > 0.25f)
+                                ? glm::normalize(m_velocity)
+                                : glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw));
+            bool isFacingObstacle = cand.valid && (glm::dot(moveDir, -cand.normal) > 0.15f);
+
+            if (isFacingObstacle && cand.dist <= 1.50f) {
+                glm::vec3 traverseDir = -cand.normal;
                 float depth = std::max(0.40f, cand.depth);
-                float clearDist = depth + 0.85f;
-                glm::vec3 landingTarget = m_position + traverseDir * clearDist;
-                landingTarget.y = World::sampleTerrainHeight(landingTarget.x, landingTarget.z);
+                bool mantleOnto = (depth > 1.6f);
+                float travelDist = mantleOnto ? (depth * 0.40f + 0.45f) : (depth + 0.75f);
+                glm::vec3 landingTarget = m_position + traverseDir * travelDist;
+                landingTarget.y = world.getWalkableSurfaceHeight(landingTarget, 0.24f);
 
                 glm::vec3 landingCheck = landingTarget;
                 world.checkCollision(landingCheck, 0.24f);
@@ -573,23 +579,30 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
                     m_vaultTimer = 0.0f;
                     m_vaultDuration = 0.44f;
                     m_vaultStartPos = m_position;
-                    m_vaultTargetPos = landingCheck;
+                    m_vaultTargetPos = mantleOnto ? landingTarget : landingCheck;
                     m_vaultTraverseDir = traverseDir;
                     m_vaultPeakY = m_position.y + cand.height + 0.16f;
                     m_vaultHandPlantPos = (m_vaultStartPos + m_vaultTargetPos) * 0.5f;
                     m_vaultHandPlantPos.y = m_position.y + cand.height;
                     m_yaw = std::atan2(traverseDir.x, traverseDir.z);
                     AudioEngine::get().playSound(SoundType::GearRustle, 0.50f, 1.20f);
-                } else if (pushback < 0.28f && cand.height <= 3.2f && !m_isClimbing) {
+                } else if (pushback < 0.28f && cand.height <= 2.8f && !m_isClimbing) {
                     m_isClimbing = true;
                     m_climbTimer = 0.0f;
                     m_climbDuration = 0.72f;
                     m_climbWallHeight = cand.height;
                     m_climbStartPos = m_position;
-                    m_climbTargetPos = landingCheck;
+                    m_climbTargetPos = mantleOnto ? landingTarget : landingCheck;
                     m_climbPeakY = m_position.y + cand.height + 0.20f;
                     m_yaw = std::atan2(traverseDir.x, traverseDir.z);
                     AudioEngine::get().playSound(SoundType::GearRustle, 0.55f, 1.10f);
+                } else if (!m_isJumping && !m_isVaulting && !m_isClimbing && m_stats.stance != PlayerStance::Prone) {
+                    m_isJumping = true;
+                    m_jumpTimer = 0.0f;
+                    m_jumpBaseY = m_position.y;
+                    m_stats.stamina = std::max(0.0f, m_stats.stamina - 2.5f);
+                    GroundSurface surf = world.getGroundSurface(m_position);
+                    AudioEngine::get().playSound(getSurfaceFootstepSound(surf), 0.40f, 1.25f);
                 }
             } else if (!m_isJumping && !m_isVaulting && !m_isClimbing && m_stats.stance != PlayerStance::Prone) {
                 m_isJumping = true;
@@ -1041,29 +1054,29 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     float colRadius = m_inCover ? 0.20f : 0.24f;
     world.checkCollision(m_position, colRadius);
 
-    // Apply jumping vertical kinematics & seamless terrain adherence
+    // Apply jumping vertical kinematics & seamless terrain/obstacle adherence
     if (m_isJumping) {
         m_jumpTimer += dt;
         float jt = std::clamp(m_jumpTimer / m_jumpDuration, 0.0f, 1.0f);
-        float currentGroundY = World::sampleTerrainHeight(m_position.x, m_position.z);
-        float baseY = glm::mix(m_jumpBaseY, currentGroundY, jt);
+        float currentWalkableY = world.getWalkableSurfaceHeight(m_position, colRadius);
+        float baseY = glm::mix(m_jumpBaseY, currentWalkableY, jt);
         float jumpArc = std::sin(3.14159265f * jt) * m_jumpHeight;
         m_position.y = baseY + jumpArc;
         if (jt >= 1.0f) {
             m_isJumping = false;
-            m_position.y = currentGroundY;
+            m_position.y = currentWalkableY;
             GroundSurface surf = world.getGroundSurface(m_position);
             AudioEngine::get().playSound(getSurfaceFootstepSound(surf), 0.50f, 0.95f);
             AudioEngine::get().playSound(SoundType::GearRustle, 0.35f, 1.0f);
         }
     } else if (!m_isClimbing && !m_isVaulting) {
-        // High-fidelity terrain adherence across hills, trenches, craters, and slopes
-        float groundY = World::sampleTerrainHeight(m_position.x, m_position.z);
-        float vertDiff = std::abs(groundY - m_position.y);
+        // High-fidelity walkable surface adherence across terrain, crates, barricades & roofs
+        float walkableY = world.getWalkableSurfaceHeight(m_position, colRadius);
+        float vertDiff = std::abs(walkableY - m_position.y);
         if (vertDiff > 3.0f) {
-            m_position.y = groundY;
+            m_position.y = walkableY;
         } else {
-            m_position.y = glm::mix(m_position.y, groundY, std::clamp(dt * 28.0f, 0.0f, 1.0f));
+            m_position.y = glm::mix(m_position.y, walkableY, std::clamp(dt * 28.0f, 0.0f, 1.0f));
         }
     }
 
@@ -1479,7 +1492,9 @@ void Player::updateLobby(float dt, const glm::vec3& cameraPos) {
     m_rig.snapYaw(m_yaw);
     // Eye-contact aim target: 1.58m eye level straight towards camera
     glm::vec3 aimTarget = m_position + glm::vec3(0.0f, 1.48f, 0.0f) + glm::vec3(std::sin(m_yaw), 0.0f, std::cos(m_yaw)) * 6.0f;
-    bool hasWeapon = m_inventory.getEquipped(m_activeWeaponSlot).has_value();
+    auto& weaponOpt = m_inventory.getEquipped(m_activeWeaponSlot);
+    bool hasWeapon = weaponOpt.has_value();
+    m_rig.setActiveWeaponName(hasWeapon ? weaponOpt->name : "None");
     m_rig.update9D(dt, m_position, m_yaw, aimTarget, glm::vec3(0.0f), false, false, 0, false, false, hasWeapon, false, 0.0f);
 }
 

@@ -2284,40 +2284,40 @@ void SkinnedSoldier::buildAnatomicalHeadAndFace() {
 
     // Leonardo Da Vinci & Gold Standard Human Facial Canon (1.82m Athletic Military Operator)
     std::vector<HeadRingDef> ringDefs = {
-        // 0: Collar junction (Y=1.365m) - securely nested inside jacket collar
-        { glm::vec3(0.0f, 1.365f, -0.012f), glm::vec2(0.065f, 0.068f), 1.00f, 0.540f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-        // 1: Collar rim / lower neck (Y=1.378m)
-        { glm::vec3(0.0f, 1.378f, -0.010f), glm::vec2(0.062f, 0.066f), 0.70f, 0.570f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-        // 2: Upper neck / thyroid prominence (Adam's apple, Y=1.390m)
-        { glm::vec3(0.0f, 1.390f, -0.008f), glm::vec2(0.060f, 0.065f), 0.35f, 0.595f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-        // 3: Submental crease & gonial angles of mandible (Y=1.400m - masculine jawline)
-        { glm::vec3(0.0f, 1.400f, -0.005f), glm::vec2(0.066f, 0.072f), 0.05f, 0.615f, 0.0f, 0.0f, 0.018f, 0.0f, 0.0f, 0.008f },
-        // 4: Chin (Mental protuberance, Y=1.410m - 100% Head Bone, athletic masculine chin)
-        { glm::vec3(0.0f, 1.410f,  0.004f), glm::vec2(0.068f, 0.078f), 0.00f, 0.635f, 0.0f, 0.0f, 0.022f, 0.0f, 0.0f, 0.012f },
-        // 5: Mental sulcus (crease above chin, Y=1.420m)
-        { glm::vec3(0.0f, 1.420f,  0.004f), glm::vec2(0.068f, 0.078f), 0.00f, 0.655f, 0.0f, 0.008f, 0.010f, 0.0f, 0.0f, 0.012f },
-        // 6: Lower lip pout (Y=1.430m)
-        { glm::vec3(0.0f, 1.430f,  0.005f), glm::vec2(0.070f, 0.080f), 0.00f, 0.665f, 0.0f, 0.014f, 0.0f, 0.0f, 0.0f, 0.012f },
-        // 7: Upper lip Cupid's bow & oral slit (Y=1.440m, v=0.675 matches texture lips!)
-        { glm::vec3(0.0f, 1.440f,  0.005f), glm::vec2(0.072f, 0.082f), 0.00f, 0.675f, 0.0f, 0.016f, 0.0f, 0.0f, 0.0f, 0.014f },
-        // 8: Nasal base, nostrils & philtrum (Y=1.465m, v=0.722 matches texture nostrils!)
-        { glm::vec3(0.0f, 1.465f,  0.005f), glm::vec2(0.074f, 0.086f), 0.00f, 0.722f, 0.024f, 0.0f, 0.0f, 0.0f, 0.0f, 0.015f },
-        // 9: Rhinion / nose bridge & cheekbones (Y=1.485m, v=0.745 matches texture nose bridge!)
-        { glm::vec3(0.0f, 1.485f,  0.002f), glm::vec2(0.078f, 0.090f), 0.00f, 0.745f, 0.020f, 0.0f, 0.0f, 0.0f, 0.0f, 0.016f },
-        // 10: Orbital eye cavities & nasion (Y=1.510m, v=0.770 matches texture eyes!)
-        { glm::vec3(0.0f, 1.510f, -0.002f), glm::vec2(0.080f, 0.096f), 0.00f, 0.770f, 0.010f, 0.0f, 0.0f, -0.012f, 0.0f, 0.016f },
-        // 11: Supraorbital brow ridge (Y=1.530m, v=0.805 matches texture eyebrows!)
-        { glm::vec3(0.0f, 1.530f, -0.006f), glm::vec2(0.080f, 0.100f), 0.00f, 0.805f, 0.0f, 0.0f, 0.0f, 0.0f, 0.014f, 0.012f },
-        // 12: Temples & lower forehead (Y=1.545m)
-        { glm::vec3(0.0f, 1.545f, -0.010f), glm::vec2(0.079f, 0.104f), 0.00f, 0.835f, 0.0f, 0.0f, 0.0f, 0.0f, 0.004f, 0.004f },
-        // 13: Frontal hairline / upper forehead (Y=1.565m, v=0.855 matches texture hairline!)
-        { glm::vec3(0.0f, 1.565f, -0.014f), glm::vec2(0.077f, 0.106f), 0.00f, 0.865f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-        // 14: Parietal cranial vault (broad rounded human skull dome, Y=1.588m)
-        { glm::vec3(0.0f, 1.588f, -0.018f), glm::vec2(0.074f, 0.104f), 0.00f, 0.905f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-        // 15: Upper cranial crown dome (Y=1.608m)
-        { glm::vec3(0.0f, 1.608f, -0.020f), glm::vec2(0.064f, 0.090f), 0.00f, 0.945f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-        // 16: Scalp apex dome (Y=1.625m, broad rounded dome)
-        { glm::vec3(0.0f, 1.625f, -0.020f), glm::vec2(0.038f, 0.052f), 0.00f, 0.980f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }
+        // 0: Collar junction (Y=1.370m) - recessed inside jacket collar, athletic neck
+        { glm::vec3(0.0f, 1.370f, -0.024f), glm::vec2(0.054f, 0.058f), 1.00f, 0.540f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        // 1: Lower neck (Y=1.385m) - slender athletic neck column
+        { glm::vec3(0.0f, 1.385f, -0.022f), glm::vec2(0.052f, 0.056f), 0.70f, 0.570f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        // 2: Upper neck / thyroid prominence (Adam's apple, Y=1.400m)
+        { glm::vec3(0.0f, 1.400f, -0.018f), glm::vec2(0.050f, 0.055f), 0.35f, 0.595f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        // 3: Submandibular crease & gonial angles of mandible (Y=1.412m - jawline flaring forward)
+        { glm::vec3(0.0f, 1.412f, -0.005f), glm::vec2(0.062f, 0.072f), 0.05f, 0.615f, 0.0f, 0.0f, 0.018f, 0.0f, 0.0f, 0.008f },
+        // 4: Chin (Mental protuberance, Y=1.424m - 100% Head Bone, prominent masculine chin)
+        { glm::vec3(0.0f, 1.424f,  0.016f), glm::vec2(0.066f, 0.082f), 0.00f, 0.635f, 0.0f, 0.0f, 0.035f, 0.0f, 0.0f, 0.012f },
+        // 5: Mental sulcus (crease above chin, Y=1.436m)
+        { glm::vec3(0.0f, 1.436f,  0.016f), glm::vec2(0.068f, 0.082f), 0.00f, 0.655f, 0.0f, 0.008f, 0.015f, 0.0f, 0.0f, 0.012f },
+        // 6: Lower lip pout (Y=1.448m)
+        { glm::vec3(0.0f, 1.448f,  0.016f), glm::vec2(0.070f, 0.084f), 0.00f, 0.665f, 0.0f, 0.016f, 0.0f, 0.0f, 0.0f, 0.012f },
+        // 7: Upper lip Cupid's bow & oral slit (Y=1.458m, v=0.675 matches texture lips!)
+        { glm::vec3(0.0f, 1.458f,  0.015f), glm::vec2(0.072f, 0.086f), 0.00f, 0.675f, 0.0f, 0.018f, 0.0f, 0.0f, 0.0f, 0.014f },
+        // 8: Nasal base, nostrils & philtrum (Y=1.482m, v=0.722 matches texture nostrils!)
+        { glm::vec3(0.0f, 1.482f,  0.012f), glm::vec2(0.074f, 0.088f), 0.00f, 0.722f, 0.026f, 0.0f, 0.0f, 0.0f, 0.0f, 0.015f },
+        // 9: Rhinion / nose bridge & cheekbones (Y=1.502m, v=0.745 matches texture nose bridge!)
+        { glm::vec3(0.0f, 1.502f,  0.008f), glm::vec2(0.078f, 0.092f), 0.00f, 0.745f, 0.022f, 0.0f, 0.0f, 0.0f, 0.0f, 0.016f },
+        // 10: Orbital eye cavities & nasion (Y=1.524m, v=0.770 matches texture eyes!)
+        { glm::vec3(0.0f, 1.524f,  0.002f), glm::vec2(0.080f, 0.098f), 0.00f, 0.770f, 0.010f, 0.0f, 0.0f, -0.014f, 0.0f, 0.016f },
+        // 11: Supraorbital brow ridge (Y=1.544m, v=0.805 matches texture eyebrows!)
+        { glm::vec3(0.0f, 1.544f, -0.004f), glm::vec2(0.081f, 0.102f), 0.00f, 0.805f, 0.0f, 0.0f, 0.0f, 0.0f, 0.016f, 0.012f },
+        // 12: Temples & lower forehead (Y=1.560m)
+        { glm::vec3(0.0f, 1.560f, -0.008f), glm::vec2(0.080f, 0.105f), 0.00f, 0.835f, 0.0f, 0.0f, 0.0f, 0.0f, 0.006f, 0.004f },
+        // 13: Frontal hairline / upper forehead (Y=1.578m, v=0.855 matches texture hairline!)
+        { glm::vec3(0.0f, 1.578f, -0.012f), glm::vec2(0.079f, 0.107f), 0.00f, 0.865f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        // 14: Parietal cranial vault (broad rounded human skull dome, Y=1.598m)
+        { glm::vec3(0.0f, 1.598f, -0.016f), glm::vec2(0.077f, 0.106f), 0.00f, 0.905f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        // 15: Upper cranial crown dome (Y=1.618m)
+        { glm::vec3(0.0f, 1.618f, -0.018f), glm::vec2(0.068f, 0.094f), 0.00f, 0.945f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+        // 16: Scalp apex dome (Y=1.632m, broad rounded dome)
+        { glm::vec3(0.0f, 1.632f, -0.018f), glm::vec2(0.046f, 0.064f), 0.00f, 0.980f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }
     };
 
     const int radialSegments = 48;
@@ -2480,29 +2480,23 @@ void SkinnedSoldier::buildAnatomicalHeadAndFace() {
 }
 
 void SkinnedSoldier::buildHairstyles() {
-    glm::vec3 head = m_bindJoints[BONE_HEAD]; // (0, 1.455f, 0)
+    glm::vec3 head = m_bindJoints[BONE_HEAD]; // (0, 1.39f, 0)
     glm::vec4 baseHairMat(0.20f, 0.16f, 0.12f, 0.85f); // Mat tag 0.85 = PBR hair anisotropic sheen
 
-    // 1. Buzzcut (hairId == 0): form-fitting scalp & occiput coverage down to nape
+    // 1. Buzzcut (hairId == 0): Form-fitting anatomical scalp coverage hugging cranial vault
     std::vector<glm::vec3> buzzRings = {
-        head + glm::vec3(0.000f, 0.010f, -0.015f), // 1.400m: Nape hairline
-        head + glm::vec3(0.000f, 0.040f, -0.016f), // 1.430m: Lower occiput
-        head + glm::vec3(0.000f, 0.080f, -0.018f), // 1.470m: Mid occiput / above ears
-        head + glm::vec3(0.000f, 0.120f, -0.018f), // 1.510m: Upper occiput / temples
-        head + glm::vec3(0.000f, 0.160f, -0.018f), // 1.550m: Frontal hairline & crown
-        head + glm::vec3(0.000f, 0.190f, -0.020f), // 1.580m: Parietal vault
-        head + glm::vec3(0.000f, 0.215f, -0.020f), // 1.605m: Crown apex
-        head + glm::vec3(0.000f, 0.235f, -0.020f)  // 1.625m: Scalp dome top
+        head + glm::vec3(0.000f, 0.165f, -0.010f), // 1.555m: Lower parietal / frontal hairline rim
+        head + glm::vec3(0.000f, 0.188f, -0.013f), // 1.578m: Frontal hairline & temples
+        head + glm::vec3(0.000f, 0.208f, -0.016f), // 1.598m: Mid parietal vault
+        head + glm::vec3(0.000f, 0.228f, -0.018f), // 1.618m: Upper cranial crown dome
+        head + glm::vec3(0.000f, 0.244f, -0.018f)  // 1.634m: Crown apex dome
     };
     std::vector<glm::vec2> buzzRadii = {
-        glm::vec2(0.067f, 0.080f),
-        glm::vec2(0.073f, 0.089f),
-        glm::vec2(0.079f, 0.099f),
-        glm::vec2(0.082f, 0.105f),
-        glm::vec2(0.079f, 0.107f),
-        glm::vec2(0.075f, 0.105f),
-        glm::vec2(0.065f, 0.089f),
-        glm::vec2(0.036f, 0.050f)
+        glm::vec2(0.082f, 0.107f),
+        glm::vec2(0.081f, 0.109f),
+        glm::vec2(0.079f, 0.108f),
+        glm::vec2(0.070f, 0.096f),
+        glm::vec2(0.048f, 0.066f)
     };
     std::vector<float> buzzWeights(buzzRings.size(), 1.0f);
     appendSkinnedTube(buzzRings, buzzRadii, buzzWeights,
@@ -2512,24 +2506,18 @@ void SkinnedSoldier::buildHairstyles() {
 
     // 2. Operator Undercut / Modern Pompadour (hairId == 1)
     std::vector<glm::vec3> underRings = {
-        head + glm::vec3(0.000f, 0.010f, -0.015f),
-        head + glm::vec3(0.000f, 0.040f, -0.016f),
-        head + glm::vec3(0.000f, 0.080f, -0.018f),
-        head + glm::vec3(0.000f, 0.120f, -0.018f),
-        head + glm::vec3(0.002f, 0.160f, -0.016f),
-        head + glm::vec3(0.004f, 0.192f, -0.018f),
-        head + glm::vec3(0.003f, 0.218f, -0.020f),
-        head + glm::vec3(0.001f, 0.235f, -0.020f)
+        head + glm::vec3(0.000f, 0.168f, -0.010f),
+        head + glm::vec3(0.000f, 0.192f, -0.011f),
+        head + glm::vec3(0.000f, 0.214f, -0.014f),
+        head + glm::vec3(0.000f, 0.234f, -0.016f),
+        head + glm::vec3(0.000f, 0.248f, -0.018f)
     };
     std::vector<glm::vec2> underRadii = {
-        glm::vec2(0.067f, 0.080f),
-        glm::vec2(0.073f, 0.089f),
-        glm::vec2(0.079f, 0.099f),
-        glm::vec2(0.082f, 0.105f),
-        glm::vec2(0.081f, 0.109f),
-        glm::vec2(0.077f, 0.107f),
-        glm::vec2(0.067f, 0.091f),
-        glm::vec2(0.038f, 0.052f)
+        glm::vec2(0.082f, 0.107f),
+        glm::vec2(0.083f, 0.112f),
+        glm::vec2(0.082f, 0.111f),
+        glm::vec2(0.073f, 0.099f),
+        glm::vec2(0.050f, 0.068f)
     };
     std::vector<float> underWeights(underRings.size(), 1.0f);
     appendSkinnedTube(underRings, underRadii, underWeights,
@@ -2539,24 +2527,18 @@ void SkinnedSoldier::buildHairstyles() {
 
     // 3. Tactical Crew Cut (hairId == 2)
     std::vector<glm::vec3> crewRings = {
-        head + glm::vec3(0.000f, 0.010f, -0.015f),
-        head + glm::vec3(0.000f, 0.040f, -0.016f),
-        head + glm::vec3(0.000f, 0.080f, -0.018f),
-        head + glm::vec3(0.000f, 0.120f, -0.018f),
-        head + glm::vec3(0.000f, 0.160f, -0.018f),
-        head + glm::vec3(0.000f, 0.191f, -0.020f),
-        head + glm::vec3(0.000f, 0.216f, -0.020f),
-        head + glm::vec3(0.000f, 0.235f, -0.020f)
+        head + glm::vec3(0.000f, 0.166f, -0.010f),
+        head + glm::vec3(0.000f, 0.190f, -0.012f),
+        head + glm::vec3(0.000f, 0.211f, -0.015f),
+        head + glm::vec3(0.000f, 0.230f, -0.018f),
+        head + glm::vec3(0.000f, 0.245f, -0.018f)
     };
     std::vector<glm::vec2> crewRadii = {
-        glm::vec2(0.067f, 0.080f),
-        glm::vec2(0.073f, 0.089f),
-        glm::vec2(0.079f, 0.099f),
-        glm::vec2(0.082f, 0.105f),
-        glm::vec2(0.080f, 0.108f),
-        glm::vec2(0.076f, 0.106f),
-        glm::vec2(0.066f, 0.090f),
-        glm::vec2(0.037f, 0.051f)
+        glm::vec2(0.082f, 0.107f),
+        glm::vec2(0.082f, 0.110f),
+        glm::vec2(0.080f, 0.109f),
+        glm::vec2(0.071f, 0.097f),
+        glm::vec2(0.048f, 0.066f)
     };
     std::vector<float> crewWeights(crewRings.size(), 1.0f);
     appendSkinnedTube(crewRings, crewRadii, crewWeights,
@@ -2630,43 +2612,43 @@ void SkinnedSoldier::buildFacialHair() {
     // 1. Full Tactical Volumetric Beard (beardId == 0)
     // Contoured jawline beard from ear to ear across chin, cheekline, and moustache
     std::vector<glm::vec3> fullBeardRings = {
-        head + glm::vec3(0.0f, 0.010f, -0.005f), // Submental crease (1.400m)
-        head + glm::vec3(0.0f, 0.020f,  0.004f), // Chin mental protuberance (1.410m)
-        head + glm::vec3(0.0f, 0.030f,  0.004f), // Mental sulcus (1.420m)
-        head + glm::vec3(0.0f, 0.050f,  0.005f), // Upper jaw / lower cheek (1.440m)
-        head + glm::vec3(0.0f, 0.075f,  0.005f)  // Moustache & cheek trim (1.465m)
+        head + glm::vec3(0.0f, 0.022f, -0.005f), // Submental crease (1.412m)
+        head + glm::vec3(0.0f, 0.034f,  0.016f), // Chin mental protuberance (1.424m)
+        head + glm::vec3(0.0f, 0.046f,  0.016f), // Mental sulcus (1.436m)
+        head + glm::vec3(0.0f, 0.068f,  0.015f), // Upper jaw / lower cheek (1.458m)
+        head + glm::vec3(0.0f, 0.092f,  0.012f)  // Moustache & cheek trim (1.482m)
     };
     std::vector<glm::vec2> fullBeardRadii = {
-        glm::vec2(0.066f, 0.072f),
-        glm::vec2(0.068f, 0.078f),
-        glm::vec2(0.068f, 0.078f),
-        glm::vec2(0.072f, 0.082f),
-        glm::vec2(0.074f, 0.086f)
+        glm::vec2(0.064f, 0.074f),
+        glm::vec2(0.068f, 0.084f),
+        glm::vec2(0.070f, 0.084f),
+        glm::vec2(0.074f, 0.088f),
+        glm::vec2(0.076f, 0.090f)
     };
     appendFacialPatch(fullBeardRings, fullBeardRadii, -0.55f * glm::pi<float>(), 0.55f * glm::pi<float>(), 20, PART_BEARD_FULL);
 
     // 2. Sculpted Tactical Goatee (beardId == 2)
     // Snug form-fitting chin goatee patch (anterior only: angle -0.22*pi to +0.22*pi, zero mouth penetration)
     std::vector<glm::vec3> goateeChinRings = {
-        head + glm::vec3(0.0f, 0.020f, 0.004f), // Lower chin edge (1.410m)
-        head + glm::vec3(0.0f, 0.030f, 0.004f), // Chin mental sulcus (1.420m)
-        head + glm::vec3(0.0f, 0.040f, 0.005f)  // Soul patch ending below lower lip (1.430m)
+        head + glm::vec3(0.0f, 0.034f, 0.016f), // Lower chin edge (1.424m)
+        head + glm::vec3(0.0f, 0.046f, 0.016f), // Chin mental sulcus (1.436m)
+        head + glm::vec3(0.0f, 0.058f, 0.016f)  // Soul patch ending below lower lip (1.448m)
     };
     std::vector<glm::vec2> goateeChinRadii = {
-        glm::vec2(0.068f, 0.078f),
-        glm::vec2(0.068f, 0.078f),
-        glm::vec2(0.070f, 0.080f)
+        glm::vec2(0.068f, 0.084f),
+        glm::vec2(0.070f, 0.084f),
+        glm::vec2(0.072f, 0.086f)
     };
     appendFacialPatch(goateeChinRings, goateeChinRadii, -0.22f * glm::pi<float>(), 0.22f * glm::pi<float>(), 10, PART_BEARD_GOATEE);
 
     // Goatee Moustache trim (anterior under nose only)
     std::vector<glm::vec3> goateeMoustacheRings = {
-        head + glm::vec3(0.0f, 0.055f, 0.005f), // Above upper lip (1.445m)
-        head + glm::vec3(0.0f, 0.075f, 0.005f)  // Under nostrils (1.465m)
+        head + glm::vec3(0.0f, 0.068f, 0.015f), // Above upper lip (1.458m)
+        head + glm::vec3(0.0f, 0.092f, 0.012f)  // Under nostrils (1.482m)
     };
     std::vector<glm::vec2> goateeMoustacheRadii = {
-        glm::vec2(0.072f, 0.084f),
-        glm::vec2(0.074f, 0.086f)
+        glm::vec2(0.074f, 0.088f),
+        glm::vec2(0.076f, 0.090f)
     };
     appendFacialPatch(goateeMoustacheRings, goateeMoustacheRadii, -0.24f * glm::pi<float>(), 0.24f * glm::pi<float>(), 10, PART_BEARD_GOATEE);
 }

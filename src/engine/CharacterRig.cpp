@@ -1132,11 +1132,11 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     leftHandTarget = uprightRifleRoot + weaponRight * lHandOffset.x + weaponUp * lHandOffset.y + weaponForward * lHandOffset.z;
 
                     if (m_shoulderRight) {
-                        rightElbowPole = rightShoulder - glm::vec3(0.0f, 0.32f, 0.0f) + rightDir * 0.08f - weaponForward * 0.05f;
-                        leftElbowPole  = leftShoulder  - glm::vec3(0.0f, 0.30f, 0.0f) - rightDir * 0.08f + forwardDir * 0.10f;
+                        rightElbowPole = rightShoulder + rightDir * 0.26f - glm::vec3(0.0f, 0.16f, 0.0f) - forwardDir * 0.16f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.22f - glm::vec3(0.0f, 0.18f, 0.0f) + forwardDir * 0.06f;
                     } else {
-                        rightElbowPole = rightShoulder - glm::vec3(0.0f, 0.30f, 0.0f) + rightDir * 0.08f + forwardDir * 0.10f;
-                        leftElbowPole  = leftShoulder  - glm::vec3(0.0f, 0.32f, 0.0f) - rightDir * 0.08f - weaponForward * 0.05f;
+                        rightElbowPole = rightShoulder + rightDir * 0.22f - glm::vec3(0.0f, 0.18f, 0.0f) + forwardDir * 0.06f;
+                        leftElbowPole  = leftShoulder  - rightDir * 0.26f - glm::vec3(0.0f, 0.16f, 0.0f) - forwardDir * 0.16f;
                     }
                 }
             } else {
@@ -1149,8 +1149,8 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     rightHandTarget = chestPos + rightDir * 0.27f - glm::vec3(0, 0.38f - breathY + m_woundRightArmSag * 0.18f, 0) + forwardDir * (0.02f + breathX);
                     leftHandTarget  = chestPos - rightDir * 0.27f - glm::vec3(0, 0.38f - breathY + m_woundLeftArmSag * 0.18f, 0) + forwardDir * (0.02f - breathX);
                 }
-                rightElbowPole = chestPos + rightDir * 0.34f - glm::vec3(0, 0.18f, 0) - forwardDir * 0.04f;
-                leftElbowPole  = chestPos - rightDir * 0.34f - glm::vec3(0, 0.18f, 0) - forwardDir * 0.04f;
+                rightElbowPole = rightShoulder + rightDir * 0.24f - glm::vec3(0.0f, 0.15f, 0.0f) - forwardDir * 0.06f;
+                leftElbowPole  = leftShoulder  - rightDir * 0.24f - glm::vec3(0.0f, 0.15f, 0.0f) - forwardDir * 0.06f;
             }
 
             InverseKinematics::solveTwoBoneIK(rightShoulder, rightHandTarget, rightElbowPole, 0.31f, 0.30f, rightElbowPos, uRot, lRot);
