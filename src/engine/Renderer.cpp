@@ -2264,10 +2264,10 @@ void Renderer::drawTracerBeam(const glm::vec3& start, const glm::vec3& end, floa
     m_additiveParticles.push_back(v3);
 }
 
-void Renderer::drawAimingRay(const glm::vec3& start, const glm::vec3& end, const glm::vec3& hitNormal, bool hitSurface, float maxRange, float spread) {
+void Renderer::drawAimingRay(const glm::vec3& start, const glm::vec3& end, const glm::vec3& hitNormal, bool hitSurface, float maxRange, float spread, float heat) {
     glm::vec3 fwd = end - start;
     float len = glm::length(fwd);
-    if (len < 0.20f) return;
+    if (len < 0.15f) return;
     fwd /= len;
 
     glm::vec3 mid = 0.5f * (start + end);
@@ -2278,18 +2278,30 @@ void Renderer::drawAimingRay(const glm::vec3& start, const glm::vec3& end, const
     } else {
         quadRight = glm::normalize(quadRight);
     }
+    glm::vec3 quadUp = glm::normalize(glm::cross(fwd, quadRight));
 
-    // Sleek tactical ray thickness with subtle expansion on recoil/spread
-    float width = 0.016f + spread * 0.035f;
+    // High-frequency mechanical vibration / recoil jitter on rapid spam
+    glm::vec3 jitterVec(0.0f);
+    if (heat > 0.04f) {
+        float jMag = heat * (0.006f + spread * 0.02f);
+        float jFreq = static_cast<float>(glfwGetTime()) * 65.0f;
+        jitterVec = (quadRight * std::sin(jFreq) + quadUp * std::cos(jFreq * 1.37f)) * jMag;
+    }
+
+    // Sleek tactical ray thickness with expansion on recoil/spread
+    float width = 0.016f + spread * 0.035f + heat * 0.012f;
     float hw = width * 0.5f;
+
+    // Fade out ray as rapid-fire spam and bloom increase (down to 0.16 alpha)
+    float baseAlpha = std::clamp(0.65f - heat * 0.45f - spread * 0.8f, 0.16f, 0.72f);
+    glm::vec4 beamColor(0.72f, 0.74f, 0.78f, baseAlpha);
+
     glm::vec3 p0 = start - quadRight * hw;
     glm::vec3 p1 = start + quadRight * hw;
-    glm::vec3 p2 = end   + quadRight * hw;
-    glm::vec3 p3 = end   - quadRight * hw;
+    glm::vec3 p2 = end   + quadRight * hw + jitterVec;
+    glm::vec3 p3 = end   - quadRight * hw + jitterVec;
 
     float pType = 8.0f; // Tactical Aiming Ray
-    // Smooth tactical sleek gray color
-    glm::vec4 beamColor(0.72f, 0.74f, 0.78f, 0.60f);
 
     ParticleVertex v0{p0, glm::vec2(0.0f, 0.0f), beamColor, pType};
     ParticleVertex v1{p1, glm::vec2(1.0f, 0.0f), beamColor, pType};
@@ -2303,11 +2315,32 @@ void Renderer::drawAimingRay(const glm::vec3& start, const glm::vec3& end, const
     m_alphaParticles.push_back(v2);
     m_alphaParticles.push_back(v3);
 
+    // Thermal Incandescent Muzzle Crown: warm amber/orange glow at the barrel tip during rapid spam
+    if (heat > 0.12f) {
+        float crownLen = std::min(len * 0.35f, 0.85f);
+        float crownHW = hw * 1.6f;
+        glm::vec3 cEnd = start + fwd * crownLen;
+        glm::vec4 glowColor(1.0f, 0.55f, 0.18f, std::min(0.55f, heat * 0.65f));
+
+        ParticleVertex g0{start - quadRight * crownHW, glm::vec2(0.0f, 0.0f), glowColor, pType};
+        ParticleVertex g1{start + quadRight * crownHW, glm::vec2(1.0f, 0.0f), glowColor, pType};
+        ParticleVertex g2{cEnd  + quadRight * crownHW * 0.5f, glm::vec2(1.0f, 1.0f), glm::vec4(glowColor.r, glowColor.g, glowColor.b, 0.0f), pType};
+        ParticleVertex g3{cEnd  - quadRight * crownHW * 0.5f, glm::vec2(0.0f, 1.0f), glm::vec4(glowColor.r, glowColor.g, glowColor.b, 0.0f), pType};
+
+        m_alphaParticles.push_back(g0);
+        m_alphaParticles.push_back(g1);
+        m_alphaParticles.push_back(g2);
+        m_alphaParticles.push_back(g0);
+        m_alphaParticles.push_back(g2);
+        m_alphaParticles.push_back(g3);
+    }
+
     // If ray hits an obstacle, cover, or target, render a subtle tactical 3D impact pip on the surface
     if (hitSurface) {
         glm::vec3 norm = (glm::length(hitNormal) > 0.1f) ? glm::normalize(hitNormal) : glm::vec3(0, 1, 0);
-        glm::vec3 pipCenter = end + norm * 0.008f;
-        drawAimReticle(pipCenter, 0.038f + spread * 0.030f, glm::vec4(0.85f, 0.88f, 0.92f, 0.80f));
+        glm::vec3 pipCenter = end + norm * 0.008f + jitterVec;
+        float pipAlpha = std::clamp(0.85f - heat * 0.40f, 0.25f, 0.85f);
+        drawAimReticle(pipCenter, 0.038f + spread * 0.030f + heat * 0.015f, glm::vec4(0.85f, 0.88f, 0.92f, pipAlpha));
     }
 }
 

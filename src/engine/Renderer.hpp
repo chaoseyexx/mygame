@@ -42,7 +42,7 @@ public:
     void drawGrassField(bool isTrainingBase = false);
     void drawLine(const glm::vec3& start, const glm::vec3& end, const glm::vec4& color);
     void drawAimReticle(const glm::vec3& worldPos, float bloomRadius, const glm::vec4& color);
-    void drawAimingRay(const glm::vec3& start, const glm::vec3& end, const glm::vec3& hitNormal, bool hitSurface, float maxRange, float spread = 0.0f);
+    void drawAimingRay(const glm::vec3& start, const glm::vec3& end, const glm::vec3& hitNormal, bool hitSurface, float maxRange, float spread = 0.0f, float heat = 0.0f);
     void drawContactShadow(const glm::vec3& centerPos, float radiusX, float radiusZ, float opacity = 0.65f);
 
     // Detailed Procedural Models (Zero external asset dependencies)

@@ -312,7 +312,7 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
 
     // 5. Recoil & Muzzle Flash decay (rapid snappy return for crisp tactile kick)
     if (m_recoilKick > 0.0f) {
-        m_recoilKick = glm::mix(m_recoilKick, 0.0f, std::clamp(dt * 22.0f, 0.0f, 1.0f));
+        m_recoilKick = glm::mix(m_recoilKick, 0.0f, std::clamp(dt * 11.0f, 0.0f, 1.0f));
         if (m_recoilKick < 0.001f) m_recoilKick = 0.0f;
     }
     if (m_muzzleFlashTimer > 0.0f) {
@@ -384,7 +384,7 @@ void CharacterRig::updateWeaponTransform() {
         chestPos.y += coverChestElevation;
 
         const auto& gripCfg = WeaponRigManager::get().getConfig(weaponToDraw);
-        m_renderPitch = glm::mix(gripCfg.lowReadyPitch, -m_aimPitch, m_aimWeight) - m_recoilKick * 2.8f;
+        m_renderPitch = glm::mix(gripCfg.lowReadyPitch, -m_aimPitch, m_aimWeight) - (m_dynamicRecoilPitch * 1.4f + m_recoilKick * 2.5f);
 
         // Mount weapon directly on cover rim when aiming in low cover
         if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
@@ -442,6 +442,7 @@ void CharacterRig::updateWeaponTransform() {
     }
 
     m_muzzlePos = glm::vec3(wModel * glm::vec4(localMuzzle, 1.0f));
+    m_muzzleForward = glm::normalize(glm::vec3(wModel * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
     m_casingPos = glm::vec3(wModel * glm::vec4(localCasing, 1.0f));
 }
 
@@ -1086,7 +1087,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
 
                 } else {
                     const auto& gripCfg = WeaponRigManager::get().getConfig(weaponToDraw);
-                    uprightRenderPitch = glm::mix(gripCfg.lowReadyPitch, -m_aimPitch, m_aimWeight) - m_recoilKick * 2.8f;
+                    uprightRenderPitch = glm::mix(gripCfg.lowReadyPitch, -m_aimPitch, m_aimWeight) - (m_dynamicRecoilPitch * 1.4f + m_recoilKick * 2.5f);
                     if (m_inCover && m_isLowCover && m_coverAimWeight > 0.001f) {
                         uprightRenderPitch = glm::mix(uprightRenderPitch, -m_aimPitch * 0.85f, m_coverAimWeight);
                     }
@@ -1554,6 +1555,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         }
 
         m_muzzlePos = glm::vec3(wModel * glm::vec4(localMuzzle, 1.0f));
+        m_muzzleForward = glm::normalize(glm::vec3(wModel * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
         m_casingPos = glm::vec3(wModel * glm::vec4(localCasing, 1.0f));
         m_rifleRoot = rifleRoot;
         m_renderPitch = renderPitch;

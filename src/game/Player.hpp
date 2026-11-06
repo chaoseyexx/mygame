@@ -187,6 +187,8 @@ private:
     float m_recoilPitchVel = 0.0f;
     float m_recoilYawVel = 0.0f;
     float m_recoilClimbAccum = 0.0f;
+    float m_recoilRecoveryDelay = 0.0f;
+    float m_rapidFireHeat = 0.0f;
 
     // Dynamic Tactical Cover System (Q to Cover)
     bool m_inCover = false;
