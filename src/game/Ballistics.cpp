@@ -162,7 +162,7 @@ void BallisticsSystem::spawnMuzzleFlash(const glm::vec3& pos, const glm::vec3& f
     std::uniform_real_distribution<float> seedDis(0.0f, 100.0f);
 
     mf.life = 0.0f;
-    mf.maxLife = 0.052f;
+    mf.maxLife = 0.032f; // Instantaneous optical flash (1.9 frames at 60Hz)
     mf.scale = scale;
     mf.weaponType = weaponType;
     mf.randomAngle = angleDis(flashRnd);
@@ -200,59 +200,76 @@ void BallisticsSystem::spawnMuzzleSmoke(const glm::vec3& pos, const glm::vec3& f
     glm::vec3 rightDir = glm::normalize(glm::cross(forwardDir, upRef));
     glm::vec3 trueUp   = glm::normalize(glm::cross(rightDir, forwardDir));
 
-    // A. Forward Supersonic Blast Slug Puffs (High initial velocity that rapidly decelerates into a rolling mushroom cloud)
-    int forwardCount = std::clamp(static_cast<int>(4 * intensity), 3, 6);
-    for (int i = 0; i < forwardCount; ++i) {
+    // Single-shot / low-heat clean tap: emit only a single faint translucent micro-wisp
+    if (intensity < 0.40f) {
         SmokeParticle p;
-        p.position = pos + forwardDir * (0.04f + static_cast<float>(i) * 0.05f) + rightDir * (dis(gen) * 0.025f) + trueUp * (dis(gen) * 0.025f);
-        float blastSpeed = (4.5f + static_cast<float>(i) * 1.8f + std::abs(dis(gen)) * 2.0f) * intensity;
-        p.velocity = forwardDir * blastSpeed + trueUp * (dis(gen) * 0.4f) + rightDir * (dis(gen) * 0.4f);
-        float shade = 0.65f + dis(gen) * 0.12f; // Darker unburnt carbon core
-        p.color = glm::vec4(shade, shade, shade, 0.68f);
-        p.size = 0.10f + static_cast<float>(i) * 0.03f;
-        p.growthRate = 0.45f + std::abs(dis(gen)) * 0.20f;
+        p.position = pos + forwardDir * 0.04f + rightDir * (dis(gen) * 0.015f) + trueUp * (dis(gen) * 0.015f);
+        p.velocity = forwardDir * (1.8f + std::abs(dis(gen)) * 0.8f) + trueUp * 0.22f;
+        p.color = glm::vec4(0.82f, 0.82f, 0.84f, 0.26f);
+        p.size = 0.06f;
+        p.growthRate = 0.18f;
         p.life = 0.0f;
-        p.maxLife = 1.10f + std::abs(dis(gen)) * 0.35f;
+        p.maxLife = 0.65f;
         p.rotation = dis(gen) * 3.1415f;
-        p.rotSpeed = dis(gen) * 2.2f;
+        p.rotSpeed = dis(gen) * 1.2f;
         p.particleType = 0; // Gunsmoke
         m_particles.push_back(p);
+        return;
     }
 
-    // B. Lateral Compensator Vent Plumes (Venting obliquely at 45 degrees)
-    int ventCount = std::clamp(static_cast<int>(4 * intensity), 2, 4);
-    for (int i = 0; i < ventCount; ++i) {
+    // A. Forward Supersonic Blast Slug Puffs (High initial velocity that rapidly decelerates into a rolling mushroom cloud)
+    int forwardCount = std::clamp(static_cast<int>(3.0f * intensity), 2, 4);
+    for (int i = 0; i < forwardCount; ++i) {
         SmokeParticle p;
-        p.position = pos + forwardDir * 0.02f;
-        float sideSign = (i % 2 == 0) ? 1.0f : -1.0f;
-        glm::vec3 ventDir = glm::normalize(forwardDir * 0.4f + rightDir * (sideSign * 0.8f) + trueUp * (0.4f + std::abs(dis(gen)) * 0.3f));
-        p.velocity = ventDir * (2.8f + std::abs(dis(gen)) * 1.5f) * intensity;
-        float shade = 0.78f + dis(gen) * 0.10f;
+        p.position = pos + forwardDir * (0.04f + static_cast<float>(i) * 0.04f) + rightDir * (dis(gen) * 0.02f) + trueUp * (dis(gen) * 0.02f);
+        float blastSpeed = (3.5f + static_cast<float>(i) * 1.4f + std::abs(dis(gen)) * 1.5f) * intensity;
+        p.velocity = forwardDir * blastSpeed + trueUp * (dis(gen) * 0.35f) + rightDir * (dis(gen) * 0.35f);
+        float shade = 0.68f + dis(gen) * 0.10f; // Carbon core
         p.color = glm::vec4(shade, shade, shade, 0.52f);
-        p.size = 0.08f + std::abs(dis(gen)) * 0.04f;
-        p.growthRate = 0.38f + std::abs(dis(gen)) * 0.15f;
+        p.size = 0.08f + static_cast<float>(i) * 0.025f;
+        p.growthRate = 0.32f + std::abs(dis(gen)) * 0.15f;
         p.life = 0.0f;
-        p.maxLife = 0.95f + std::abs(dis(gen)) * 0.30f;
+        p.maxLife = 0.90f + std::abs(dis(gen)) * 0.25f;
         p.rotation = dis(gen) * 3.1415f;
         p.rotSpeed = dis(gen) * 1.8f;
         p.particleType = 0; // Gunsmoke
         m_particles.push_back(p);
     }
 
+    // B. Lateral Compensator Vent Plumes (Venting obliquely at 45 degrees)
+    int ventCount = std::clamp(static_cast<int>(2.5f * intensity), 1, 3);
+    for (int i = 0; i < ventCount; ++i) {
+        SmokeParticle p;
+        p.position = pos + forwardDir * 0.02f;
+        float sideSign = (i % 2 == 0) ? 1.0f : -1.0f;
+        glm::vec3 ventDir = glm::normalize(forwardDir * 0.35f + rightDir * (sideSign * 0.8f) + trueUp * (0.35f + std::abs(dis(gen)) * 0.25f));
+        p.velocity = ventDir * (2.2f + std::abs(dis(gen)) * 1.2f) * intensity;
+        float shade = 0.78f + dis(gen) * 0.08f;
+        p.color = glm::vec4(shade, shade, shade, 0.42f);
+        p.size = 0.07f + std::abs(dis(gen)) * 0.03f;
+        p.growthRate = 0.28f + std::abs(dis(gen)) * 0.12f;
+        p.life = 0.0f;
+        p.maxLife = 0.80f + std::abs(dis(gen)) * 0.20f;
+        p.rotation = dis(gen) * 3.1415f;
+        p.rotSpeed = dis(gen) * 1.5f;
+        p.particleType = 0; // Gunsmoke
+        m_particles.push_back(p);
+    }
+
     // C. Lingering Thermal Barrel Chimney Wisps (Slow-rising hot gas)
-    int chimneyCount = std::clamp(static_cast<int>(3 * intensity), 2, 4);
+    int chimneyCount = std::clamp(static_cast<int>(2.0f * intensity), 1, 2);
     for (int i = 0; i < chimneyCount; ++i) {
         SmokeParticle p;
-        p.position = pos + forwardDir * (dis(gen) * 0.03f) + rightDir * (dis(gen) * 0.02f);
-        p.velocity = trueUp * (0.40f + std::abs(dis(gen)) * 0.30f) + forwardDir * (dis(gen) * 0.15f);
-        float shade = 0.85f + dis(gen) * 0.08f;
-        p.color = glm::vec4(shade, shade, shade, 0.40f);
-        p.size = 0.07f + static_cast<float>(i) * 0.025f;
-        p.growthRate = 0.25f + std::abs(dis(gen)) * 0.10f;
+        p.position = pos + forwardDir * (dis(gen) * 0.025f) + rightDir * (dis(gen) * 0.02f);
+        p.velocity = trueUp * (0.35f + std::abs(dis(gen)) * 0.25f) + forwardDir * (dis(gen) * 0.10f);
+        float shade = 0.86f + dis(gen) * 0.06f;
+        p.color = glm::vec4(shade, shade, shade, 0.35f);
+        p.size = 0.06f + static_cast<float>(i) * 0.02f;
+        p.growthRate = 0.20f + std::abs(dis(gen)) * 0.08f;
         p.life = 0.0f;
-        p.maxLife = 1.60f + std::abs(dis(gen)) * 0.40f; // Lingers gracefully
+        p.maxLife = 1.30f + std::abs(dis(gen)) * 0.30f;
         p.rotation = dis(gen) * 3.1415f;
-        p.rotSpeed = dis(gen) * 0.8f;
+        p.rotSpeed = dis(gen) * 0.7f;
         p.particleType = 0; // Gunsmoke
         m_particles.push_back(p);
     }

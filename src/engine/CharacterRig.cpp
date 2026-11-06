@@ -172,15 +172,21 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
             // - Crouch (2.0 m/s): 0.95m per cycle
             // - Walk / ADS (1.8 m/s): 0.95m per cycle (cadence ~115 steps/min)
             // Universal Anatomical Law: stanceFraction * strideLength == 0.38m (Max Leg Reach)
+            // Biomechanical stride cycle calibration (2 steps per cycle):
+            // - Sprint (6.2 m/s): 2.45m per cycle (1.22m/step, cadence ~165 steps/min)
+            // - Combat Jog (3.8 m/s): 1.85m per cycle (0.92m/step, cadence ~145 steps/min)
+            // - Crouch Walk (2.0 m/s): 1.15m per cycle (0.57m/step, cadence ~110 steps/min)
+            // - Tactical Walk / ADS (1.8 m/s): 1.44m per cycle (0.72m/step, cadence ~115 steps/min)
+            // Anatomical Invariant: True bilateral reach = 2 x 0.38m = 0.76m ground travel during stance
             float strideLength;
             if (isSprinting) {
-                strideLength = 1.58f;
+                strideLength = 2.45f;
             } else if (m_stance == 1) {
-                strideLength = 0.72f;
-            } else if (speed > 2.2f) {
                 strideLength = 1.15f;
+            } else if (speed > 2.5f) {
+                strideLength = 1.85f;
             } else {
-                strideLength = 0.72f;
+                strideLength = 1.44f;
             }
             strideLength *= (1.0f - 0.20f * cCurve - 0.45f * pCurve);
 
@@ -774,11 +780,11 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             bool isSprintGait = m_isSprinting;
             float stanceFraction;
             if (isSprintGait) {
-                stanceFraction = 0.24f;
+                stanceFraction = 0.28f;
             } else if (m_stance == 1) {
-                stanceFraction = 0.52f;
-            } else if (glm::length(m_velocity) > 2.2f) {
-                stanceFraction = 0.33f;
+                stanceFraction = 0.50f;
+            } else if (glm::length(m_velocity) > 2.5f) {
+                stanceFraction = 0.38f;
             } else {
                 stanceFraction = 0.52f;
             }
@@ -831,7 +837,14 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 float uL = std::fmod(phaseNorm, 1.0f); if (uL < 0.0f) uL += 1.0f;
                 float uR = std::fmod(phaseNorm + 0.5f, 1.0f); if (uR < 0.0f) uR += 1.0f;
 
-                float stepForwardReach = 0.185f;
+                float stepForwardReach = 0.36f;
+                if (isSprintGait) {
+                    stepForwardReach = 0.58f;
+                } else if (glm::length(m_velocity) > 2.5f) {
+                    stepForwardReach = 0.46f;
+                } else if (m_stance == 1) {
+                    stepForwardReach = 0.28f;
+                }
                 stepForwardReach *= (1.0f - 0.20f * cCurve - 0.40f * pCurve);
 
                 float leadSideL = (moveRgt < -0.05f) ? (moveRgt * 0.20f) : (moveRgt * 0.08f);

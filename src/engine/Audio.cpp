@@ -616,23 +616,13 @@ void AudioEngine::generateProceduralSoundBank() {
     for (size_t v = 0; v < 4; ++v) {
         PRNG rng(1001u + static_cast<uint32_t>(v) * 337u);
         PinkFilter pinkF;
-        float coreDur = 0.18f;
+        float coreDur = 0.20f;
         size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
-        float f_start = 190.0f + static_cast<float>(v) * 6.0f;
-        float f_end = 48.0f;
-        float tau_dive = 0.022f;
-
-        float t_rise = 0.00008f;
-        float t_pos  = 0.00042f + static_cast<float>(v) * 0.00002f;
-
-        float mech_time = 0.015f + static_cast<float>(v) * 0.001f;
-
-        // Steel barrel waveguide
-        size_t wg_len = static_cast<size_t>(SR * (0.0022f + static_cast<float>(v) * 0.00006f));
-        std::vector<float> wg_buf(std::max<size_t>(1, wg_len), 0.0f);
-        size_t wg_idx = 0;
+        float t_rise = 0.00004f;
+        float t_pos  = 0.00035f + static_cast<float>(v) * 0.00002f;
+        float mech_time = 0.014f + static_cast<float>(v) * 0.001f;
 
         float lpf_combust = 0.0f;
         float hpf_bite = 0.0f;
@@ -640,50 +630,48 @@ void AudioEngine::generateProceduralSoundBank() {
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
 
-            // A. Supersonic Shock Front (Instantaneous Mach 2.5 Pressure Jump)
+            // A. Supersonic Shock Front (Instantaneous Mach 2.5 N-Wave Pressure Jump)
             float shock = 0.0f;
             if (t < t_rise) {
                 shock = t / t_rise;
             } else if (t < t_pos) {
-                shock = 1.0f - (t - t_rise) / (t_pos - t_rise);
+                shock = 1.0f - 2.0f * (t - t_rise) / (t_pos - t_rise);
             } else if (t < 0.0035f) {
-                shock = -0.38f * std::exp(-(t - t_pos) / 0.0009f);
+                shock = -0.45f * std::exp(-(t - t_pos) / 0.0008f);
             }
 
-            // B. High-Frequency Mach Bite (Sharp metallic supersonic crack)
+            // B. High-Frequency Mach Bite (Sharp metallic supersonic crack, not a sine beep)
             float rawN = rng.nextFloat();
-            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 3200.0f / SR);
+            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 4200.0f / SR);
             hpf_bite += biteAlpha * (rawN - hpf_bite);
-            float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.007f) * 0.65f;
+            float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.008f) * 0.95f;
 
-            // C. Concussive Sub-Bass Thump (Pitch Dive: 190Hz -> 48Hz)
-            float phase = 2.0f * 3.14159265f * (f_end * t + (f_start - f_end) * tau_dive * (1.0f - std::exp(-t / tau_dive)));
-            float subThump = std::tanh(2.4f * std::sin(phase)) * std::exp(-t / 0.085f) * 0.88f;
-
-            // D. Expanding Combustion Plume (Swept Filter: 12kHz -> 450Hz)
+            // C. Concussive Gunpowder Detonation Blast (Visceral non-linear Bessel saturation, NO electronic sine kick!)
             float pN = pinkF.process(rawN);
-            float fc = 450.0f + 11500.0f * std::exp(-t / 0.018f);
+            float blastAlpha = std::min(1.0f, 2.0f * 3.14159f * 125.0f / SR);
+            lpf_combust += blastAlpha * (pN - lpf_combust);
+            float blastWave = std::sin(2.0f * 3.14159f * 68.0f * t) * 0.65f + std::sin(2.0f * 3.14159f * 115.0f * t) * 0.35f;
+            float blastEnv = std::exp(-t / 0.048f);
+            float subThump = std::tanh((blastWave * 1.8f + lpf_combust * 2.4f) * blastEnv) * 1.15f;
+
+            // D. Expanding Combustion Plume (Supersonic expanding gas wash, no comb filter ringing)
+            float fc = 350.0f + 9500.0f * std::exp(-t / 0.015f);
             float cAlpha = std::min(1.0f, 2.0f * 3.14159f * fc / SR);
-            lpf_combust += cAlpha * (pN - lpf_combust);
-            float combustEnv = (1.0f - std::exp(-t / 0.0003f)) * std::exp(-t / 0.055f);
-            float combust = saturateAir(lpf_combust * combustEnv * 1.3f);
+            hpfOut += cAlpha * (pN - hpfOut);
+            float combustEnv = (1.0f - std::exp(-t / 0.0002f)) * std::exp(-t / 0.042f);
+            float combust = std::tanh(pN * combustEnv * 2.2f) * 0.55f;
 
-            // E. Steel Barrel Waveguide Resonance
-            float in_barrel = (i < static_cast<size_t>(SR * 0.015f)) ? (shock * 0.7f + combust * 0.4f) : 0.0f;
-            float barrelOut = wg_buf[wg_idx];
-            wg_buf[wg_idx] = in_barrel - 0.58f * barrelOut * 0.90f;
-            wg_idx = (wg_idx + 1) % wg_buf.size();
-
-            // F. Mechanical Bolt Carrier Action
+            // E. Mechanical Steel Bolt Carrier Action (Particulate impact transients, NOT sine tones)
             float mech = 0.0f;
-            if (t >= mech_time && t <= mech_time + 0.032f) {
+            if (t >= mech_time && t <= mech_time + 0.035f) {
                 float dtm = t - mech_time;
-                mech = (std::sin(2.0f * 3.14159f * 1750.0f * dtm) * 0.5f +
-                        std::sin(2.0f * 3.14159f * 2950.0f * dtm) * 0.35f +
-                        std::sin(2.0f * 3.14159f * 4700.0f * dtm) * 0.25f) * std::exp(-dtm * 190.0f) * 0.40f;
+                float boltNoise = (rng.nextFloat() * 2.0f - 1.0f);
+                float click1 = std::exp(-dtm * 280.0f) * boltNoise * 0.45f;
+                float click2 = (dtm > 0.012f) ? std::exp(-(dtm - 0.012f) * 320.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.40f : 0.0f;
+                mech = click1 + click2;
             }
 
-            core[i] = shock * 0.55f + hpfOut * 0.45f + subThump * 0.85f + combust * 0.45f + barrelOut * 0.28f + mech * 0.45f;
+            core[i] = shock * 0.75f + hpfOut * 0.65f + subThump * 1.25f + combust * 0.50f + mech * 0.40f;
         }
 
         // Multi-environment acoustic profile generation
@@ -697,7 +685,6 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.rifleShotsWarehouse[v] = applyIndoorWarehouseReverb(core, rng);
         m_soundBank.rifleShotsTrench[v] = applyTrenchReverb(core, rng);
     }
-
     // =========================================================================
     // 2. HEAVY SNIPER / DMR (SVD Marksman 7.62x54mmR) - 4 Organic Variations
     // =========================================================================
@@ -708,21 +695,13 @@ void AudioEngine::generateProceduralSoundBank() {
     for (size_t v = 0; v < 4; ++v) {
         PRNG rng(2741u + static_cast<uint32_t>(v) * 619u);
         PinkFilter pinkF;
-        float coreDur = 0.25f;
+        float coreDur = 0.28f;
         size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
-        float f_start = 145.0f + static_cast<float>(v) * 5.0f;
-        float f_end = 34.0f;
-        float tau_dive = 0.038f;
-
-        float t_rise = 0.00006f;
-        float t_pos  = 0.00058f + static_cast<float>(v) * 0.00003f;
-        float mech_time = 0.022f;
-
-        size_t wg_len = static_cast<size_t>(SR * (0.0038f + static_cast<float>(v) * 0.00008f));
-        std::vector<float> wg_buf(std::max<size_t>(1, wg_len), 0.0f);
-        size_t wg_idx = 0;
+        float t_rise = 0.00003f;
+        float t_pos  = 0.00045f + static_cast<float>(v) * 0.00003f;
+        float mech_time = 0.020f;
 
         float lpf_combust = 0.0f;
         float hpf_bite = 0.0f;
@@ -730,57 +709,58 @@ void AudioEngine::generateProceduralSoundBank() {
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
 
+            // 1. Supersonic Mach 2.8 Shock Crack
             float shock = 0.0f;
             if (t < t_rise) {
-                shock = (t / t_rise) * 1.35f;
+                shock = (t / t_rise) * 1.55f;
             } else if (t < t_pos) {
-                shock = (1.0f - (t - t_rise) / (t_pos - t_rise)) * 1.35f;
+                shock = (1.0f - 2.0f * (t - t_rise) / (t_pos - t_rise)) * 1.55f;
             } else if (t < 0.0055f) {
-                shock = -0.55f * std::exp(-(t - t_pos) / 0.0014f);
+                shock = -0.65f * std::exp(-(t - t_pos) / 0.0012f);
             }
 
             float rawN = rng.nextFloat();
-            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 2600.0f / SR);
+            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 3600.0f / SR);
             hpf_bite += biteAlpha * (rawN - hpf_bite);
-            float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.010f) * 0.80f;
+            float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.011f) * 1.15f;
 
-            // Seismic Sub-Bass Dive (145Hz -> 34Hz)
-            float phase = 2.0f * 3.14159265f * (f_end * t + (f_start - f_end) * tau_dive * (1.0f - std::exp(-t / tau_dive)));
-            float subThump = std::tanh(2.8f * std::sin(phase)) * std::exp(-t / 0.14f) * 1.15f;
-
+            // 2. Earth-Shaking High-Pressure 7.62mm Detonation Blast (No sine dive)
             float pN = pinkF.process(rawN);
-            float fc = 380.0f + 13500.0f * std::exp(-t / 0.026f);
+            float blastAlpha = std::min(1.0f, 2.0f * 3.14159f * 95.0f / SR);
+            lpf_combust += blastAlpha * (pN - lpf_combust);
+            float blastWave = std::sin(2.0f * 3.14159f * 48.0f * t) * 0.70f + std::sin(2.0f * 3.14159f * 84.0f * t) * 0.35f;
+            float blastEnv = std::exp(-t / 0.075f);
+            float subThump = std::tanh((blastWave * 2.2f + lpf_combust * 3.2f) * blastEnv) * 1.45f;
+
+            // 3. Expanding Combustion Plume
+            float fc = 280.0f + 11000.0f * std::exp(-t / 0.018f);
             float cAlpha = std::min(1.0f, 2.0f * 3.14159f * fc / SR);
-            lpf_combust += cAlpha * (pN - lpf_combust);
-            float combustEnv = (1.0f - std::exp(-t / 0.00025f)) * std::exp(-t / 0.085f);
-            float combust = saturateAir(lpf_combust * combustEnv * 1.5f);
+            hpfOut += cAlpha * (pN - hpfOut);
+            float combustEnv = (1.0f - std::exp(-t / 0.0002f)) * std::exp(-t / 0.065f);
+            float combust = std::tanh(pN * combustEnv * 2.6f) * 0.70f;
 
-            float in_barrel = (i < static_cast<size_t>(SR * 0.022f)) ? (shock * 0.8f + combust * 0.5f) : 0.0f;
-            float barrelOut = wg_buf[wg_idx];
-            wg_buf[wg_idx] = in_barrel - 0.65f * barrelOut * 0.92f;
-            wg_idx = (wg_idx + 1) % wg_buf.size();
-
+            // 4. Heavy Steel Bolt Recoil Action
             float mech = 0.0f;
-            if (t >= mech_time && t <= mech_time + 0.040f) {
+            if (t >= mech_time && t <= mech_time + 0.045f) {
                 float dtm = t - mech_time;
-                mech = (std::sin(2.0f * 3.14159f * 1450.0f * dtm) * 0.6f +
-                        std::sin(2.0f * 3.14159f * 2550.0f * dtm) * 0.4f) * std::exp(-dtm * 160.0f) * 0.50f;
+                float click1 = std::exp(-dtm * 220.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.55f;
+                float click2 = (dtm > 0.016f) ? std::exp(-(dtm - 0.016f) * 260.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.45f : 0.0f;
+                mech = click1 + click2;
             }
 
-            core[i] = shock * 0.65f + hpfOut * 0.50f + subThump * 1.05f + combust * 0.55f + barrelOut * 0.35f + mech * 0.45f;
+            core[i] = shock * 0.85f + hpfOut * 0.75f + subThump * 1.45f + combust * 0.60f + mech * 0.45f;
         }
 
-        auto wetOutdoor = applyOutdoorRollingReverb(core, 2.10f, 0.95f, 1.5f, rng);
+        auto wetOutdoor = applyOutdoorRollingReverb(core, 2.80f, 0.95f, 1.8f, rng);
         m_soundBank.sniperShotsOutdoor[v].resize(wetOutdoor.size());
         for (size_t i = 0; i < wetOutdoor.size(); ++i) {
-            m_soundBank.sniperShotsOutdoor[v][i] = std::tanh(wetOutdoor[i] * 0.92f);
+            m_soundBank.sniperShotsOutdoor[v][i] = std::tanh(wetOutdoor[i] * 0.95f);
         }
 
         m_soundBank.sniperShotsBunker[v] = applyIndoorBunkerReverb(core, rng);
         m_soundBank.sniperShotsWarehouse[v] = applyIndoorWarehouseReverb(core, rng);
         m_soundBank.sniperShotsTrench[v] = applyTrenchReverb(core, rng);
     }
-
     // =========================================================================
     // 3. TACTICAL SIDEARM (M9A3 9x19mm Parabellum) - 4 Organic Variations
     // =========================================================================
@@ -789,17 +769,14 @@ void AudioEngine::generateProceduralSoundBank() {
     m_soundBank.pistolShotsWarehouse.resize(4);
     m_soundBank.pistolShotsTrench.resize(4);
     for (size_t v = 0; v < 4; ++v) {
-        PRNG rng(3911u + static_cast<uint32_t>(v) * 431u);
+        PRNG rng(3201u + static_cast<uint32_t>(v) * 443u);
         PinkFilter pinkF;
-        float coreDur = 0.12f;
+        float coreDur = 0.14f;
         size_t coreSamples = static_cast<size_t>(SR * coreDur);
         std::vector<float> core(coreSamples, 0.0f);
 
-        float f_start = 240.0f + static_cast<float>(v) * 8.0f;
-        float f_end = 72.0f;
-        float tau_dive = 0.016f;
-        float t_rise = 0.00008f;
-        float t_pos = 0.00030f;
+        float t_rise = 0.00005f;
+        float t_pos = 0.00028f;
         float mech_time = 0.010f;
 
         float lpf_combust = 0.0f;
@@ -808,37 +785,44 @@ void AudioEngine::generateProceduralSoundBank() {
         for (size_t i = 0; i < coreSamples; ++i) {
             float t = static_cast<float>(i) / SR;
 
+            // 1. Snappy 9mm Mach Shock Crack
             float shock = 0.0f;
             if (t < t_rise) {
-                shock = (t / t_rise) * 0.90f;
+                shock = (t / t_rise) * 1.10f;
             } else if (t < t_pos) {
-                shock = (1.0f - (t - t_rise) / (t_pos - t_rise)) * 0.90f;
-            } else if (t < 0.0025f) {
-                shock = -0.25f * std::exp(-(t - t_pos) / 0.0007f);
+                shock = (1.0f - 2.0f * (t - t_rise) / (t_pos - t_rise)) * 1.10f;
+            } else if (t < 0.0028f) {
+                shock = -0.35f * std::exp(-(t - t_pos) / 0.0007f);
             }
 
             float rawN = rng.nextFloat();
-            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 3800.0f / SR);
+            float biteAlpha = std::min(1.0f, 2.0f * 3.14159f * 4800.0f / SR);
             hpf_bite += biteAlpha * (rawN - hpf_bite);
-            float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.005f) * 0.55f;
+            float hpfOut = (rawN - hpf_bite) * std::exp(-t / 0.006f) * 0.85f;
 
-            // Snappy Pitch Dive (240Hz -> 72Hz)
-            float phase = 2.0f * 3.14159265f * (f_end * t + (f_start - f_end) * tau_dive * (1.0f - std::exp(-t / tau_dive)));
-            float subThump = std::tanh(2.0f * std::sin(phase)) * std::exp(-t / 0.055f) * 0.70f;
-
+            // 2. Compact 9mm Detonation Thump
             float pN = pinkF.process(rawN);
-            float fc = 600.0f + 12000.0f * std::exp(-t / 0.014f);
-            float cAlpha = std::min(1.0f, 2.0f * 3.14159f * fc / SR);
-            lpf_combust += cAlpha * (pN - lpf_combust);
-            float combust = saturateAir(lpf_combust * std::exp(-t / 0.035f) * 1.1f);
+            float blastAlpha = std::min(1.0f, 2.0f * 3.14159f * 160.0f / SR);
+            lpf_combust += blastAlpha * (pN - lpf_combust);
+            float blastWave = std::sin(2.0f * 3.14159f * 92.0f * t) * 0.75f + std::sin(2.0f * 3.14159f * 155.0f * t) * 0.35f;
+            float blastEnv = std::exp(-t / 0.032f);
+            float subThump = std::tanh((blastWave * 1.6f + lpf_combust * 2.0f) * blastEnv) * 0.85f;
 
+            // 3. Combustion Plume
+            float fc = 450.0f + 12000.0f * std::exp(-t / 0.012f);
+            float cAlpha = std::min(1.0f, 2.0f * 3.14159f * fc / SR);
+            hpfOut += cAlpha * (pN - hpfOut);
+            float combustEnv = (1.0f - std::exp(-t / 0.0002f)) * std::exp(-t / 0.028f);
+            float combust = std::tanh(pN * combustEnv * 1.8f) * 0.45f;
+
+            // 4. Slide Recoil & Ejection Click
             float mech = 0.0f;
-            if (t >= mech_time && t <= mech_time + 0.022f) {
+            if (t >= mech_time && t <= mech_time + 0.025f) {
                 float dtm = t - mech_time;
-                mech = std::sin(2.0f * 3.14159f * 2400.0f * dtm) * std::exp(-dtm * 220.0f) * 0.35f;
+                mech = std::exp(-dtm * 320.0f) * (rng.nextFloat() * 2.0f - 1.0f) * 0.45f;
             }
 
-            core[i] = shock * 0.60f + hpfOut * 0.45f + subThump * 0.75f + combust * 0.40f + mech * 0.40f;
+            core[i] = shock * 0.70f + hpfOut * 0.60f + subThump * 0.95f + combust * 0.40f + mech * 0.40f;
         }
 
         auto wetOutdoor = applyOutdoorRollingReverb(core, 0.85f, 0.65f, 3.8f, rng);
@@ -851,7 +835,6 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.pistolShotsWarehouse[v] = applyIndoorWarehouseReverb(core, rng);
         m_soundBank.pistolShotsTrench[v] = applyTrenchReverb(core, rng);
     }
-
     // =========================================================================
     // 4. HEAVY MACHINE GUN (DShK 12.7mm / .50 BMG) - 4 Organic Variations
     // =========================================================================
@@ -1242,13 +1225,19 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.footstepsConcrete[v].resize(samples, 0.0f);
         PRNG rng(5101u + static_cast<uint32_t>(v) * 233u);
         PinkFilter pf;
-        float f0 = 155.0f + static_cast<float>(v) * 8.0f;
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float heel = std::sin(2.0f * 3.14159f * (45.0f + (f0 - 45.0f) * std::exp(-t * 90.0f)) * t) * std::exp(-t * 52.0f);
-            float slap = pf.process(rng.nextFloat()) * std::exp(-t * 68.0f) * 0.55f;
-            float grit = (rng.nextFloat() * 2.0f - 1.0f) * std::exp(-t * 40.0f) * 0.28f;
-            m_soundBank.footstepsConcrete[v][i] = std::tanh((heel * 0.75f + slap + grit) * 0.85f);
+            // A. Sharp Viscoelastic Rubber Heel Impact (Low-frequency structural shock)
+            float heelImpulse = std::sin(2.0f * 3.14159f * 140.0f * t) * std::exp(-t * 65.0f) * 0.70f;
+            // B. High-Frequency Pavement Friction / Micro-Grit Snap
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float gritSnap = rawN * std::exp(-t * 90.0f) * 0.45f;
+            // C. Secondary Sole Slap & Weight Transfer (Delayed 14ms)
+            float soleSlap = (t > 0.014f) ? std::sin(2.0f * 3.14159f * 220.0f * (t - 0.014f)) * std::exp(-(t - 0.014f) * 75.0f) * 0.40f : 0.0f;
+            // D. Tread Texture Release Scuff
+            float scuff = pf.process(rawN) * std::exp(-t * 40.0f) * 0.22f;
+
+            m_soundBank.footstepsConcrete[v][i] = std::tanh((heelImpulse + gritSnap + soleSlap + scuff) * 1.15f);
         }
     }
 
@@ -1262,13 +1251,31 @@ void AudioEngine::generateProceduralSoundBank() {
         m_soundBank.footstepsDirt[v].resize(samples, 0.0f);
         PRNG rng(6201u + static_cast<uint32_t>(v) * 317u);
         PinkFilter pf;
-        float f0 = 74.0f + static_cast<float>(v) * 6.0f;
+        // Pre-generate 8 asynchronous particulate grain fracture times
+        float grainTimes[8];
+        float grainPitches[8];
+        for (int k = 0; k < 8; ++k) {
+            grainTimes[k] = 0.006f + (static_cast<float>(k) * 0.008f) + rng.nextFloat() * 0.006f;
+            grainPitches[k] = 600.0f + rng.nextFloat() * 1800.0f;
+        }
+
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float thud = std::sin(2.0f * 3.14159f * (32.0f + (f0 - 32.0f) * std::exp(-t * 55.0f)) * t) * std::exp(-t * 38.0f);
-            float crunch = pf.process(rng.nextFloat()) * std::exp(-t * 42.0f) * 0.65f;
-            float pebble = (t > 0.015f && t < 0.08f) ? (rng.nextFloat() * 2.0f - 1.0f) * 0.22f : 0.0f;
-            m_soundBank.footstepsDirt[v][i] = std::tanh((thud * 0.80f + crunch + pebble) * 0.80f);
+            // A. Low-frequency Soil Deformation Thump (Damped ground displacement)
+            float soilThud = std::sin(2.0f * 3.14159f * 75.0f * t) * std::exp(-t * 45.0f) * 0.75f;
+            // B. Visceral Particulate Crunch (Multi-grain asynchronous fracture)
+            float grainTotal = 0.0f;
+            for (int k = 0; k < 8; ++k) {
+                if (t >= grainTimes[k] && t < grainTimes[k] + 0.012f) {
+                    float dtg = t - grainTimes[k];
+                    grainTotal += std::sin(2.0f * 3.14159f * grainPitches[k] * dtg) * std::exp(-dtg * 180.0f) * 0.18f;
+                }
+            }
+            // C. Broad-spectrum Earth Shear Noise
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float earthCrunch = pf.process(rawN) * std::exp(-t * 36.0f) * 0.55f;
+
+            m_soundBank.footstepsDirt[v][i] = std::tanh((soilThud + grainTotal + earthCrunch) * 1.10f);
         }
     }
 
@@ -1281,14 +1288,15 @@ void AudioEngine::generateProceduralSoundBank() {
         size_t samples = static_cast<size_t>(SR * dur);
         m_soundBank.footstepsWood[v].resize(samples, 0.0f);
         PRNG rng(7301u + static_cast<uint32_t>(v) * 401u);
-        float f1 = 195.0f + static_cast<float>(v) * 12.0f;
-        float f2 = 410.0f + static_cast<float>(v) * 22.0f;
+        float f1 = 180.0f + static_cast<float>(v) * 10.0f;
+        float f2 = 360.0f + static_cast<float>(v) * 15.0f;
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float w1 = std::sin(2.0f * 3.14159f * f1 * t) * std::exp(-t * 44.0f);
-            float w2 = std::sin(2.0f * 3.14159f * f2 * t) * std::exp(-t * 58.0f) * 0.45f;
-            float creak = (rng.nextFloat() * 2.0f - 1.0f) * std::exp(-t * 32.0f) * 0.15f;
-            m_soundBank.footstepsWood[v][i] = std::tanh((w1 * 0.70f + w2 + creak) * 0.85f);
+            float w1 = std::sin(2.0f * 3.14159f * f1 * t) * std::exp(-t * 50.0f) * 0.70f;
+            float w2 = std::sin(2.0f * 3.14159f * f2 * t) * std::exp(-t * 65.0f) * 0.35f;
+            float rawN = rng.nextFloat() * 2.0f - 1.0f;
+            float creak = (t > 0.018f) ? rawN * std::exp(-(t - 0.018f) * 55.0f) * 0.22f : 0.0f;
+            m_soundBank.footstepsWood[v][i] = std::tanh((w1 + w2 + creak) * 1.05f);
         }
     }
 
@@ -1304,11 +1312,10 @@ void AudioEngine::generateProceduralSoundBank() {
         PinkFilter pf;
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float fSweep = 55.0f + 90.0f * (1.0f - std::exp(-t * 40.0f));
-            float pop = std::sin(2.0f * 3.14159f * fSweep * t) * std::exp(-t * 26.0f);
-            float squelch = pf.process(rng.nextFloat()) * std::exp(-t * 22.0f) * 0.45f;
-            float splash = (t > 0.035f) ? std::sin(2.0f * 3.14159f * 135.0f * (t - 0.035f)) * std::exp(-(t - 0.035f) * 35.0f) * 0.35f : 0.0f;
-            m_soundBank.footstepsMud[v][i] = std::tanh((pop * 0.75f + squelch + splash) * 0.82f);
+            float suctionPop = std::sin(2.0f * 3.14159f * (50.0f + 65.0f * (1.0f - std::exp(-t * 35.0f))) * t) * std::exp(-t * 28.0f) * 0.70f;
+            float squelch = pf.process(rng.nextFloat() * 2.0f - 1.0f) * std::exp(-t * 24.0f) * 0.50f;
+            float splash = (t > 0.035f) ? std::sin(2.0f * 3.14159f * 125.0f * (t - 0.035f)) * std::exp(-(t - 0.035f) * 40.0f) * 0.30f : 0.0f;
+            m_soundBank.footstepsMud[v][i] = std::tanh((suctionPop + squelch + splash) * 1.05f);
         }
     }
 
@@ -1324,13 +1331,12 @@ void AudioEngine::generateProceduralSoundBank() {
         PinkFilter pf;
         for (size_t i = 0; i < samples; ++i) {
             float t = static_cast<float>(i) / SR;
-            float entry = std::sin(2.0f * 3.14159f * 260.0f * t) * std::exp(-t * 36.0f) * 0.65f;
-            float turbulence = std::sin(2.0f * 3.14159f * (480.0f + t * 400.0f) * t) * std::exp(-t * 28.0f) * 0.40f;
-            float spray = pf.process(rng.nextFloat()) * std::exp(-t * 24.0f) * 0.45f;
-            m_soundBank.footstepsWater[v][i] = std::tanh((entry + turbulence + spray) * 0.80f);
+            float entry = std::sin(2.0f * 3.14159f * 240.0f * t) * std::exp(-t * 38.0f) * 0.65f;
+            float spray = pf.process(rng.nextFloat() * 2.0f - 1.0f) * std::exp(-t * 22.0f) * 0.48f;
+            float bubble = (t > 0.04f) ? std::sin(2.0f * 3.14159f * 480.0f * (t - 0.04f)) * std::exp(-(t - 0.04f) * 45.0f) * 0.35f : 0.0f;
+            m_soundBank.footstepsWater[v][i] = std::tanh((entry + spray + bubble) * 1.05f);
         }
     }
-
     // =========================================================================
     // 25. TACTICAL GEAR RUSTLE (4 Cordura Webbing & Sling Clink Variations)
     // =========================================================================

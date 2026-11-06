@@ -1625,9 +1625,24 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
 
                 breakSpawnProtection();
 
-                // Procedural Multi-petal Muzzle Flash & Volumetric Gunsmoke exactly at muzzle crown
-                ballistics.spawnMuzzleFlash(muzzlePos, aimDir, flashScale, wTypeInt);
-                ballistics.spawnMuzzleSmoke(muzzlePos, aimDir, smokeScale);
+                // Realistic muzzle flash probability & scale throttling:
+                // Modern flash hiders and smokeless propellant suppress visible flash on ~45% of daylight shots.
+                // Flash intensity expands dynamically with sustained rapid-fire heat.
+                static std::mt19937 flashGen(1337);
+                std::uniform_real_distribution<float> flashDis(0.0f, 1.0f);
+                bool showFullFlash = (flashDis(flashGen) < (0.50f + m_rapidFireHeat * 0.45f)) || (wTypeInt == 3);
+                if (showFullFlash) {
+                    float dynamicFlashScale = flashScale * (0.75f + m_rapidFireHeat * 0.45f);
+                    ballistics.spawnMuzzleFlash(muzzlePos, aimDir, dynamicFlashScale, wTypeInt);
+                } else {
+                    // Subtle crown glint spark only (compact 0.35x scale, no giant lances)
+                    ballistics.spawnMuzzleFlash(muzzlePos, aimDir, flashScale * 0.35f, 2);
+                }
+
+                // Realistic smoke progression:
+                // Single shots emit only a delicate micro-wisp; sustained bursts (heat > 0.25) accumulate full billowing smoke.
+                float effectiveSmokeIntensity = smokeScale * (0.22f + m_rapidFireHeat * 0.85f);
+                ballistics.spawnMuzzleSmoke(muzzlePos, aimDir, effectiveSmokeIntensity);
 
                 // 3D Brass Shell Casing with physical ejection directly from chamber ejection port
                 glm::vec3 casingPos = (glm::length(m_rig.getCasingPosition()) > 0.1f)
