@@ -41,8 +41,11 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         return;
     }
     m_velocity = velocity;
-    m_isMoving = isMoving;
-    m_isSprinting = isSprinting;
+    float currentVelSpeed = glm::length(velocity);
+    // Hysteresis locomotion gate: prevents 1-frame thrashing between gait walk and stationary step-turns
+    bool effectiveMoving = (isMoving && currentVelSpeed > 0.04f) || (currentVelSpeed > 0.12f);
+    m_isMoving = effectiveMoving;
+    m_isSprinting = isSprinting && effectiveMoving;
     m_stance = stance;
     m_isAiming = isAiming;
     m_hasWeapon = hasWeapon;
@@ -95,7 +98,7 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
     glm::vec3 aimForward(std::sin(yaw), 0.0f, std::cos(yaw));
     glm::vec3 aimRight(std::cos(yaw), 0.0f, -std::sin(yaw));
 
-    if (isMoving && speed > 0.05f) {
+    if (effectiveMoving) {
         float vFwd = glm::dot(velocity, aimForward);
         float vRgt = glm::dot(velocity, aimRight);
         m_relMoveAngle = std::atan2(vRgt, vFwd); // [-pi, pi]
@@ -147,7 +150,7 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         if (!m_isSliding) {
             // Walk cycle progression driven strictly by ground displacement
             float horizDistTraveled = speed * dt;
-            float strideLength = isSprinting ? 2.10f : (m_stance == 1 ? 0.95f : 1.35f);
+            float strideLength = isSprinting ? 3.10f : (m_stance == 1 ? 1.40f : 2.05f);
             strideLength *= (1.0f - 0.20f * cCurve - 0.45f * pCurve);
 
             float prevNorm = m_prevWalkPhase;
@@ -223,7 +226,8 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
             // Tier 2 (24-38 deg): torso twists smoothly. Pelvis & feet 100% frozen.
             // Tier 3 (38-70 deg): Single leg steps out! Support leg remains 100% locked.
             // Tier 4 (> 70 deg): Two-beat step turn (lead foot steps, trailing foot squares).
-            if (std::abs(diff) > glm::radians(38.0f)) {
+            // Stationary step turn: strictly require stationary speed < 0.06f to prevent fighting deceleration/micro-strafe
+            if (speed < 0.06f && std::abs(diff) > glm::radians(38.0f)) {
                 m_stepTurnPhase = StepTurnPhase::Beat1_LeadFoot;
                 m_stepTurnTimer = 0.0f;
                 m_stepTurnDir = (diff > 0.0f) ? 1.0f : -1.0f;
@@ -730,7 +734,7 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             // Mathematical Zero-Slip Stride Matching:
             // Stance phase occupies 60% of gait cycle (displacement 2 * stride).
             // Stride displacement stride = 0.30 * strideLength precisely cancels forward body speed.
-            float currentStrideLength = m_isSprinting ? 2.10f : (m_stance == 1 ? 0.95f : 1.35f);
+            float currentStrideLength = m_isSprinting ? 3.10f : (m_stance == 1 ? 1.40f : 2.05f);
             currentStrideLength *= (1.0f - 0.20f * cCurve - 0.45f * pCurve);
             float stride = m_isMoving ? (0.30f * currentStrideLength) : 0.18f;
             float leftStrideZ = 0.0f, rightStrideZ = 0.0f;
@@ -766,6 +770,8 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             };
 
             float footBaseX = 0.13f + 0.05f * cCurve;
+            float leftFootLocalX = -footBaseX;
+            float rightFootLocalX = footBaseX;
             glm::vec3 leftFootPos(0.0f);
             glm::vec3 rightFootPos(0.0f);
 
@@ -797,7 +803,8 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                         float sinLift = std::sin(t * glm::pi<float>());
                         curLift = liftVal * std::pow(sinLift, 1.15f);
                     }
-                    return { glm::vec3(disp * rgt * 0.75f, curLift, disp * fwd), curLift };
+                    // Lateral foot movement scaled down (0.40f) to reflect natural human hip-width kinematics
+                    return { glm::vec3(disp * rgt * 0.40f, curLift, disp * fwd), curLift };
                 };
 
                 auto resL = calcGaitDisplacement(uL, stride, maxLift, moveFwd, moveRgt);
@@ -816,8 +823,25 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                     leftLift    *= (1.0f - m_woundLimpFactor * 0.50f);
                 }
 
-                leftFootPos  = lowerToWorld(glm::vec3(-footBaseX + leftStrideX,  0.07f + leftLift,  leftStrideZ));
-                rightFootPos = lowerToWorld(glm::vec3( footBaseX + rightStrideX, 0.07f + rightLift, rightStrideZ));
+                // Anti-scissor constraint & minimum stance width clearance:
+                // Prevents legs from crossing over the midline into each other's half space during lateral strafes
+                float leftLocalX = -footBaseX + leftStrideX;
+                float rightLocalX = footBaseX + rightStrideX;
+
+                leftLocalX = std::min(leftLocalX, -0.06f);
+                rightLocalX = std::max(rightLocalX, 0.06f);
+
+                if (rightLocalX - leftLocalX < 0.22f) {
+                    float mid = (leftLocalX + rightLocalX) * 0.5f;
+                    leftLocalX = mid - 0.11f;
+                    rightLocalX = mid + 0.11f;
+                }
+
+                leftFootLocalX = leftLocalX;
+                rightFootLocalX = rightLocalX;
+
+                leftFootPos  = lowerToWorld(glm::vec3(leftLocalX,  0.07f + leftLift,  leftStrideZ));
+                rightFootPos = lowerToWorld(glm::vec3(rightLocalX, 0.07f + rightLift, rightStrideZ));
             } else {
                 // Independent Leg Turn-in-Place Stepping:
                 // Support foot is 100% frozen in world space (zero slip).
@@ -925,11 +949,13 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             rightHipPos.y += pelvisDrop;
             pelvisPos.y   += pelvisDrop;
 
-            // Knee Abduction (wider knee splay in crouch prevents chest/weapon clipping)
+            // Knee Abduction (wider knee splay in crouch prevents chest/weapon clipping, tracks outward from actual foot position)
             float kneePitchFlex = (m_aimPitch < 0.0f) ? (-std::sin(m_aimPitch) * 0.14f) : 0.0f;
             float kneeSplay = 0.16f + 0.18f * cCurve;
-            glm::vec3 leftKneePole  = lowerToWorld(glm::vec3(-kneeSplay + moveRgt * 0.08f, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex));
-            glm::vec3 rightKneePole = lowerToWorld(glm::vec3( kneeSplay + moveRgt * 0.08f, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex));
+            float leftPoleX = std::min(-kneeSplay + moveRgt * 0.04f, leftFootLocalX - 0.03f);
+            float rightPoleX = std::max(kneeSplay + moveRgt * 0.04f, rightFootLocalX + 0.03f);
+            glm::vec3 leftKneePole  = lowerToWorld(glm::vec3(leftPoleX, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex));
+            glm::vec3 rightKneePole = lowerToWorld(glm::vec3(rightPoleX, 0.38f + m_stanceHeight * 0.45f, 0.65f + moveFwd * 0.15f + 0.25f * cCurve + kneePitchFlex));
 
             if (m_isSliding) {
                 leftKneePole  = lowerToWorld(glm::vec3(-0.24f, 0.14f, -0.05f));

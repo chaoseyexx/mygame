@@ -147,7 +147,7 @@ private:
     float m_exhaustionTimer = 0.0f;
 
     float m_spawnProtectionTimer = 0.0f;
-    float m_baseMoveSpeed = 5.8f; // m/s
+    float m_baseMoveSpeed = 4.0f; // m/s
     float m_currentBloom = 0.04f;
     float m_fireCooldown = 0.0f;
     float m_reloadTimer = 0.0f;
