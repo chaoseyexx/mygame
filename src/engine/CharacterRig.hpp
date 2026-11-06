@@ -154,6 +154,7 @@ public:
         m_leftFootPlantedYaw = yaw;
         m_rightFootPlantedYaw = yaw;
         m_stanceFeetInitialized = true;
+        m_worldGaitInitialized = false;
     }
 
 
@@ -415,6 +416,15 @@ private:
     float m_leftFootPlantedYaw = 0.0f;
     float m_rightFootPlantedYaw = 0.0f;
     bool m_stanceFeetInitialized = false;
+
+    // AAA World-Space Foot Planting & Zero-Slip Locomotion State
+    glm::vec3 m_leftFootPlantWorld{0.0f};
+    glm::vec3 m_rightFootPlantWorld{0.0f};
+    glm::vec3 m_leftFootLiftWorld{0.0f};
+    glm::vec3 m_rightFootLiftWorld{0.0f};
+    bool m_leftFootPlanted = true;
+    bool m_rightFootPlanted = true;
+    bool m_worldGaitInitialized = false;
 
     // Locomotion & walk cycle
     float m_walkCycle = 0.0f;
