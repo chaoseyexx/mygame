@@ -668,6 +668,18 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     }
     m_coverLeanAngle = glm::mix(m_coverLeanAngle, targetCoverLean, std::clamp(dt * 14.0f, 0.0f, 1.0f));
 
+    // Pre-sample movement & weapon inputs for decoupled idle camera free-look
+    glm::vec3 inputDir(0.0f);
+    if (!captureKb) {
+        if (window.isKeyPressed(inCfg.getKey(GameAction::MoveForward)) || window.isKeyPressed(GLFW_KEY_W)) inputDir.z -= 1.0f;
+        if (window.isKeyPressed(inCfg.getKey(GameAction::MoveBackward)) || window.isKeyPressed(GLFW_KEY_S)) inputDir.z += 1.0f;
+        if (window.isKeyPressed(inCfg.getKey(GameAction::MoveLeft)) || window.isKeyPressed(GLFW_KEY_A)) inputDir.x -= 1.0f;
+        if (window.isKeyPressed(inCfg.getKey(GameAction::MoveRight)) || window.isKeyPressed(GLFW_KEY_D)) inputDir.x += 1.0f;
+    }
+    bool isMoving = glm::length(inputDir) > 0.01f;
+    bool aimInput = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT) && !uiWantsMouse;
+    bool leftClickFire = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) && !uiWantsMouse;
+
     // 1. Calculate Body Heading Yaw (Hugs wall in cover unless aiming)
     if (m_inCover && !m_isAiming) {
         float targetYaw = std::atan2(m_coverNormal.x, m_coverNormal.z);
@@ -681,18 +693,38 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         while (deltaYaw < -3.14159265f) deltaYaw += 2.0f * 3.14159265f;
         m_yaw += deltaYaw * std::clamp(dt * 20.0f, 0.0f, 1.0f);
     } else {
-        float targetYaw = m_yaw;
-        if (m_stats.isSprinting && glm::length(m_velocity) > 2.5f) {
-            targetYaw = std::atan2(m_velocity.x, m_velocity.z);
+        float cRad = glm::radians(cameraYaw);
+        glm::vec3 camFwd(-std::sin(cRad), 0.0f, -std::cos(cRad));
+        float camLookYaw = std::atan2(camFwd.x, camFwd.z);
+
+        if (m_isAiming || aimInput || leftClickFire) {
+            // Actively aiming or shooting: operator squares up directly with camera crosshair
+            float deltaYaw = camLookYaw - m_yaw;
+            while (deltaYaw > 3.14159265f) deltaYaw -= 2.0f * 3.14159265f;
+            while (deltaYaw < -3.14159265f) deltaYaw += 2.0f * 3.14159265f;
+            m_yaw += deltaYaw * std::clamp(dt * 26.0f, 0.0f, 1.0f);
+        } else if (isMoving) {
+            // Moving / traversing: body faces velocity if sprinting, or camera forward
+            float targetYaw = (m_stats.isSprinting && glm::length(m_velocity) > 2.5f)
+                ? std::atan2(m_velocity.x, m_velocity.z)
+                : camLookYaw;
+            float deltaYaw = targetYaw - m_yaw;
+            while (deltaYaw > 3.14159265f) deltaYaw -= 2.0f * 3.14159265f;
+            while (deltaYaw < -3.14159265f) deltaYaw += 2.0f * 3.14159265f;
+            m_yaw += deltaYaw * std::clamp(dt * 22.0f, 0.0f, 1.0f);
         } else {
-            float cRad = glm::radians(cameraYaw);
-            glm::vec3 camFwd(-std::sin(cRad), 0.0f, -std::cos(cRad));
-            targetYaw = std::atan2(camFwd.x, camFwd.z);
+            // Standing idle in Low-Ready: Weapon & body stay steady!
+            // Free-look camera: operator only steps/turns if camera rotates beyond 68 degrees deadzone
+            float diffCam = camLookYaw - m_yaw;
+            while (diffCam > 3.14159265f) diffCam -= 2.0f * 3.14159265f;
+            while (diffCam < -3.14159265f) diffCam += 2.0f * 3.14159265f;
+            constexpr float IDLE_DEADZONE = 1.1868f; // 68 degrees
+            if (std::abs(diffCam) > IDLE_DEADZONE) {
+                float sign = (diffCam > 0.0f) ? 1.0f : -1.0f;
+                float excess = diffCam - sign * IDLE_DEADZONE;
+                m_yaw += excess * std::clamp(dt * 10.0f, 0.0f, 1.0f);
+            }
         }
-        float deltaYaw = targetYaw - m_yaw;
-        while (deltaYaw > 3.14159265f) deltaYaw -= 2.0f * 3.14159265f;
-        while (deltaYaw < -3.14159265f) deltaYaw += 2.0f * 3.14159265f;
-        m_yaw += deltaYaw * std::clamp(dt * 26.0f, 0.0f, 1.0f);
     }
     while (m_yaw > 3.14159265f) m_yaw -= 6.2831853f;
     while (m_yaw < -3.14159265f) m_yaw += 6.2831853f;
@@ -756,7 +788,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     }
 
     // Tactical Aim Down Sights (ADS) Mode on Right-Click
-    bool aimInput = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT) && !uiWantsMouse;
+    aimInput = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT) && !uiWantsMouse;
     if (aimInput != m_isAiming) {
         m_isAiming = aimInput;
         if (m_isAiming) {
@@ -931,15 +963,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
     m_gPressedLast = gPressed;
 
     // 3. Movement calculation (Camera-Relative Direction)
-    glm::vec3 inputDir(0.0f);
-    if (!captureKb) {
-        if (window.isKeyPressed(inCfg.getKey(GameAction::MoveForward)) || window.isKeyPressed(GLFW_KEY_W)) inputDir.z -= 1.0f;
-        if (window.isKeyPressed(inCfg.getKey(GameAction::MoveBackward)) || window.isKeyPressed(GLFW_KEY_S)) inputDir.z += 1.0f;
-        if (window.isKeyPressed(inCfg.getKey(GameAction::MoveLeft)) || window.isKeyPressed(GLFW_KEY_A)) inputDir.x -= 1.0f;
-        if (window.isKeyPressed(inCfg.getKey(GameAction::MoveRight)) || window.isKeyPressed(GLFW_KEY_D)) inputDir.x += 1.0f;
-    }
-
-    bool isMoving = glm::length(inputDir) > 0.01f;
+    // (inputDir and isMoving were pre-sampled above for decoupled idle heading)
     glm::vec3 moveDir(0.0f);
     if (isMoving) {
         inputDir = glm::normalize(inputDir);
@@ -1002,7 +1026,7 @@ void Player::update(float dt, const Window& window, const glm::vec3& mouseWorldP
         }
     }
 
-    bool leftClickFire = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) && !uiWantsMouse;
+    leftClickFire = window.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) && !uiWantsMouse;
     bool isForwardMoving = inputDir.z < -0.1f;
     bool sprintKey = !captureKb && (window.isKeyPressed(inCfg.getKey(GameAction::Sprint)) || window.isKeyPressed(GLFW_KEY_LEFT_SHIFT));
     bool canPhysicallySprint = !m_isSliding && isMoving && isForwardMoving && (!m_stats.isExhausted && m_stats.stamina > 15.0f) && !m_isAiming && !leftClickFire && m_body.canSprint();
