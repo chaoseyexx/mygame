@@ -200,25 +200,60 @@ void BallisticsSystem::spawnMuzzleSmoke(const glm::vec3& pos, const glm::vec3& f
     glm::vec3 rightDir = glm::normalize(glm::cross(forwardDir, upRef));
     glm::vec3 trueUp   = glm::normalize(glm::cross(rightDir, forwardDir));
 
-    int puffCount = std::clamp(static_cast<int>(5 * intensity), 3, 8);
-    for (int i = 0; i < puffCount; ++i) {
+    // A. Forward Supersonic Blast Slug Puffs (High initial velocity that rapidly decelerates into a rolling mushroom cloud)
+    int forwardCount = std::clamp(static_cast<int>(4 * intensity), 3, 6);
+    for (int i = 0; i < forwardCount; ++i) {
         SmokeParticle p;
-        p.position = pos + forwardDir * (0.05f + static_cast<float>(i) * 0.04f);
-        p.position += rightDir * (dis(gen) * 0.03f) + trueUp * (dis(gen) * 0.03f);
-
-        float fwdSpeed = speedDis(gen) * 2.2f * intensity;
-        p.velocity = forwardDir * fwdSpeed + trueUp * (0.35f + std::abs(dis(gen)) * 0.25f) + rightDir * (dis(gen) * 0.35f);
-
-        float shade = 0.80f + dis(gen) * 0.10f;
-        p.color = glm::vec4(shade, shade, shade, 0.55f);
-        p.size = 0.11f + static_cast<float>(i) * 0.035f;
-        p.growthRate = 0.36f + std::abs(dis(gen)) * 0.14f;
+        p.position = pos + forwardDir * (0.04f + static_cast<float>(i) * 0.05f) + rightDir * (dis(gen) * 0.025f) + trueUp * (dis(gen) * 0.025f);
+        float blastSpeed = (4.5f + static_cast<float>(i) * 1.8f + std::abs(dis(gen)) * 2.0f) * intensity;
+        p.velocity = forwardDir * blastSpeed + trueUp * (dis(gen) * 0.4f) + rightDir * (dis(gen) * 0.4f);
+        float shade = 0.65f + dis(gen) * 0.12f; // Darker unburnt carbon core
+        p.color = glm::vec4(shade, shade, shade, 0.68f);
+        p.size = 0.10f + static_cast<float>(i) * 0.03f;
+        p.growthRate = 0.45f + std::abs(dis(gen)) * 0.20f;
         p.life = 0.0f;
-        p.maxLife = 1.25f + std::abs(dis(gen)) * 0.40f; // Lingers realistically
+        p.maxLife = 1.10f + std::abs(dis(gen)) * 0.35f;
         p.rotation = dis(gen) * 3.1415f;
-        p.rotSpeed = dis(gen) * 1.4f;
+        p.rotSpeed = dis(gen) * 2.2f;
         p.particleType = 0; // Gunsmoke
+        m_particles.push_back(p);
+    }
 
+    // B. Lateral Compensator Vent Plumes (Venting obliquely at 45 degrees)
+    int ventCount = std::clamp(static_cast<int>(4 * intensity), 2, 4);
+    for (int i = 0; i < ventCount; ++i) {
+        SmokeParticle p;
+        p.position = pos + forwardDir * 0.02f;
+        float sideSign = (i % 2 == 0) ? 1.0f : -1.0f;
+        glm::vec3 ventDir = glm::normalize(forwardDir * 0.4f + rightDir * (sideSign * 0.8f) + trueUp * (0.4f + std::abs(dis(gen)) * 0.3f));
+        p.velocity = ventDir * (2.8f + std::abs(dis(gen)) * 1.5f) * intensity;
+        float shade = 0.78f + dis(gen) * 0.10f;
+        p.color = glm::vec4(shade, shade, shade, 0.52f);
+        p.size = 0.08f + std::abs(dis(gen)) * 0.04f;
+        p.growthRate = 0.38f + std::abs(dis(gen)) * 0.15f;
+        p.life = 0.0f;
+        p.maxLife = 0.95f + std::abs(dis(gen)) * 0.30f;
+        p.rotation = dis(gen) * 3.1415f;
+        p.rotSpeed = dis(gen) * 1.8f;
+        p.particleType = 0; // Gunsmoke
+        m_particles.push_back(p);
+    }
+
+    // C. Lingering Thermal Barrel Chimney Wisps (Slow-rising hot gas)
+    int chimneyCount = std::clamp(static_cast<int>(3 * intensity), 2, 4);
+    for (int i = 0; i < chimneyCount; ++i) {
+        SmokeParticle p;
+        p.position = pos + forwardDir * (dis(gen) * 0.03f) + rightDir * (dis(gen) * 0.02f);
+        p.velocity = trueUp * (0.40f + std::abs(dis(gen)) * 0.30f) + forwardDir * (dis(gen) * 0.15f);
+        float shade = 0.85f + dis(gen) * 0.08f;
+        p.color = glm::vec4(shade, shade, shade, 0.40f);
+        p.size = 0.07f + static_cast<float>(i) * 0.025f;
+        p.growthRate = 0.25f + std::abs(dis(gen)) * 0.10f;
+        p.life = 0.0f;
+        p.maxLife = 1.60f + std::abs(dis(gen)) * 0.40f; // Lingers gracefully
+        p.rotation = dis(gen) * 3.1415f;
+        p.rotSpeed = dis(gen) * 0.8f;
+        p.particleType = 0; // Gunsmoke
         m_particles.push_back(p);
     }
 }
@@ -515,12 +550,13 @@ void BallisticsSystem::update(float dt, const glm::vec3& listenerPos, float came
         p.rotation += p.rotSpeed * dt;
         if (p.particleType == 0) {
             // Gunsmoke: upward thermal buoyancy & aerodynamic expansion
-            p.velocity.y += 0.22f * dt;
-            p.velocity *= (1.0f - dt * 1.2f);
+            p.velocity.y += 0.35f * dt;
+            p.velocity *= (1.0f - std::clamp(dt * 2.8f, 0.0f, 0.95f)); // Aerodynamic drag decelerates high-speed blast slug
             p.size += p.growthRate * dt;
         } else if (p.particleType == 1) {
-            // Sparks: gravity
-            p.velocity += gravity * 0.65f * dt;
+            // Sparks: gravity & drag
+            p.velocity += gravity * 0.75f * dt;
+            p.velocity *= (1.0f - std::clamp(dt * 1.8f, 0.0f, 0.95f));
         } else if (p.particleType >= 2) {
             // Dirt / Blood: heavy gravity
             p.velocity += gravity * 0.90f * dt;
@@ -533,6 +569,11 @@ void BallisticsSystem::update(float dt, const glm::vec3& listenerPos, float came
         std::remove_if(m_particles.begin(), m_particles.end(), [](const SmokeParticle& p) { return p.life >= p.maxLife; }),
         m_particles.end()
     );
+
+    // Limit maximum particles to protect 144+ FPS under extreme weapon spam
+    if (m_particles.size() > 450) {
+        m_particles.erase(m_particles.begin(), m_particles.begin() + 40);
+    }
 
     // 3. Update Tactical Grenades
     for (auto& g : m_grenades) {
@@ -631,6 +672,14 @@ void BallisticsSystem::render(Renderer& renderer) {
         float lanceLen = (mf.weaponType == 3) ? (0.68f * s) : ((mf.weaponType == 1) ? (0.58f * s) : ((mf.weaponType == 2) ? (0.24f * s) : (0.42f * s)));
         float lanceWidth = (mf.weaponType == 3) ? (0.34f * s) : ((mf.weaponType == 1) ? (0.22f * s) : ((mf.weaponType == 2) ? (0.16f * s) : (0.22f * s)));
         renderer.drawDirectionalFlame(mf.position, mf.forward, lanceLen, lanceWidth, glm::vec4(1.0f, 0.88f, 0.35f, alpha), mf.seed);
+
+        // B2. Dual-Port Compensator Diagonal Exhaust Flame Vents
+        if (mf.weaponType != 2) { // Non-pistol weapons have compensators/muzzle brakes
+            glm::vec3 ventDir1 = glm::normalize(mf.right * 0.707f + mf.up * 0.707f + mf.forward * 0.35f);
+            glm::vec3 ventDir2 = glm::normalize(-mf.right * 0.707f + mf.up * 0.707f + mf.forward * 0.35f);
+            renderer.drawDirectionalFlame(mf.position, ventDir1, lanceLen * 0.42f, lanceWidth * 0.50f, glm::vec4(1.0f, 0.82f, 0.28f, alpha * 0.85f), mf.seed + 1.3f);
+            renderer.drawDirectionalFlame(mf.position, ventDir2, lanceLen * 0.42f, lanceWidth * 0.50f, glm::vec4(1.0f, 0.82f, 0.28f, alpha * 0.85f), mf.seed + 2.7f);
+        }
 
         // C. Multi-Petal Flash-Hider Compensator Star Flash
         float starSize = (mf.weaponType == 3) ? (0.54f * s) : ((mf.weaponType == 1) ? (0.40f * s) : ((mf.weaponType == 2) ? (0.28f * s) : (0.36f * s)));

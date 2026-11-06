@@ -136,7 +136,24 @@ void CharacterRig::update9D(float dt, const glm::vec3& worldPos, float yaw, cons
         } else {
             // Tactical movement (walking, strafing, ADS):
             // Hips track aim yaw smoothly with tactical quarter-angle
-            float diff = yaw - m_lowerBodyYaw;
+            // When strafing, turn the pelvis into the movement direction to keep legs separated
+            float tacticalOffset = 0.0f;
+            if (m_locoDir == LocomotionDirection::Right) {
+                tacticalOffset = glm::radians(38.0f);
+            } else if (m_locoDir == LocomotionDirection::Left) {
+                tacticalOffset = -glm::radians(38.0f);
+            } else if (m_locoDir == LocomotionDirection::ForwardRight) {
+                tacticalOffset = glm::radians(22.0f);
+            } else if (m_locoDir == LocomotionDirection::ForwardLeft) {
+                tacticalOffset = -glm::radians(22.0f);
+            } else if (m_locoDir == LocomotionDirection::BackwardRight) {
+                tacticalOffset = glm::radians(22.0f);
+            } else if (m_locoDir == LocomotionDirection::BackwardLeft) {
+                tacticalOffset = -glm::radians(22.0f);
+            }
+
+            float targetYaw = yaw + tacticalOffset;
+            float diff = targetYaw - m_lowerBodyYaw;
             while (diff > glm::pi<float>()) diff -= 2.0f * glm::pi<float>();
             while (diff < -glm::pi<float>()) diff += 2.0f * glm::pi<float>();
             m_lowerBodyYaw += diff * std::clamp(dt * 9.0f, 0.0f, 1.0f);
@@ -504,6 +521,11 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
         return m_rootPos + lowerRight * l.x + glm::vec3(0, l.y, 0) + lowerForward * l.z;
     };
 
+    auto worldToLower = [&](const glm::vec3& w) -> glm::vec3 {
+        glm::vec3 rel = w - m_rootPos;
+        return glm::vec3(glm::dot(rel, lowerRight), rel.y, glm::dot(rel, lowerForward));
+    };
+
     // Upper body basis (Aim heading, Spine, Arms, Head)
     float cy = std::cos(m_yaw);
     float sy = std::sin(m_yaw);
@@ -812,9 +834,12 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
                 float stepForwardReach = 0.185f;
                 stepForwardReach *= (1.0f - 0.20f * cCurve - 0.40f * pCurve);
 
+                float leadSideL = (moveRgt < -0.05f) ? (moveRgt * 0.20f) : (moveRgt * 0.08f);
+                float leadSideR = (moveRgt >  0.05f) ? (moveRgt * 0.20f) : (moveRgt * 0.08f);
+
                 // Predictive world-space touchdown targets ahead of player in lower-body frame
-                glm::vec3 targetL = m_rootPos - lowerRight * footBaseX + lowerForward * (stepForwardReach * moveFwd) + lowerRight * (stepForwardReach * moveRgt * 0.35f) + glm::vec3(0, 0.07f, 0);
-                glm::vec3 targetR = m_rootPos + lowerRight * footBaseX + lowerForward * (stepForwardReach * moveFwd) + lowerRight * (stepForwardReach * moveRgt * 0.35f) + glm::vec3(0, 0.07f, 0);
+                glm::vec3 targetL = m_rootPos - lowerRight * footBaseX + lowerForward * (stepForwardReach * moveFwd) + lowerRight * leadSideL + glm::vec3(0, 0.07f, 0);
+                glm::vec3 targetR = m_rootPos + lowerRight * footBaseX + lowerForward * (stepForwardReach * moveFwd) + lowerRight * leadSideR + glm::vec3(0, 0.07f, 0);
 
                 // --- LEFT FOOT WORLD-SPACE PLANT / SWING STATE MACHINE ---
                 if (uL <= stanceFraction) {
@@ -1030,6 +1055,31 @@ void CharacterRig::render(Renderer& renderer, const CharacterCustomization& cust
             if (distR > 0.76f) {
                 rightFootPos = rightHipPos + glm::normalize(rightFootPos - rightHipPos) * 0.76f;
                 m_rightFootPlantWorld = rightFootPos;
+            }
+
+            // Hard Anti-Collision Stance Invariant Enforcement
+            // Ensure feet maintain physical clearance and never cross each other's sagittal plane
+            glm::vec3 pelvisFootL = worldToLower(leftFootPos);
+            glm::vec3 pelvisFootR = worldToLower(rightFootPos);
+
+            if (pelvisFootL.x > -0.06f) {
+                pelvisFootL.x = -0.06f;
+                leftFootPos = lowerToWorld(pelvisFootL);
+                if (m_leftFootPlanted) m_leftFootPlantWorld = leftFootPos;
+            }
+            if (pelvisFootR.x < 0.06f) {
+                pelvisFootR.x = 0.06f;
+                rightFootPos = lowerToWorld(pelvisFootR);
+                if (m_rightFootPlanted) m_rightFootPlantWorld = rightFootPos;
+            }
+            if ((pelvisFootR.x - pelvisFootL.x) < 0.22f) {
+                float mid = (pelvisFootL.x + pelvisFootR.x) * 0.5f;
+                pelvisFootL.x = mid - 0.11f;
+                pelvisFootR.x = mid + 0.11f;
+                leftFootPos = lowerToWorld(pelvisFootL);
+                rightFootPos = lowerToWorld(pelvisFootR);
+                if (m_leftFootPlanted) m_leftFootPlantWorld = leftFootPos;
+                if (m_rightFootPlanted) m_rightFootPlantWorld = rightFootPos;
             }
 
             leftHipPos.y  += pelvisDrop;

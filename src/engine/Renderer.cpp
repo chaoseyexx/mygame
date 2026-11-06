@@ -703,60 +703,99 @@ in float vType;
 layout(location = 0) out vec4 FragColor;
 layout(location = 1) out vec4 NormalColor;
 
+// High-speed analytical procedural noise and FBM for photorealistic fluid dynamics
+float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+
+float noise2D(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = hash21(i);
+    float b = hash21(i + vec2(1.0, 0.0));
+    float c = hash21(i + vec2(0.0, 1.0));
+    float d = hash21(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm3(vec2 p) {
+    float v = 0.0;
+    v += 0.5000 * noise2D(p); p *= 2.04;
+    v += 0.2500 * noise2D(p); p *= 2.02;
+    v += 0.1250 * noise2D(p);
+    return v;
+}
+
 void main() {
     vec2 p = vUV * 2.0 - 1.0;
     float dist = length(p);
 
     if (vType < 0.5) {
-        // Type 0: Volumetric Gunsmoke (soft billowing turbulent cloud)
-        if (dist > 1.0) discard;
-        float radial = 1.0 - dist;
-        float angle = atan(p.y, p.x);
-        float noise = sin(angle * 3.0 + dist * 5.0) * 0.12 + cos(angle * 5.0 - dist * 4.0) * 0.08;
-        float alpha = clamp(radial * 1.4 + noise, 0.0, 1.0);
-        alpha = pow(alpha, 1.6) * vColor.a;
-        if (alpha < 0.005) discard;
-        vec3 col = vColor.rgb * (0.88 + 0.12 * (1.0 - dist));
+        // Type 0: Photorealistic Volumetric Gunsmoke (multi-octave FBM turbulent plume)
+        float radial = clamp(1.0 - dist, 0.0, 1.0);
+        if (radial <= 0.001) discard;
+
+        // Domain-warped multi-octave FBM turbulence
+        vec2 noiseUV = p * 2.2 + vec2(vColor.r * 7.1, vColor.g * 5.3);
+        float n1 = fbm3(noiseUV);
+        float n2 = fbm3(noiseUV + vec2(n1 * 1.6, n1 * 1.3));
+
+        // Continuous density: Gaussian core * fractal eddy structure
+        float density = radial * (n2 * 1.4 + 0.25);
+        // Soft feathering: absolute zero hard discard cuts
+        float alpha = smoothstep(0.12, 0.72, density) * vColor.a;
+        if (alpha < 0.004) discard;
+
+        // Two-tone atmospheric scattering (top rim highlight vs shadowed core)
+        float scatter = clamp(p.y * 0.40 + 0.75, 0.60, 1.15);
+        vec3 smokeBase = vColor.rgb * scatter;
+        // Unburnt carbon soot transition at dense core
+        vec3 col = mix(vec3(0.24, 0.25, 0.27), smokeBase, smoothstep(0.05, 0.55, radial));
+
         FragColor = vec4(col, alpha);
         NormalColor = vec4(0.0, 1.0, 0.0, 0.8);
     } else if (vType < 1.5) {
         // Type 1: High-Fidelity Tactical Flash-Hider Petal Flame (Compensator Vents & Star Flame)
-        if (dist > 1.0) discard;
         float angle = atan(p.y, p.x);
 
-        // 4-prong compensator baffle vents with secondary harmonics
-        float star4 = max(0.0, cos(angle * 4.0));
-        star4 = pow(star4, 3.5) * 0.58;
+        // 4-port compensator vents with diagonal secondary baffles
+        float port4 = pow(max(0.0, cos(angle * 2.0)), 4.0) * 0.62;
+        float portDiag = pow(max(0.0, cos(angle * 4.0 + 0.785)), 6.0) * 0.38;
 
-        float star2 = max(0.0, cos(angle * 2.0));
-        star2 = pow(star2, 4.0) * 0.28;
+        // High-frequency turbulent flame perturbation
+        vec2 noiseCoord = vec2(cos(angle), sin(angle)) * dist * 3.5;
+        float turb = fbm3(noiseCoord * 2.2 + vec2(vColor.r * 8.0, 0.0)) * 0.22;
 
-        // Chaotic combustion edge turbulence
-        float flameNoise = sin(angle * 9.0 + dist * 14.0) * 0.09 + cos(angle * 15.0 - dist * 11.0) * 0.06;
-        float flameRadius = 0.34 + star4 + star2 + flameNoise;
-
-        if (dist > flameRadius) discard;
-
+        float flameRadius = 0.32 + port4 + portDiag + turb;
         float normDist = dist / max(0.001, flameRadius);
-        float core = pow(clamp(1.0 - normDist, 0.0, 1.0), 1.6);
+        if (normDist > 1.0) discard;
 
-        // Radiance temperature ramp: White-Hot Core -> Lemon Gold -> Combustion Orange -> Crimson Rim
-        vec3 whiteCore  = vec3(1.0, 0.98, 0.94) * 3.4;
-        vec3 goldFlame  = vec3(1.0, 0.80, 0.22) * 2.4;
-        vec3 amberFlame = vec3(0.98, 0.42, 0.05) * 1.8;
-        vec3 redFlame   = vec3(0.68, 0.12, 0.02);
+        // Feathered edge falloff (smooth sub-pixel transition)
+        float edgeAlpha = smoothstep(1.0, 0.70, normDist);
+        float core = clamp(1.0 - normDist, 0.0, 1.0);
+        float corePower = pow(core, 1.4);
+
+        // Planckian Thermal Radiance Ramp:
+        // White-Hot Supersonic Core (5500K) -> Lemon Gold (4000K) -> Amber (2500K) -> Combustion Crimson (1400K)
+        vec3 whiteCore  = vec3(1.0, 1.0, 1.05) * 4.2;
+        vec3 goldFlame  = vec3(1.0, 0.86, 0.30) * 2.8;
+        vec3 amberFlame = vec3(1.0, 0.46, 0.07) * 1.9;
+        vec3 redFlame   = vec3(0.70, 0.10, 0.02);
 
         vec3 fireCol;
-        if (core > 0.60) {
-            fireCol = mix(goldFlame, whiteCore, (core - 0.60) / 0.40);
-        } else if (core > 0.25) {
-            fireCol = mix(amberFlame, goldFlame, (core - 0.25) / 0.35);
+        if (corePower > 0.58) {
+            fireCol = mix(goldFlame, whiteCore, (corePower - 0.58) / 0.42);
+        } else if (corePower > 0.22) {
+            fireCol = mix(amberFlame, goldFlame, (corePower - 0.22) / 0.36);
         } else {
-            fireCol = mix(redFlame, amberFlame, core / 0.25);
+            fireCol = mix(redFlame, amberFlame, corePower / 0.22);
         }
 
-        float alpha = pow(clamp(1.0 - normDist, 0.0, 1.0), 1.1) * vColor.a;
-        if (alpha < 0.005) discard;
+        float alpha = edgeAlpha * corePower * vColor.a;
+        if (alpha < 0.004) discard;
 
         FragColor = vec4(fireCol, alpha);
         NormalColor = vec4(0.0, 1.0, 0.0, 0.1);
@@ -779,8 +818,10 @@ void main() {
     } else if (vType < 4.5) {
         // Type 4: Flying Powder Sparks / Burning Embers
         if (dist > 1.0) discard;
-        float spark = pow(clamp(1.0 - dist, 0.0, 1.0), 1.8);
-        FragColor = vec4(vColor.rgb * 2.2, spark * vColor.a);
+        float spark = pow(clamp(1.0 - dist, 0.0, 1.0), 2.0);
+        float corona = pow(clamp(1.0 - dist, 0.0, 1.0), 0.8) * 0.45;
+        vec3 sparkCol = vec3(1.0, 0.98, 0.90) * 3.8 * spark + vColor.rgb * 1.8 * corona;
+        FragColor = vec4(sparkCol, (spark + corona) * vColor.a);
         NormalColor = vec4(0.0, 1.0, 0.0, 0.2);
     } else if (vType < 5.5) {
         // Type 5: Supersonic Directional Flame Lance (Combustion Gas Needle)
@@ -788,37 +829,45 @@ void main() {
         float fwd = vUV.y;                  // 0 at muzzle, 1 at tip
         if (fwd < 0.0 || fwd > 1.0) discard;
 
-        // Tapering flame cone with supersonic shock diamonds
-        float coneWidth = (1.0 - fwd * 0.75) * 0.70 + 0.05;
-        float shockDiamond = sin(fwd * 22.0) * 0.08 * (1.0 - fwd);
-        coneWidth += shockDiamond;
+        // Supersonic expanding and tapering gas envelope
+        float coneWidth = (1.0 - fwd * 0.70) * 0.65 + 0.04;
 
-        // Jagged combustion flame edge
-        float edgeTurbulence = sin(fwd * 18.0 + lat * 12.0) * 0.08 * (1.0 - fwd * 0.5);
-        float flameBoundary = coneWidth + edgeTurbulence;
+        // Mach shock diamonds (periodic supersonic pressure compressions)
+        float shock = pow(max(0.0, sin(fwd * 25.0)), 3.0) * 0.14 * (1.0 - fwd * 0.6);
+        coneWidth += shock;
 
-        if (lat > flameBoundary) discard;
+        // High-frequency turbulent combustion shear
+        float shear = (noise2D(vec2(fwd * 14.0, lat * 8.0)) - 0.5) * 0.16 * (1.0 - fwd * 0.4);
+        float flameBoundary = coneWidth + shear;
 
         float normLat = lat / max(0.001, flameBoundary);
-        float core = (1.0 - normLat) * (1.0 - fwd * 0.65);
-        float corePower = pow(clamp(core, 0.0, 1.0), 1.4);
+        if (normLat > 1.0) discard;
 
-        vec3 whiteHot    = vec3(1.0, 1.0, 0.96) * 3.6;
-        vec3 lemonFlame  = vec3(1.0, 0.85, 0.24) * 2.5;
-        vec3 orangeBody  = vec3(0.98, 0.42, 0.06) * 1.8;
-        vec3 crimsonEdge = vec3(0.65, 0.10, 0.02);
+        float edgeFade = smoothstep(1.0, 0.68, normLat);
+        float fwdFade = smoothstep(1.0, 0.75, fwd);
+        float core = (1.0 - normLat) * (1.0 - fwd * 0.55);
+        float corePower = pow(clamp(core, 0.0, 1.0), 1.3);
+
+        // Mach disc bright centers
+        float machBright = shock * 3.5;
+
+        vec3 whiteHot    = vec3(1.0, 1.0, 1.05) * 4.5;
+        vec3 lemonFlame  = vec3(1.0, 0.88, 0.32) * 3.0;
+        vec3 orangeBody  = vec3(1.0, 0.45, 0.06) * 1.9;
+        vec3 crimsonEdge = vec3(0.68, 0.08, 0.02);
 
         vec3 flameCol;
-        if (corePower > 0.62) {
-            flameCol = mix(lemonFlame, whiteHot, (corePower - 0.62) / 0.38);
-        } else if (corePower > 0.28) {
-            flameCol = mix(orangeBody, lemonFlame, (corePower - 0.28) / 0.34);
+        if (corePower > 0.58) {
+            flameCol = mix(lemonFlame, whiteHot, (corePower - 0.58) / 0.42);
+        } else if (corePower > 0.22) {
+            flameCol = mix(orangeBody, lemonFlame, (corePower - 0.22) / 0.36);
         } else {
-            flameCol = mix(crimsonEdge, orangeBody, corePower / 0.28);
+            flameCol = mix(crimsonEdge, orangeBody, corePower / 0.22);
         }
+        flameCol += whiteHot * machBright;
 
-        float alpha = corePower * vColor.a;
-        if (alpha < 0.005) discard;
+        float alpha = edgeFade * (1.0 - fwdFade) * corePower * vColor.a;
+        if (alpha < 0.004) discard;
 
         FragColor = vec4(flameCol, alpha);
         NormalColor = vec4(0.0, 1.0, 0.0, 0.1);
