@@ -1119,12 +1119,7 @@ void FrontlineWarfare::render(Renderer& renderer, const glm::vec3& cameraPos, co
             renderer.drawInfantry(bot.faction, bot.role, renderPos, bot.yaw, pitch, lod);
         }
 
-        // Tactical Radio Datalink Marker:
-        // If enemy is revealed through the squad radio datalink, render red tactical diamond beacon overhead!
-        if (bot.isSpottedViaRadio && bot.faction != playerFaction) {
-            glm::vec3 beaconPos = bot.position + glm::vec3(0.0f, 2.2f, 0.0f);
-            renderer.drawAimReticle(beaconPos, 0.28f, glm::vec4(1.0f, 0.22f, 0.22f, 0.95f));
-        }
+
     }
 }
 
